@@ -1,8 +1,8 @@
 # Essayer NoteVive sur Mac
 
-**NoteVive 0.1.2 : Mac Apple Silicon (puce série M), macOS 15 ou ultérieur.** Le modèle français est inclus et fonctionne hors ligne. Cette version remet la fenêtre au premier plan quand on rouvre l’application et limite l’ouverture de plusieurs copies. Elle conserve la bibliothèque locale et le correctif du microphone de la version précédente. Le paquet est signé localement, sans certificat Apple Developer ID ni notarisation. Utilisez uniquement des phrases fictives pour l’essai.
+**NoteVive 0.1.3 : Mac Apple Silicon (puce série M), macOS 15 ou ultérieur.** Le modèle français est inclus et fonctionne hors ligne. Cette version corrige un défaut d’affichage qui pouvait réduire la fenêtre à une bande de 1 × 32 points au lancement. La bibliothèque locale est conservée. Le paquet est signé localement, sans certificat Apple Developer ID ni notarisation. Utilisez uniquement des phrases fictives pour l’essai.
 
-1. Utilisez une seule copie. Dans le Finder, placez `NoteVive-Mac.zip` dans `~/Applications` ou un autre dossier local hors iCloud, extrayez l’archive, puis ouvrez `NoteVive-Mac.app`. Ne lancez pas une copie extraite dans le dossier du projet s’il est synchronisé. Si une ancienne copie tourne, quittez-la avec `⌘Q` avant de lancer la nouvelle. Si une règle du poste refuse le lancement, demandez une version signée et approuvée plutôt que de modifier les protections du poste.
+1. Utilisez une seule copie. Dans le Finder, placez `NoteVive-Mac.zip` dans `~/Applications` ou un autre dossier local hors iCloud, extrayez l’archive, puis ouvrez `NoteVive.app`. Ne lancez pas une copie extraite dans le dossier du projet s’il est synchronisé. Si une ancienne copie tourne, quittez-la avec `⌘Q` avant de lancer la nouvelle. Si une règle du poste refuse le lancement, demandez une version signée et approuvée plutôt que de modifier les protections du poste.
 2. Cliquez sur **+ Nouvelle transcription** (`⌘N`), puis saisissez un titre. Cliquez sur **Dicter** (`⌘D`). Au premier essai, macOS demande votre autorisation d’accès au micro. Attendez **Micro ouvert** puis dites : « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Si l’autorisation a été refusée, ouvrez **Réglages Système → Confidentialité et sécurité → Microphone**.
 3. Pendant la dictée, le texte provisoire apparaît séparément. Les segments terminés rejoignent **Brouillon à relire** et sont sauvegardés. Cliquez sur **Arrêter**, attendez la fin du traitement puis corrigez « pas », « droite », « gauche » et « cinq » si nécessaire. Le changement de note attend la fin de la dictée pour éviter d’écrire dans le mauvais brouillon.
 4. Dans **Bibliothèque**, les transcriptions sont regroupées par date de dernière modification. La recherche porte sur le titre et le texte. Cliquez sur l’icône à côté de **Dossiers** pour en créer un, puis glissez-y une note. Le menu dossier sous le titre et le clic droit **Déplacer vers** donnent la même possibilité. Vous pouvez revenir à **Sans dossier** ou renommer le dossier via son menu.
@@ -34,6 +34,12 @@ Le premier test transmet un fichier au moteur et indique le nombre d’hypothès
 xcrun swiftc -swift-version 6 -o /private/tmp/notevive-library-tests \
   app/macos/Library.swift app/macos/tests/LibraryTests.swift
 /private/tmp/notevive-library-tests
+```
+
+Pour vérifier le démarrage graphique, ouvrez l’application extraite depuis le Finder puis, tant que sa fenêtre est à l’écran, lancez la commande suivante. Elle vérifie les dimensions auprès de macOS : un processus actif ou un titre accessible ne suffit pas. Répétez le contrôle après avoir rouvert l’application.
+
+```sh
+xcrun swift -module-cache-path /private/tmp/notevive-geometry-cache app/macos/tests/CheckWindow.swift
 ```
 
 Voir [les composants et licences](NOTICE.md).

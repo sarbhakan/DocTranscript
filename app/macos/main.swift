@@ -54,19 +54,33 @@ import SwiftUI
         return false
     }
 
+    private func preferredContentSize(on screen: NSScreen?) -> NSSize {
+        let available = screen?.visibleFrame.size ?? NSSize(width: 1_035, height: 655)
+        return NSSize(width: min(995, max(1, available.width - 40)),
+                      height: min(615, max(1, available.height - 60)))
+    }
+
     private func makeMainWindow() -> NSWindow {
-        let visibleFrame = NSScreen.main?.visibleFrame
-        let width = min(995, (visibleFrame?.width ?? 1_035) - 40)
-        let height = min(615, (visibleFrame?.height ?? 655) - 40)
+        let size = preferredContentSize(on: NSScreen.main)
+        let contentRect = NSRect(origin: .zero, size: size)
         let newWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+            contentRect: contentRect,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         newWindow.title = "NoteVive · Dictée locale"
-        newWindow.contentViewController = NSHostingController(rootView: LibraryView(workspace: workspace))
-        newWindow.contentMinSize = NSSize(width: min(740, width), height: min(500, height))
+        // AppKit owns the window's size. The flexible SwiftUI split view should
+        // fill it, rather than using its initial fitting size to shrink it.
+        let container = NSView(frame: contentRect)
+        let host = NSHostingView(rootView: LibraryView(workspace: workspace))
+        host.sizingOptions = []
+        host.frame = container.bounds
+        host.autoresizingMask = [.width, .height]
+        container.addSubview(host)
+        newWindow.contentView = container
+        newWindow.contentMinSize = NSSize(width: min(740, size.width), height: min(500, size.height))
+        newWindow.setContentSize(size)
         newWindow.collectionBehavior.insert(.moveToActiveSpace)
         newWindow.isRestorable = false
         newWindow.isReleasedWhenClosed = false
@@ -79,7 +93,11 @@ import SwiftUI
         let window = self.window ?? makeMainWindow()
         self.window = window
         if window.isMiniaturized { window.deminiaturize(nil) }
-        if !NSScreen.screens.contains(where: {
+        let minimum = window.contentMinSize
+        let content = window.contentRect(forFrameRect: window.frame).size
+        let mustResize = content.width < minimum.width || content.height < minimum.height
+        if mustResize { window.setContentSize(preferredContentSize(on: window.screen ?? NSScreen.main)) }
+        if mustResize || !NSScreen.screens.contains(where: {
             let overlap = $0.visibleFrame.intersection(window.frame)
             return overlap.width >= 140 && overlap.height >= 100
         }) { window.center() }
