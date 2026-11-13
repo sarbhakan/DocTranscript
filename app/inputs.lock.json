@@ -61,8 +61,10 @@
     }
   },
   "catalogue": {
-    "hash": "d105c0f11a416e65b5989d9cdb2ffb92accb7f73c810308f6980221a774944cc",
+    "hash": "d23ba8cb29b02e3f00d769ed670ae3c3b8cd4ad4a6c9cbdbdf4ab279787f4ccc",
+    "bytes": 27385856,
     "schema": 2,
-    "entries": 90266
+    "entries": 70517,
+    "sources": ["ccam-ans", "cisp2-ans", "emdn-ans", "lpp-cnam", "nabm-ans", "orphanet-fr"]
   }
 }

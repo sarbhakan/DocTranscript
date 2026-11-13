@@ -1,4 +1,5 @@
 #include "integrity.h"
+#include "catalogue_integrity.h"
 #include <windows.h>
 #include <bcrypt.h>
 #include <array>
@@ -18,8 +19,7 @@ constexpr Expected kEngine[] = {
     {L"onnxruntime.dll", 17799168, "7f66f939a881baf4f46a2216496798edf4a1429878b646d12674aa62f27d8a25"},
     {L"onnxruntime_providers_shared.dll", 104960, "551d0e1fe4c227d8542314ba718d52f4379e0c7bfe729a37c59833a884e27b4d"},
 };
-constexpr Expected kCatalogue = {L"catalogue.sqlite", 34545664,
-    "d105c0f11a416e65b5989d9cdb2ffb92accb7f73c810308f6980221a774944cc"};
+constexpr Expected kCatalogue = {L"catalogue.sqlite", NOTEVIVE_CATALOGUE_SIZE, NOTEVIVE_CATALOGUE_SHA256};
 
 struct File {
     HANDLE h = INVALID_HANDLE_VALUE;

@@ -5,13 +5,13 @@ NoteVive est un prototype de dictée en français. Le moteur et le vocabulaire s
 ## 1. Vérifier le ZIP et le lancer
 
 1. Choisissez un PC de test autorisé, avec un microphone et un compte Windows standard. Dans **Paramètres → Système → Informations système**, vérifiez que Windows 11 indique un processeur **x64** (Intel ou AMD). Ce paquet ne vise pas Windows ARM. Pour l’essai sur matériel modeste, utilisez un PC physique avec **8 Go de RAM et sans carte graphique dédiée**.
-2. Récupérez `NoteVive-Windows-x64-Essai.zip` et son fichier `NoteVive-Windows-x64-Essai.zip.sha256` auprès de l’organisateur de l’essai. Dans PowerShell, depuis le dossier contenant le ZIP, exécutez :
+2. Téléchargez [NoteVive-Windows-x64-Essai.zip](https://github.com/sarbhakan/DocTranscript/releases/download/v0.1.0-essai/NoteVive-Windows-x64-Essai.zip). Dans PowerShell, depuis le dossier contenant le ZIP, exécutez :
 
    ```powershell
    Get-FileHash -Algorithm SHA256 -LiteralPath '.\NoteVive-Windows-x64-Essai.zip'
    ```
 
-   Comparez les 64 caractères de la colonne `Hash` avec l’empreinte de référence publiée par l’organisateur (ou la première valeur du fichier `.sha256` reçu d’une source de confiance). Majuscules et minuscules sont équivalentes. Si les empreintes diffèrent ou si vous n’avez pas de référence fiable, arrêtez l’essai. Le SHA-256 vérifie la concordance des fichiers ; il ne remplace pas la signature de l’application. [Documentation Microsoft sur `Get-FileHash`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash?view=powershell-5.1).
+   Comparez les 64 caractères de la colonne `Hash` avec l’empreinte dans les [notes de la préversion GitHub](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.1.0-essai). Majuscules et minuscules sont équivalentes. Si les empreintes diffèrent, arrêtez l’essai. Le SHA-256 vérifie la concordance des fichiers ; il ne remplace pas la signature de l’application. [Documentation Microsoft sur `Get-FileHash`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash?view=powershell-5.1).
 3. Dans l’Explorateur, faites un clic droit sur le ZIP → **Extraire tout**. Choisissez un dossier local, hors dossier synchronisé. Ouvrez `NoteVive.exe` depuis le dossier extrait, avec `runtime` à côté de l’EXE. Ne déplacez pas l’EXE seul. [Guide Microsoft d’extraction des archives ZIP](https://support.microsoft.com/fr-fr/windows/experience/storage-filemanagement/zip-and-unzip-files).
 4. Si SmartScreen, Smart App Control, l’antivirus ou une règle du poste signale ou bloque l’EXE, arrêtez-vous et transmettez le message à l’organisateur ou au service informatique. Demandez un poste de test autorisé ou une version signée et approuvée. Ne désactivez aucune protection, ne créez pas d’exception et ne lancez pas l’EXE en administrateur. [Documentation Microsoft sur ces protections](https://support.microsoft.com/fr-fr/windows/security/windows-security/app-browser-control-in-the-windows-security-app).
 

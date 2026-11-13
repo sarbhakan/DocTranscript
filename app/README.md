@@ -2,7 +2,7 @@
 
 Le paquet d’essai vise un usage simple sur Windows 11 x64 : extraire le dossier et ouvrir `NoteVive.exe`, puis cliquer sur **Dicter**. Le microphone est celui sélectionné par défaut dans Windows. Le texte en cours apparaît dans une zone séparée ; les segments terminés rejoignent la note éditable. **Arrêter** coupe la capture et termine le texte reçu. Le titre et le brouillon sont sauvegardés automatiquement et retrouvables à la réouverture. Le bouton **Vocabulaire** permet de consulter les libellés et leur provenance. Il ne corrige pas la note et n’oriente pas le moteur.
 
-Le paquet inclut l’unique modèle de ce prototype, ses bibliothèques CPU et le catalogue de référence. Aucun compte, Python, .NET ou téléchargement n’est nécessaire côté utilisateur. C’est une archive portable : garder `runtime` à côté de l’EXE. L’exécutable n’est pas signé ; ce paquet sert à la recette sur exemples fictifs. Dans cet essai, le texte reste dans NoteVive ; les champs de notes n’écrivent pas dans le presse-papiers Windows. Voir le [guide d’essai Windows](../docs/guide-essai-windows.md) pour le lancement et le dépannage.
+Le [paquet portable](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.1.0-essai) inclut l’unique modèle de ce prototype, ses bibliothèques CPU et un catalogue de six référentiels. La BDPM est exclue de ce catalogue public ; le modèle de dictée reste le même. Aucun compte, Python, .NET ou téléchargement n’est nécessaire côté utilisateur. Garder `runtime` à côté de l’EXE. L’exécutable n’est pas signé ; ce paquet sert à la recette sur exemples fictifs. Dans cet essai, le texte reste dans NoteVive ; les champs de notes n’écrivent pas dans le presse-papiers Windows. Voir le [guide d’essai Windows](../docs/guide-essai-windows.md) pour le lancement et le dépannage.
 
 ## Choix techniques et portée
 
@@ -16,7 +16,7 @@ Les versions, sources et empreintes de construction sont dans [inputs.lock.json]
 ## Refaire la compilation
 
 1. Sur un poste de préparation, télécharger la distribution officielle Zig 0.15.2 correspondant à l’hôte et comparer son SHA-256 à `zig` dans le verrou. L’extraire localement ; pas d’installation système requise.
-2. Enregistrer chaque URL `downloads` du verrou sous le nom indiqué dans `app/private/downloads/`. Le script vérifie l’ensemble des empreintes. Reconstituer le [catalogue lexical](../lexique/README.md) ; cet EXE épingle les octets du catalogue testé. Si SQLite produit un fichier différent sur un autre hôte, utiliser l’instantané revu ou requalifier le nouvel instantané et mettre à jour les empreintes de construction et d’exécution ensemble.
+2. Enregistrer chaque URL `downloads` du verrou sous le nom indiqué dans `app/private/downloads/`. Le script vérifie l’ensemble des empreintes. Reconstituer le [catalogue public sans BDPM](../lexique/README.md#catalogue-de-lessai-public-windows). L’EXE épingle les octets du catalogue testé. Si SQLite produit un fichier différent sur un autre hôte, utiliser l’instantané revu ou requalifier le nouvel instantané et mettre à jour les empreintes de construction et d’exécution ensemble.
 3. Depuis la racine du projet, avec Python 3.12 **sur la machine de construction seulement** :
 
 ```text

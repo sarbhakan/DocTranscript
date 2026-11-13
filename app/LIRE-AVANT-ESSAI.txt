@@ -7,6 +7,6 @@ NoteVive — essai Windows 11 x64, données fictives uniquement
 
 Exemple à lire : « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. »
 
-Le modèle et le vocabulaire sont inclus. Aucun téléchargement, compte ou installation de Python ou .NET n’est requis pour le lancement. NoteVive utilise le microphone par défaut de Windows et enregistre les brouillons chiffrés pour le compte Windows courant, dans le dossier local NoteVive-Pilote.
+Le modèle et le catalogue de consultation sont inclus. Le paquet public ne contient pas de données de la Base de données publique des médicaments (BDPM). Aucun téléchargement, compte ou installation de Python ou .NET n’est requis pour le lancement. NoteVive utilise le microphone par défaut de Windows et enregistre les brouillons chiffrés pour le compte Windows courant, dans le dossier local NoteVive-Pilote.
 
 Ce prototype n’est pas signé. S’il est refusé par les règles du poste, utiliser un PC de test autorisé ou demander au service informatique de l’examiner. Ne pas désactiver les protections Windows. Utiliser des exemples fictifs, vérifier la note avant de la considérer comme relue et ne pas utiliser ce paquet pour des dossiers patients.

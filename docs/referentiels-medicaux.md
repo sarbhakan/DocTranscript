@@ -1,6 +1,6 @@
 # Référentiels médicaux pour la dictée en français
 
-Veille vérifiée le 13 novembre 2026 sur les sites des producteurs et diffuseurs officiels. Les versions ci-dessous sont celles annoncées par chaque canal à cette date. Les formats et licences proviennent des fiches et documents de diffusion. Confirmer les fichiers, les notices et le schéma exacts à chaque import. Le [catalogue local](../lexique/README.md#instantané-vérifié-le-13-novembre-2026) distingue les sources effectivement intégrées des pistes documentées ici.
+Veille vérifiée le 13 novembre 2026 sur les sites des producteurs et diffuseurs officiels. Les versions ci-dessous sont celles annoncées par chaque canal à cette date. Les formats et licences proviennent des fiches et documents de diffusion. Confirmer les fichiers, les notices et le schéma exacts à chaque import. Le [catalogue de l’essai public](../lexique/README.md#catalogue-de-lessai-public-windows) distingue les sources distribuées des pistes documentées ici.
 
 **Premier socle importé : CISP-2, BDPM, CCAM, NABM, Orphanet, EMDN et LPP.** Faire relire des variantes par des praticiens pour combler l’écart entre nomenclatures et langue parlée. Étudier le RUIM selon son apport par rapport à la BDPM, puis les référentiels de spécialité comme ADICAP et LAHN. Toutes les sélections qualifiées rejoignent une seule application locale. Aucune de ces sources ne couvre à elle seule la médecine française, ni les négations, les unités, les abréviations ambiguës ou les prononciations réelles.
 

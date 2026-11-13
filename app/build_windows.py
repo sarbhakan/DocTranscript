@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sqlite3
 import struct
 import subprocess
 import tarfile
@@ -16,6 +17,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 WIN = ROOT / "app/windows"
 LOCK = json.loads((ROOT / "app/inputs.lock.json").read_text(encoding="utf-8"))
+PUBLIC_CATALOGUE_MANIFEST = ROOT / "lexique/manifest-essai-public.json"
 BASE_FLAGS = ["-target", "x86_64-windows-gnu", "-O2", "-DUNICODE", "-D_UNICODE"]
 CXX_FLAGS = [*BASE_FLAGS, "-std=c++17", "-Wall", "-Wextra"]
 
@@ -56,7 +58,7 @@ def stage_inputs(downloads, staging, catalogue):
         check(downloads / name, spec)
     for name, spec in LOCK["headers"].items():
         check(WIN / name, spec)
-    check(catalogue, LOCK["catalogue"])
+    lex = check_public_catalogue(catalogue)
 
     work = staging / "work"
     package = staging / "NoteVive"
@@ -83,12 +85,33 @@ def stage_inputs(downloads, staging, catalogue):
     shutil.copyfile(downloads / "ONNX-LICENSE", notices / "ONNX-Runtime-MIT.txt")
     shutil.copyfile(downloads / "ONNX-ThirdPartyNotices.txt", notices / "ONNX-ThirdPartyNotices.txt")
     shutil.copyfile(ROOT / "app/NOTICE.md", notices / "Composants.md")
-    lex = json.loads((ROOT / "lexique/manifest-2026-11-13.json").read_text(encoding="utf-8"))
     for source in lex["sources"]:
         del source["file"]
     (notices / "Referentiels.json").write_text(json.dumps(lex, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     shutil.copyfile(ROOT / "app/LIRE-AVANT-ESSAI.txt", package / "LIRE-AVANT-ESSAI.txt")
     return work, package
+
+
+def check_public_catalogue(path):
+    spec = LOCK["catalogue"]
+    check(path, spec)
+    if path.stat().st_size != spec["bytes"]:
+        raise ValueError("Taille inattendue pour le catalogue public")
+    lex = json.loads(PUBLIC_CATALOGUE_MANIFEST.read_text(encoding="utf-8"))
+    sources = {entry["id"]: entry for entry in lex["sources"]}
+    if (sorted(sources) != spec["sources"] or len(sources) != len(lex["sources"])
+            or any(s["format"].startswith("bdpm") for s in sources.values())):
+        raise ValueError("Le manifeste d’essai doit couvrir uniquement les six référentiels autorisés")
+    with sqlite3.connect(path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True) as con:
+        present = con.execute("SELECT id, sha256 FROM source").fetchall()
+        if (con.execute("PRAGMA user_version").fetchone() != (spec["schema"],)
+                or con.execute("SELECT count(*) FROM term").fetchone() != (spec["entries"],)
+                or dict(present) != {key: s["sha256"] for key, s in sources.items()}
+                or con.execute("SELECT 1 FROM term WHERE category IN ('medicament','substance') LIMIT 1").fetchone()
+                or con.execute("PRAGMA integrity_check").fetchone() != ("ok",)
+                or con.execute("PRAGMA foreign_key_check").fetchone()):
+            raise ValueError("Le catalogue d’essai ne correspond pas aux sources vérifiées")
+    return lex
 
 
 def run(zig, args, cache):
@@ -98,6 +121,10 @@ def run(zig, args, cache):
 
 def compile_bundle(zig, work, package, cache):
     make_resources(work / "notevive.res")
+    spec = LOCK["catalogue"]
+    (work / "catalogue_integrity.h").write_text(
+        f'#define NOTEVIVE_CATALOGUE_SIZE {spec["bytes"]}\n'
+        f'#define NOTEVIVE_CATALOGUE_SHA256 "{spec["hash"]}"\n', encoding="ascii")
     run(zig, ["cc", *BASE_FLAGS, "-DNDEBUG", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_OMIT_LOAD_EXTENSION",
               "-DSQLITE_OMIT_DEPRECATED", "-c", work / "sqlite3.c", "-o", work / "sqlite3.obj"], cache)
     run(zig, ["c++", *CXX_FLAGS, "-municode", "-Wl,--subsystem,windows", "-I", work, "-s",
@@ -135,7 +162,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zig", type=Path, required=True)
     parser.add_argument("--downloads", type=Path, default=ROOT / "app/private/downloads")
-    parser.add_argument("--catalogue", type=Path, default=ROOT / "lexique/private/catalogue-2026-11-13.sqlite")
+    parser.add_argument("--catalogue", type=Path, default=ROOT / "lexique/private/catalogue-essai-public.sqlite")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/NoteVive-Windows-x64-Essai.zip")
     args = parser.parse_args()
     output = args.output.resolve()

@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "id": "orphanet-fr",
+      "title": "Orphanet — nomenclature française",
+      "edition": "Paquet nomenclature FR 2026",
+      "publication_date": "2026-06-23",
+      "url": "https://www.orphacode.org/pack-nomenclature/",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "attribution": "Orphanet (c) 2026 — Inserm, paquet français 2026, sous CC BY 4.0.",
+      "note": "Date d’extraction du XML, distincte de la date de publication du paquet. Sélection des pathologies et sous-types actifs et de leurs synonymes, sans alignement ni résumé.",
+      "format": "orphanet-nomenclature-fr",
+      "file": "private/sources/ORPHAnomenclature_fr_2026.xml",
+      "scope": "catalogue-local",
+      "sha256": "6f3fe39ca58d2cc054655202d531259bdd0c657da5490e40ff4f9fb9e55bf1cb"
+    },
+    {
+      "id": "ccam-ans",
+      "title": "Classification commune des actes médicaux — CNAM via le SMT de l’ANS",
+      "edition": "v84.00 (FHIR historique 11)",
+      "publication_date": "2026-07-31",
+      "url": "https://smt.esante.gouv.fr/terminologie-ccam/",
+      "license_url": "https://github.com/etalab/licence-ouverte/blob/master/LO.md",
+      "attribution": "CCAM — Caisse nationale de l’Assurance Maladie, diffusée par l’ANS, édition v84.00 du 31 juillet 2026. Licence Ouverte 2.0.",
+      "note": "Export FHIR versionné ; uniquement les codes d’acte et leur libellé principal, sans qualification de facturation en vigueur ni spécialité inférée.",
+      "format": "csv",
+      "file": "private/ccam-v84.00.csv",
+      "scope": "catalogue-local",
+      "sha256": "6ebd6a2b9c4d1f7e5a26ab2007550e115ec7149ee959a9f47df50679893b6249"
+    },
+    {
+      "id": "lpp-cnam",
+      "title": "Codage - Nomenclature LPP — Caisse nationale de l’Assurance Maladie",
+      "edition": "DBF 00909",
+      "publication_date": "2026-11-09",
+      "url": "https://www.data.gouv.fr/datasets/codage-nomenclature-lpp",
+      "license_url": "https://www.data.gouv.fr/pages/legal/licences/etalab-2-0",
+      "attribution": "Caisse nationale de l’Assurance Maladie (Cnam), Codage - Nomenclature LPP, édition DBF 00909 du 9 novembre 2026, Licence Ouverte 2.0.",
+      "note": "Noms courts des codes dont la validité est établie au 9 novembre 2026 ; le périmètre comprend des dispositifs, des produits et des prestations, sans données tarifaires.",
+      "format": "csv",
+      "file": "private/lpp-00909/lpp-00909.csv",
+      "scope": "catalogue-local",
+      "sha256": "a84b1ed3f72799ffd1a6bd97fbba86b10424cac5e72b06e5450806896fb55ced"
+    },
+    {
+      "id": "emdn-ans",
+      "title": "European Medical Device Nomenclature — édition française du SMT",
+      "edition": "v1.2 (FHIR historique 3)",
+      "publication_date": "2022-04-28",
+      "url": "https://smt.esante.gouv.fr/terminologie-emdn/",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/legalcode",
+      "attribution": "EMDN, Commission européenne, édition française v1.2 diffusée par l’Agence du numérique en santé, CC BY 4.0.",
+      "note": "Types EMDN de niveaux 1 à 5 seulement. Date de contenu du FHIR ; la version serveur date de 2025. La version européenne 2026 n’est pas intégrée.",
+      "format": "csv",
+      "file": "private/emdn-v1.2.csv",
+      "scope": "catalogue-local",
+      "sha256": "a3023afcea433c2ec1d6cb3401da242f271ffa586d5aaa13cbc7425b4c9f877f"
+    },
+    {
+      "id": "nabm-ans",
+      "title": "Nomenclature des actes de biologie médicale — Cnam via le SMT",
+      "edition": "V105 (FHIR historique 19)",
+      "publication_date": "2026-06-04",
+      "url": "https://smt.esante.gouv.fr/terminologie-nabm/",
+      "license_url": "https://github.com/etalab/licence-ouverte/blob/master/LO.md",
+      "attribution": "NABM, Caisse nationale de l’Assurance Maladie, diffusée par l’Agence du numérique en santé, V105, Licence Ouverte 2.0.",
+      "note": "Date de contenu du FHIR ; l’historique serveur 19 date du 7 août 2026. Libellés d’actes, sans chapitres, règles, coefficients ni résultats.",
+      "format": "csv",
+      "file": "private/nabm-v105.csv",
+      "scope": "catalogue-local",
+      "sha256": "a8ea6f5904fc9e2bacc67eb2bdd2ce64464968fa19e8ccac6168a2dbb0a1f123"
+    },
+    {
+      "id": "cisp2-ans",
+      "title": "Classification internationale des soins primaires, deuxième édition — WONCA via le SMT de l’ANS",
+      "edition": "2019-05 (FHIR historique 3)",
+      "publication_date": "2019-06-26",
+      "url": "https://smt.esante.gouv.fr/terminologie-cisp/",
+      "license_url": "https://github.com/etalab/licence-ouverte/blob/master/LO.md",
+      "attribution": "CISP-2 — WONCA, version française diffusée par l’Agence du numérique en santé, édition 2019-05 publiée le 26 juin 2019, Licence Ouverte 2.0.",
+      "note": "Libellés français des composantes motifs/plaintes et diagnostics. Médecine générale indique le domaine lexical. La date technique du FHIR en 2025 ne change pas l’édition du contenu.",
+      "format": "csv",
+      "file": "private/cisp2-2019-05.csv",
+      "scope": "catalogue-local",
+      "sha256": "7499d821ec8ce572a504e06775f5ae0daebe222d686730405a217e2db082895b"
+    }
+  ]
+}

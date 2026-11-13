@@ -4,7 +4,18 @@ Ce catalogue d’ingénierie indexe des libellés de référence français pour 
 
 Le catalogue ne reçoit aucune note, aucun enregistrement et aucun identifiant patient. Les notes de l’application auront leur propre stockage chiffré. Ce catalogue ne constitue ni un outil de diagnostic, de prescription ou de facturation, ni un modèle entraîné, ni une preuve de couverture clinique d’une spécialité. Un même terme peut avoir plusieurs codes ou provenances ; les statistiques comptent les libellés indexés et conservent ces distinctions.
 
-## Instantané vérifié le 13 novembre 2026
+## Catalogue de l’essai public Windows
+
+Le ZIP distribué sur GitHub embarque **70 517 libellés provenant de six référentiels**. Il exclut les dénominations et substances de la BDPM : leur diffusion demanderait de suivre aussi les corrections entre publications, comme l’indique le [portail BDPM](https://base-donnees-publique.medicaments.gouv.fr/telechargement). Les six autres référentiels, listés dans le [manifeste public](manifest-essai-public.json), restent consultables hors ligne. Le contenu du catalogue ne modifie pas les résultats de dictée.
+
+Préparer les six sources selon les étapes ci-dessous, en sautant le téléchargement des deux fichiers BDPM. Compiler ensuite uniquement le manifeste public :
+
+```text
+python -m lexique build --manifest lexique/manifest-essai-public.json --db lexique/private/catalogue-essai-public.sqlite
+python -m lexique stats --db lexique/private/catalogue-essai-public.sqlite
+```
+
+## Instantané interne vérifié le 13 novembre 2026
 
 | Référentiel | Entrées indexées | Sélection |
 | --- | ---: | --- |

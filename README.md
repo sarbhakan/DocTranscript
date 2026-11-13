@@ -8,13 +8,13 @@
 
 ## Essayer sur Windows 11 x64
 
-1. Récupérer `NoteVive-Windows-x64-Essai.zip` et son fichier d’empreinte auprès de la personne qui organise l’essai. Le dépôt contient le code et la documentation ; l’EXE portable d’essai n’est pas joint aux [Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases). Sur un poste de développement, suivre la [procédure de compilation](app/README.md#refaire-la-compilation).
+1. Télécharger [NoteVive-Windows-x64-Essai.zip](https://github.com/sarbhakan/DocTranscript/releases/download/v0.1.0-essai/NoteVive-Windows-x64-Essai.zip). L’empreinte SHA-256 est dans les [notes de la préversion](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.1.0-essai). Les archives « Source code » de GitHub ne contiennent pas l’EXE.
 2. Extraire le ZIP en entier dans un dossier local. Garder `runtime` à côté de `NoteVive.exe`, puis ouvrir l’EXE. Aucun compte, Python, .NET ou téléchargement de modèle n’est nécessaire au lancement.
 3. Cliquer sur **Dicter**, attendre **Micro ouvert**, puis lire : « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Cliquer sur **Arrêter**, relire et renommer la note. Fermer puis rouvrir NoteVive pour vérifier la sauvegarde.
 
 [Guide d’essai et dépannage](docs/guide-essai-windows.md) · [Procédure de mesure sur deux PC](docs/p0-windows.md)
 
-Le prototype utilise le microphone par défaut de Windows et sauvegarde les brouillons chiffrés pour le compte Windows courant. Le bouton **Vocabulaire** sert à consulter le catalogue ; il ne modifie pas la dictée. Le texte reste dans NoteVive à ce stade.
+Le prototype utilise le microphone par défaut de Windows et sauvegarde les brouillons chiffrés pour le compte Windows courant. Le bouton **Vocabulaire** consulte un catalogue de six référentiels ; il ne modifie pas la dictée. La Base de données publique des médicaments (BDPM) est exclue du ZIP public. Le texte reste dans NoteVive à ce stade.
 
 ## Lire et contribuer au projet
 
