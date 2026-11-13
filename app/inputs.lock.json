@@ -1,0 +1,68 @@
+{
+  "zig": {
+    "version": "0.15.2",
+    "macos-arm64": {
+      "url": "https://ziglang.org/download/0.15.2/zig-aarch64-macos-0.15.2.tar.xz",
+      "hash": "3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b"
+    },
+    "windows-x64": {
+      "url": "https://ziglang.org/download/0.15.2/zig-x86_64-windows-0.15.2.zip",
+      "hash": "3a0ed1e8799a2f8ce2a6e6290a9ff22e6906f8227865911fb7ddedc3cc14cb0c"
+    }
+  },
+  "downloads": {
+    "sherpa-windows.tar.bz2": {
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-v2.0.1-win-x64-shared-MT-Release-no-tts.tar.bz2",
+      "algorithm": "sha256",
+      "hash": "a644dfe2f7944afec9a356d2557c0452380f20ffcf2f8c704653cfce37558596"
+    },
+    "sqlite-amalgamation.zip": {
+      "url": "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+      "algorithm": "sha3_256",
+      "hash": "92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30"
+    },
+    "encoder.onnx": {
+      "url": "https://huggingface.co/shaojieli/sherpa-onnx-streaming-zipformer-fr-2023-04-14/resolve/3db9565d9633758d6b87b9a7b3dc09ebfb6b2c73/encoder-epoch-29-avg-9-with-averaged-model.int8.onnx",
+      "algorithm": "sha256",
+      "hash": "47a94a7fdc8dff63d708be4ea0535747640224467f91e238311f1ddbdd09327e"
+    },
+    "decoder.onnx": {
+      "url": "https://huggingface.co/shaojieli/sherpa-onnx-streaming-zipformer-fr-2023-04-14/resolve/3db9565d9633758d6b87b9a7b3dc09ebfb6b2c73/decoder-epoch-29-avg-9-with-averaged-model.onnx",
+      "algorithm": "sha256",
+      "hash": "3ef2840b684440e26382af87b2174d25732a9f113f1965cd8abba7ffc5d033fb"
+    },
+    "joiner.onnx": {
+      "url": "https://huggingface.co/shaojieli/sherpa-onnx-streaming-zipformer-fr-2023-04-14/resolve/3db9565d9633758d6b87b9a7b3dc09ebfb6b2c73/joiner-epoch-29-avg-9-with-averaged-model.int8.onnx",
+      "algorithm": "sha256",
+      "hash": "fc2f3bb851a15a532c6f2422d53eecd1ca949f12b0897e07a852021c30481711"
+    },
+    "tokens.txt": {
+      "url": "https://huggingface.co/shaojieli/sherpa-onnx-streaming-zipformer-fr-2023-04-14/resolve/3db9565d9633758d6b87b9a7b3dc09ebfb6b2c73/tokens.txt",
+      "algorithm": "sha256",
+      "hash": "37fb3f2a7bcb85e5fff3f1f66be04e6fbb05077a22f56d177fe85704e945fb31"
+    },
+    "ONNX-LICENSE": {
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.28.2/LICENSE",
+      "algorithm": "sha256",
+      "hash": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"
+    },
+    "ONNX-ThirdPartyNotices.txt": {
+      "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.28.2/ThirdPartyNotices.txt",
+      "algorithm": "sha256",
+      "hash": "0e07b95f3a8d6230037707c5c4a2b554d12c4cb67369669ac255635528ffcee2"
+    }
+  },
+  "headers": {
+    "vendor/sherpa-onnx/c-api.h": {
+      "hash": "5698f38ba09ad2bdf085c56a6cbbd7741acf15e25f4ce5c7097b9702cadf437f"
+    },
+    "vendor/sherpa-onnx/LICENSE": {
+      "hash": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    }
+  },
+  "catalogue": {
+    "hash": "d105c0f11a416e65b5989d9cdb2ffb92accb7f73c810308f6980221a774944cc",
+    "schema": 2,
+    "entries": 90266
+  }
+}

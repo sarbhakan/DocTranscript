@@ -1,0 +1,12 @@
+NoteVive — essai Windows 11 x64, données fictives uniquement
+
+1. Extraire le ZIP en entier dans un dossier local Windows.
+2. Ouvrir NoteVive.exe. Laisser le dossier runtime à côté de l’application.
+3. Cliquer sur Dicter. Attendre « Micro ouvert », puis lire un exemple fictif.
+4. Cliquer sur Arrêter, corriger et donner un titre à la note. Fermer puis rouvrir NoteVive pour retrouver la note.
+
+Exemple à lire : « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. »
+
+Le modèle et le vocabulaire sont inclus. Aucun téléchargement, compte ou installation de Python ou .NET n’est requis pour le lancement. NoteVive utilise le microphone par défaut de Windows et enregistre les brouillons chiffrés pour le compte Windows courant, dans le dossier local NoteVive-Pilote.
+
+Ce prototype n’est pas signé. S’il est refusé par les règles du poste, utiliser un PC de test autorisé ou demander au service informatique de l’examiner. Ne pas désactiver les protections Windows. Utiliser des exemples fictifs, vérifier la note avant de la considérer comme relue et ne pas utiliser ce paquet pour des dossiers patients.

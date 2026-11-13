@@ -1,0 +1,7 @@
+{
+  "id": "whisper-small-q5_1-fr",
+  "adapter": "whisper",
+  "step_ms": 1000,
+  "window_ms": 10000,
+  "files": {"model": "ggml-small-q5_1.bin"}
+}

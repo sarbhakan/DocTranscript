@@ -1,0 +1,11 @@
+{
+  "id": "parakeet-tdt-v3-int8-final",
+  "adapter": "sherpa-final",
+  "model_type": "nemo_transducer",
+  "files": {
+    "encoder": "encoder.int8.onnx",
+    "decoder": "decoder.int8.onnx",
+    "joiner": "joiner.int8.onnx",
+    "tokens": "tokens.txt"
+  }
+}

@@ -1,0 +1,106 @@
+case_id,attribute_id,category,group_id,reference_span,expected
+dev-01,a01,negation,allergie-medicament,Pas d’allergie médicamenteuse connue,aucune allergie médicamenteuse connue
+dev-01,a02,allergie,allergie-latex,une allergie au latex,allergie signalée au latex
+dev-01,a03,medicament,reaction,à l’amoxicilline,amoxicilline
+dev-01,a04,attribution,reaction,concernait sa sœur,sœur de la patiente
+dev-02,a01,medicament,arrete,l’amiodarone,amiodarone
+dev-02,a02,temporalite,arrete,a été arrêtée le mois dernier,arrêtée le mois dernier
+dev-02,a03,medicament,en-cours,L’amlodipine,amlodipine
+dev-02,a04,temporalite,en-cours,toujours mentionnée parmi les traitements en cours,mentionnée comme en cours
+dev-03,a01,medicament,correctif,clonazépam,clonazépam
+dev-03,a02,negation,correctif,pas de clorazépate,clorazépate explicitement exclu
+dev-03,a03,temporalite,correctif,remonte à trois ans,il y a trois ans
+dev-04,a01,medicament,ordonnance,le méthotrexate,méthotrexate
+dev-04,a02,dose,ordonnance,"7,5","7,5"
+dev-04,a03,unite,ordonnance,mg,mg
+dev-04,a04,frequence,ordonnance,une fois par semaine,1 fois par semaine
+dev-04,a05,voie,ordonnance,par voie orale,orale
+dev-04,a06,incertitude,prise,La prise quotidienne n’est pas confirmée,prise quotidienne non confirmée
+dev-05,a01,medicament,courrier,lévothyroxine,lévothyroxine
+dev-05,a02,dose,courrier,25,25
+dev-05,a03,unite,courrier,25 microgrammes,microgramme
+dev-05,a04,frequence,courrier,le matin,le matin
+dev-05,a05,dose,autre-document,50,50
+dev-05,a06,unite,autre-document,50 microgrammes,microgramme
+dev-05,a07,incertitude,prise,La dose réellement prise reste à confirmer,dose réellement prise non confirmée
+dev-06,a01,dose,injection,"0,3","0,3"
+dev-06,a02,unite,injection,mL,millilitre
+dev-06,a03,voie,injection,voie sous-cutanée,sous-cutanée
+dev-06,a04,negation,concentration,La concentration n’est pas renseignée,concentration non renseignée
+dev-06,a05,negation,interpretation,"un volume, pas une masse",volume et non masse
+dev-07,a01,mesure,temperature,"37,8","37,8"
+dev-07,a02,unite,temperature,degrés Celsius,°C
+dev-07,a03,temporalite,temperature,ce matin,ce matin
+dev-07,a04,mesure,saturation,96,96
+dev-07,a05,unite,saturation,%,%
+dev-07,a06,negation,dyspnee,Pas de dyspnée au repos,absence de dyspnée au repos
+dev-08,a01,lateralite,douleur-marche,cheville gauche,gauche
+dev-08,a02,negation,douleur-droite,Pas de douleur de la cheville droite,absence de douleur à droite
+dev-08,a03,lateralite,entorse,entorse droite,droite
+dev-08,a04,temporalite,entorse,l’hiver dernier,hiver dernier
+dev-09,a01,duree,respiration,cinq jours de gêne respiratoire,5 jours après autocorrection
+dev-09,a02,negation,sommeil,Aucun réveil nocturne,absence de réveil nocturne
+dev-09,a03,incertitude,chronologie,La chronologie reste approximative,chronologie approximative
+dev-10,a01,incertitude,lithiase,évoque une lithiase vésiculaire,lithiase vésiculaire évoquée
+dev-10,a02,negation,cholecystite,sans signe de cholécystite,absence de signe de cholécystite
+dev-10,a03,incertitude,colique,"colique hépatique est possible, sans être confirmé",colique hépatique possible et non confirmée
+dev-11,a01,mesure,hba1c,"6,4","6,4"
+dev-11,a02,unite,hba1c,%,%
+dev-11,a03,mesure,creatininemie,92,92
+dev-11,a04,unite,creatininemie,micromoles par litre,micromole par litre
+dev-11,a05,negation,dfg,DFG estimé n’est pas indiqué,DFG estimé non indiqué
+dev-12,a01,negation,test-patient,négatif pour le patient,test patient négatif
+dev-12,a02,attribution,test-temoin,concerne le témoin du laboratoire,résultat positif du témoin
+dev-12,a03,negation,prelevement,Pas de nouveau prélèvement aujourd’hui,aucun nouveau prélèvement aujourd’hui
+dev-13,a01,medicament,document-a,ceftriaxone,ceftriaxone
+dev-13,a02,attribution,document-a,document A,document A
+dev-13,a03,medicament,document-b,céfotaxime,céfotaxime
+dev-13,a04,attribution,document-b,document B,document B
+dev-14,a01,medicament,inhale,budésonide,budésonide
+dev-14,a02,voie,inhale,par voie inhalée,inhalée
+dev-14,a03,frequence,inhale,matin et soir,matin et soir
+dev-14,a04,medicament,oral,prednisone,prednisone
+dev-14,a05,voie,oral,Le traitement oral,orale
+dev-14,a06,negation,oral,Sa durée n’est pas précisée,durée non précisée
+dev-15,a01,negation,insuffisance,sans signe d’insuffisance cardiaque,absence de signe d’insuffisance cardiaque
+dev-15,a02,temporalite,fibrillation,un antécédent de fibrillation atriale,antécédent de fibrillation atriale
+dev-15,a03,negation,episode,aucun épisode documenté ce mois-ci,aucun épisode documenté ce mois-ci
+dev-16,a01,mesure,cabinet,128 sur 76,128 sur 76
+dev-16,a02,unite,cabinet,mmHg,mmHg
+dev-16,a03,attribution,cabinet,Au cabinet,au cabinet
+dev-16,a04,mesure,domicile,118 sur 72,118 sur 72
+dev-16,a05,attribution,domicile,À domicile,à domicile
+dev-17,a01,negation,paresthesie,Pas de paresthésie du pouce droit,absence de paresthésie du pouce droit
+dev-17,a02,lateralite,fourmillements,main gauche,gauche
+dev-17,a03,mesure,fourmillements,quatrième et cinquième doigts,quatrième et cinquième doigts
+dev-17,a04,incertitude,cote-precedent,n’a pas été vérifié,côté précédent non vérifié
+dev-18,a01,attribution,recit-patiente,La patiente dit,patiente
+dev-18,a02,negation,recit-patiente,Je ne prends plus ce comprimé,dit ne plus prendre le comprimé
+dev-18,a03,attribution,recit-fille,Sa fille dit,fille
+dev-18,a04,negation,recit-fille,ne pas avoir constaté d’arrêt,ne constate pas d’arrêt
+dev-18,a05,incertitude,arbitrage,Je ne tranche pas entre les deux récits,aucun arbitrage entre les récits
+dev-21,a01,temporalite,gene,depuis mardi,depuis mardi
+dev-21,a02,negation,chute-et-perte,ni chute ni perte de connaissance,ni chute ni perte de connaissance
+dev-21,a03,mesure,releve-matin,62,62
+dev-21,a04,unite,releve-matin,battements par minute,battements par minute
+dev-21,a05,incertitude,releve-veille,Celui de la veille est illisible,relevé de la veille illisible
+dev-21,a06,lateralite,oedeme-gauche,œdème discret à gauche,gauche
+dev-21,a07,negation,oedeme-droite,Il n’y avait pas d’œdème à droite,absence d’œdème à droite
+dev-21,a08,medicament,boite-1,amlodipine,amlodipine
+dev-21,a09,dose,boite-1,amlodipine 5 mg,5
+dev-21,a10,unite,boite-1,amlodipine 5 mg,mg
+dev-21,a11,medicament,boite-2,amiodarone,amiodarone
+dev-21,a12,dose,boite-2,amiodarone 200 mg,200
+dev-21,a13,unite,boite-2,amiodarone 200 mg,mg
+dev-21,a14,incertitude,prise,Je ne confirme pas que ces produits ont été pris,prise des produits non confirmée
+dev-21,a15,dose,injection,"0,5","0,5"
+dev-21,a16,unite,injection,mL,millilitre
+dev-21,a17,temporalite,injection,la veille de la sortie,veille de sortie
+dev-21,a18,voie,injection,voie sous-cutanée,sous-cutanée
+dev-21,a19,incertitude,injection,Le nom du produit n’est pas lisible,produit non identifié
+dev-21,a20,duree,rappel,dans deux semaines,2 semaines
+dev-21,a21,attribution,rappel,"le contrôle du matériel, et non le suivi du patient",contrôle matériel seulement
+dev-21,a22,incertitude,mesures,La période entre les deux mesures est incertaine,intervalle incertain
+dev-21,a23,mesure,saturation,97,97
+dev-21,a24,unite,saturation,%,%
+dev-21,a25,negation,temperature,La feuille ne contient pas la température,température non renseignée

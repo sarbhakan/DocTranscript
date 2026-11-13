@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title description">
+  <title id="title">NoteVive</title>
+  <desc id="description">Une onde de voix turquoise traverse une feuille blanche sur fond bleu nuit.</desc>
+  <rect width="64" height="64" rx="15" fill="#172744"/>
+  <path d="M23 13h15l10 10v23a5 5 0 0 1-5 5H23a5 5 0 0 1-5-5V18a5 5 0 0 1 5-5Z" fill="none" stroke="#F5F8FF" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M38 13v10h10" fill="none" stroke="#F5F8FF" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M12 33h11l4-7 5 15 5-11 4 3h11" fill="none" stroke="#56E5D4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

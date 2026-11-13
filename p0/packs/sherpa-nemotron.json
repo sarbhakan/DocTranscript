@@ -1,0 +1,12 @@
+{
+  "id": "nemotron-3_5-fr-int8-560ms",
+  "adapter": "sherpa",
+  "locale": "fr-FR",
+  "tail_ms": 660,
+  "files": {
+    "encoder": "encoder.int8.onnx",
+    "decoder": "decoder.int8.onnx",
+    "joiner": "joiner.int8.onnx",
+    "tokens": "tokens.txt"
+  }
+}

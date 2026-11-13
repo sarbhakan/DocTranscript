@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv*/
+/p0/private/
+/p0/runs/
+/p0/corpus/audio/
+*.wav
+/lexique/private/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+/app/private/
+/dist/
