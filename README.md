@@ -8,7 +8,7 @@
 
 ## Essayer sur Windows 11 x64
 
-1. Ouvrir les [Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases) et, si le paquet d’essai y est joint, télécharger `NoteVive-Windows-x64-Essai.zip` dans **Assets**. Les archives « Source code » contiennent seulement le code. La [procédure de compilation](app/README.md#refaire-la-compilation) permet aussi de préparer le paquet sur un poste de développement.
+1. Récupérer `NoteVive-Windows-x64-Essai.zip` et son fichier d’empreinte auprès de la personne qui organise l’essai. Le dépôt contient le code et la documentation ; l’EXE portable d’essai n’est pas joint aux [Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases). Sur un poste de développement, suivre la [procédure de compilation](app/README.md#refaire-la-compilation).
 2. Extraire le ZIP en entier dans un dossier local. Garder `runtime` à côté de `NoteVive.exe`, puis ouvrir l’EXE. Aucun compte, Python, .NET ou téléchargement de modèle n’est nécessaire au lancement.
 3. Cliquer sur **Dicter**, attendre **Micro ouvert**, puis lire : « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Cliquer sur **Arrêter**, relire et renommer la note. Fermer puis rouvrir NoteVive pour vérifier la sauvegarde.
 
