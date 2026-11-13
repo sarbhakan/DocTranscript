@@ -11,9 +11,10 @@ Le moteur et le micro restent dans le processus de l’interface. Un pilote bloq
 Le programme de vérification séparé n’ouvre pas le microphone et ne publie que le nombre d’événements non vides. Depuis la racine, compiler avec le Zig de la recette de construction, puis exécuter sur Windows avec le dossier `runtime` du paquet et des WAV PCM16 mono 16 kHz de test, de 60 secondes au plus :
 
 ```text
-zig c++ -target x86_64-windows-gnu -std=c++17 -O2 -DUNICODE -D_UNICODE -municode app/windows/engine.cpp app/windows/engine_smoke.cpp app/windows/integrity.cpp -lwinmm -lbcrypt -o engine-smoke.exe
-engine-smoke.exe <dossier-runtime> <parole-fictive.wav> --speech
-engine-smoke.exe <dossier-runtime> <dev-silence-08s.wav> --silence
+python -c "import json; from pathlib import Path; s=json.load(open('app/inputs.lock.json'))['catalogue']; p=Path('app/private/smoke/catalogue_integrity.h'); p.parent.mkdir(parents=True, exist_ok=True); p.write_text('#define NOTEVIVE_CATALOGUE_SIZE '+str(s['bytes'])+'\n#define NOTEVIVE_CATALOGUE_SHA256 '+json.dumps(s['hash'])+'\n', encoding='ascii')"
+zig c++ -target x86_64-windows-gnu -std=c++17 -O2 -DUNICODE -D_UNICODE -municode -I app/private/smoke app/windows/engine.cpp app/windows/engine_smoke.cpp app/windows/integrity.cpp -lwinmm -lbcrypt -o app/private/smoke/engine-smoke.exe
+app/private/smoke/engine-smoke.exe "CHEMIN_RUNTIME" "PAROLE_FICTIVE.wav" --speech
+app/private/smoke/engine-smoke.exe "CHEMIN_RUNTIME" "dev-silence-08s.wav" --silence
 ```
 
 Le premier test demande un segment final non vide ; le second échoue si le moteur publie du texte. Le contrôle silence est généré par `python p0/corpus/generer_controles.py --wav-dir <nouveau-dossier>`. Le binaire console a été compilé et lié pour Windows x64 depuis macOS. Il doit encore être exécuté sur Windows, puis suivi d’un essai avec un microphone physique.

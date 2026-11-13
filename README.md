@@ -16,6 +16,10 @@
 
 Le prototype utilise le microphone par défaut de Windows et sauvegarde les brouillons chiffrés pour le compte Windows courant. Le bouton **Vocabulaire** consulte un catalogue de six référentiels ; il ne modifie pas la dictée. La Base de données publique des médicaments (BDPM) est exclue du ZIP public. Le texte reste dans NoteVive à ce stade.
 
+## Essayer sur Mac
+
+Le prototype natif pour **Mac Apple Silicon, macOS 15 ou ultérieur** utilise le même modèle français hors ligne. Il propose la dictée, la relecture et l’export TXT. Le [guide Mac](app/macos/README.md) décrit le lancement de l’application locale et sa compilation. La préversion GitHub contient uniquement le paquet Windows.
+
 ## Lire et contribuer au projet
 
 | Document | Ce qu’il permet de décider |
