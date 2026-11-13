@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WIN = ROOT / "app/windows"
 LOCK = json.loads((ROOT / "app/inputs.lock.json").read_text(encoding="utf-8"))
 PUBLIC_CATALOGUE_MANIFEST = ROOT / "lexique/manifest-essai-public.json"
+SHERPA_NOTICES = ROOT / "app/licences/sherpa"
 BASE_FLAGS = ["-target", "x86_64-windows-gnu", "-O2", "-DUNICODE", "-D_UNICODE"]
 CXX_FLAGS = [*BASE_FLAGS, "-std=c++17", "-Wall", "-Wextra"]
 
@@ -84,6 +85,14 @@ def stage_inputs(downloads, staging, catalogue):
     shutil.copyfile(WIN / "vendor/sherpa-onnx/LICENSE", notices / "Sherpa-et-modele-Apache-2.0.txt")
     shutil.copyfile(downloads / "ONNX-LICENSE", notices / "ONNX-Runtime-MIT.txt")
     shutil.copyfile(downloads / "ONNX-ThirdPartyNotices.txt", notices / "ONNX-ThirdPartyNotices.txt")
+    third_party = [*sorted(SHERPA_NOTICES.glob("*.txt")), SHERPA_NOTICES / "README.md"]
+    if len(third_party) != 11:
+        raise ValueError("Les notices des dépendances Sherpa sont absentes")
+    (notices / "Sherpa-Tiers").mkdir()
+    for notice in third_party:
+        if not notice.is_file() or not notice.stat().st_size:
+            raise ValueError(f"Notice Sherpa absente ou vide : {notice}")
+        shutil.copyfile(notice, notices / "Sherpa-Tiers" / notice.name)
     shutil.copyfile(ROOT / "app/NOTICE.md", notices / "Composants.md")
     for source in lex["sources"]:
         del source["file"]
@@ -163,13 +172,14 @@ def main():
     parser.add_argument("--zig", type=Path, required=True)
     parser.add_argument("--downloads", type=Path, default=ROOT / "app/private/downloads")
     parser.add_argument("--catalogue", type=Path, default=ROOT / "lexique/private/catalogue-essai-public.sqlite")
+    parser.add_argument("--build-cache", type=Path, default=ROOT / "app/private/build-cache")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/NoteVive-Windows-x64-Essai.zip")
     args = parser.parse_args()
     output = args.output.resolve()
     if output.exists() or output.with_suffix(output.suffix + ".sha256").exists():
         parser.error(f"La sortie existe déjà : {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
-    cache = ROOT / "app/private/build-cache"
+    cache = args.build_cache.resolve()
     (cache / "global").mkdir(parents=True, exist_ok=True)
     (cache / "local").mkdir(parents=True, exist_ok=True)
     if subprocess.check_output([str(args.zig.resolve()), "version"], text=True).strip() != LOCK["zig"]["version"]:
