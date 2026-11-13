@@ -1,4 +1,5 @@
 import AVFoundation
+import CryptoKit
 import Foundation
 
 struct RecognitionUpdate: Sendable {
@@ -7,11 +8,12 @@ struct RecognitionUpdate: Sendable {
 }
 
 enum NoteViveError: LocalizedError {
-    case model, stream, device, audio
+    case model, modelIntegrity, stream, device, audio
 
     var errorDescription: String? {
         switch self {
         case .model: "Impossible de charger le moteur français local."
+        case .modelIntegrity: "Le modèle local est incomplet ou altéré. Extrayez de nouveau tout le ZIP NoteVive."
         case .stream: "Impossible de démarrer une session de dictée."
         case .device: "Microphone indisponible. Vérifiez l’entrée audio dans Réglages Système."
         case .audio: "Impossible de lire le WAV de contrôle (PCM mono attendu)."
@@ -26,11 +28,38 @@ final class Recognizer {
     private var rate: Int32 = 0
     private var previousDraft = ""
 
-    init(model: URL) throws {
+    private static func checkedModelFiles(_ directory: URL) throws -> [String] {
         let names = ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"]
-        let paths = names.map { model.appendingPathComponent($0).path }
-        guard paths.allSatisfy({ FileManager.default.isReadableFile(atPath: $0) }),
-              String(cString: SherpaOnnxGetVersionStr()) == "2.0.1" else {
+        do {
+            // Hash in chunks before passing local paths to the native model loader.
+            // An incomplete download or extraction must leave the editor usable.
+            let manifest = try FileHandle(forReadingFrom: directory.appendingPathComponent("SHA256.json"))
+            defer { try? manifest.close() }
+            guard let data = try manifest.read(upToCount: 4097), data.count <= 4096 else {
+                throw NoteViveError.modelIntegrity
+            }
+            let expected = try JSONDecoder().decode([String: String].self, from: data)
+            guard Set(expected.keys) == Set(names) else { throw NoteViveError.modelIntegrity }
+            return try names.map { name in
+                let file = directory.appendingPathComponent(name)
+                let handle = try FileHandle(forReadingFrom: file)
+                defer { try? handle.close() }
+                var hash = SHA256()
+                while let bytes = try handle.read(upToCount: 1_048_576), !bytes.isEmpty {
+                    hash.update(data: bytes)
+                }
+                let actual = hash.finalize().map { String(format: "%02x", $0) }.joined()
+                guard expected[name] == actual else { throw NoteViveError.modelIntegrity }
+                return file.path
+            }
+        } catch {
+            throw NoteViveError.modelIntegrity
+        }
+    }
+
+    init(model: URL) throws {
+        let paths = try Self.checkedModelFiles(model)
+        guard String(cString: SherpaOnnxGetVersionStr()) == "2.0.1" else {
             throw NoteViveError.model
         }
         let value = paths[0].withCString { encoder in
@@ -70,7 +99,7 @@ final class Recognizer {
     }
 
     func start() throws {
-        precondition(stream == nil)
+        guard stream == nil else { throw NoteViveError.stream }
         guard let created = SherpaOnnxCreateOnlineStream(handle) else {
             throw NoteViveError.stream
         }
@@ -170,14 +199,27 @@ final class AudioIngress: @unchecked Sendable {
         self.interrupted = interrupted
     }
 
-    func push(_ buffer: AVAudioPCMBuffer, rate: Int32) {
+    // AVAudioNodeTapBlock is imported without @Sendable. A closure created in a
+    // @MainActor method otherwise inherits that actor and traps on CoreAudio's
+    // delivery queue in Swift 6. Keep this callback explicitly nonisolated.
+    nonisolated func installTap(on node: AVAudioNode, rate: Int32,
+                               observer: (@Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void)? = nil) {
+        let callback: @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void = { [self] buffer, time in
+            if self.push(buffer, rate: rate) { observer?(buffer, time) }
+        }
+        node.installTap(onBus: 0, bufferSize: 2_048, format: nil, block: callback)
+    }
+
+    private func push(_ buffer: AVAudioPCMBuffer, rate: Int32) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        guard accepting, buffer.frameLength > 0 else { return }
-        guard pending < 12, buffer.frameLength <= 16_384, let first = buffer.floatChannelData?.pointee else {
+        guard accepting, buffer.frameLength > 0 else { return false }
+        guard pending < 12, buffer.frameLength <= 16_384,
+              abs(buffer.format.sampleRate - Double(rate)) < 0.5,
+              let first = buffer.floatChannelData?.pointee else {
             accepting = false
             DispatchQueue.main.async { self.interrupted() }
-            return
+            return false
         }
         let count = Int(buffer.frameLength)
         let stride = buffer.stride
@@ -192,6 +234,7 @@ final class AudioIngress: @unchecked Sendable {
             lock.unlock()
             if let next { DispatchQueue.main.async { self.update(next) } }
         }
+        return true
     }
 
     func close() {

@@ -3,11 +3,16 @@ import SwiftUI
 
 @MainActor final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let dictation: Dictation
+    let workspace: TranscriptWorkspace
     private var window: NSWindow?
     private var sleepObserver: NSObjectProtocol?
     private var closingWindow = false
 
-    init(model: URL) { dictation = Dictation(model: model) }
+    init(model: URL) {
+        let dictation = Dictation(model: model)
+        self.dictation = dictation
+        self.workspace = TranscriptWorkspace(library: TranscriptLibrary(), dictation: dictation)
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let name = "NoteVive"
@@ -37,14 +42,14 @@ import SwiftUI
         NSApp.mainMenu = menu
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 535),
+            contentRect: NSRect(x: 0, y: 0, width: 995, height: 615),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "NoteVive · Dictée locale"
-        window.contentViewController = NSHostingController(rootView: DictationView(dictation: dictation))
-        window.contentMinSize = NSSize(width: 660, height: 460)
+        window.contentViewController = NSHostingController(rootView: LibraryView(workspace: workspace))
+        window.contentMinSize = NSSize(width: 740, height: 500)
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()
@@ -53,14 +58,15 @@ import SwiftUI
         NSApp.activate()
 
         sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: nil
+        ) { @Sendable [weak self] _ in
             DispatchQueue.main.async { self?.dictation.interrupt("Dictée interrompue par la mise en veille") }
         }
     }
 
     func applicationDidResignActive(_ notification: Notification) {
         dictation.interrupt("Dictée interrompue : NoteVive est passé à l’arrière-plan")
+        if workspace.library.canEdit { _ = workspace.library.flush() }
     }
 
     func windowWillMiniaturize(_ notification: Notification) {
@@ -68,25 +74,30 @@ import SwiftUI
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        dictation.interrupt("Dictée arrêtée")
-        closingWindow = confirmDiscard()
+        closingWindow = canCloseLibrary()
         return closingWindow
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        dictation.interrupt("Dictée arrêtée")
-        return closingWindow || confirmDiscard() ? .terminateNow : .terminateCancel
+        return closingWindow || canCloseLibrary() ? .terminateNow : .terminateCancel
     }
 
-    private func confirmDiscard() -> Bool {
-        guard dictation.needsExport else { return true }
+    private func canCloseLibrary() -> Bool {
+        if dictation.phase == .listening || dictation.phase == .loading {
+            dictation.toggle()
+            return false
+        }
+        guard dictation.canSwitchNote else { return false }
+        let library = workspace.library
+        guard library.canEdit else { return true }
+        guard !library.flush() else { return true }
         let alert = NSAlert()
-        alert.messageText = "Fermer ce brouillon sans l’exporter ?"
-        alert.informativeText = "Le brouillon est uniquement en mémoire. Cliquez sur Revenir pour l’exporter en fichier texte."
+        alert.messageText = "La dernière sauvegarde a échoué"
+        alert.informativeText = "Revenez à la transcription pour réessayer la sauvegarde ou exporter le texte. Si vous quittez, les modifications non enregistrées seront perdues."
         alert.addButton(withTitle: "Revenir")
-        alert.addButton(withTitle: "Fermer sans exporter")
+        alert.addButton(withTitle: "Quitter sans enregistrer")
         return alert.runModal() == .alertSecondButtonReturn
     }
 }
@@ -122,8 +133,12 @@ private func selfTest(model: URL) throws {
 }
 
 let model = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/Model", isDirectory: true)
-if CommandLine.arguments.dropFirst().elementsEqual(["--self-test"]) {
-    do { try selfTest(model: model) }
+let arguments = Array(CommandLine.arguments.dropFirst())
+if arguments == ["--self-test"] || arguments == ["--self-test-audio"] {
+    do {
+        if arguments == ["--self-test-audio"] { try audioCallbackRegression(model: model) }
+        else { try selfTest(model: model) }
+    }
     catch {
         FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
         exit(1)

@@ -76,6 +76,11 @@ def stage(bundle, downloads, runtime, build):
             run("/usr/bin/lipo", "-verify_arch", "arm64", frameworks / name)
     for name in MODEL_NAMES:
         shutil.copyfile(downloads / name, model / name)
+    (model / "SHA256.json").write_text(
+        json.dumps({name: LOCK["downloads"][name]["hash"] for name in MODEL_NAMES},
+                   indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     for name in NOTICE_NAMES:
         shutil.copyfile(downloads / name, notices / name)
     shutil.copyfile(APP / "windows/vendor/sherpa-onnx/LICENSE", notices / "Apache-2.0.txt")
@@ -96,7 +101,8 @@ def build_macos(bundle, downloads, runtime, work):
         "-module-cache-path", work / "swift-cache", "-import-objc-header", HERE / "SherpaBridge.h",
         "-L", frameworks, "-lsherpa-onnx-c-api", "-Xlinker", "-rpath",
         "-Xlinker", "@executable_path/../Frameworks",
-        *(HERE / name for name in ("Recognition.swift", "Dictation.swift", "main.swift")),
+        *(HERE / name for name in ("Recognition.swift", "Dictation.swift", "AudioRegression.swift",
+                                   "Library.swift", "LibraryView.swift", "main.swift")),
         "-o", executable,
     )
     # File-provider metadata from the development folder must not enter the bundle.
