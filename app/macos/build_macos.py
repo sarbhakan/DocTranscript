@@ -10,6 +10,7 @@ import struct
 import subprocess
 import tarfile
 import tempfile
+import zipfile
 
 
 HERE = Path(__file__).resolve().parent
@@ -137,8 +138,17 @@ def main():
         build_macos(bundle, args.downloads.resolve(), args.runtime.resolve(), work)
         if args.zip:
             temporary_archive = work / archive.name
-            run("/usr/bin/ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", bundle, temporary_archive)
-            run("/usr/bin/unzip", "-tq", temporary_archive)
+            # Write only the signed bundle's file bytes and POSIX permissions.
+            # This leaves Finder metadata and AppleDouble entries out of the ZIP.
+            with zipfile.ZipFile(temporary_archive, "x", zipfile.ZIP_DEFLATED, compresslevel=5) as packed:
+                for path in sorted(bundle.rglob("*")):
+                    if path.is_symlink():
+                        raise ValueError(f"Lien inattendu dans l’application : {path.name}")
+                    if path.is_file():
+                        packed.write(path, path.relative_to(work))
+            round_trip = work / "archive-check"
+            run("/usr/bin/ditto", "-x", "-k", temporary_archive, round_trip)
+            run("/usr/bin/codesign", "--verify", "--deep", "--strict", round_trip / bundle.name)
             checksum.write_text(f"{digest(temporary_archive)}  {archive.name}\n", encoding="ascii")
             shutil.move(temporary_archive, archive)
         shutil.move(bundle, output)

@@ -6,7 +6,6 @@ import SwiftUI
     let workspace: TranscriptWorkspace
     private var window: NSWindow?
     private var sleepObserver: NSObjectProtocol?
-    private var closingWindow = false
 
     init(model: URL) {
         let dictation = Dictation(model: model)
@@ -41,27 +40,52 @@ import SwiftUI
         editItem.submenu = edit
         NSApp.mainMenu = menu
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 995, height: 615),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "NoteVive · Dictée locale"
-        window.contentViewController = NSHostingController(rootView: LibraryView(workspace: workspace))
-        window.contentMinSize = NSSize(width: 740, height: 500)
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        self.window = window
-        NSApp.activate()
+        showMainWindow()
 
         sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.willSleepNotification, object: nil, queue: nil
         ) { @Sendable [weak self] _ in
             DispatchQueue.main.async { self?.dictation.interrupt("Dictée interrompue par la mise en veille") }
         }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showMainWindow()
+        return false
+    }
+
+    private func makeMainWindow() -> NSWindow {
+        let visibleFrame = NSScreen.main?.visibleFrame
+        let width = min(995, (visibleFrame?.width ?? 1_035) - 40)
+        let height = min(615, (visibleFrame?.height ?? 655) - 40)
+        let newWindow = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        newWindow.title = "NoteVive · Dictée locale"
+        newWindow.contentViewController = NSHostingController(rootView: LibraryView(workspace: workspace))
+        newWindow.contentMinSize = NSSize(width: min(740, width), height: min(500, height))
+        newWindow.collectionBehavior.insert(.moveToActiveSpace)
+        newWindow.isRestorable = false
+        newWindow.isReleasedWhenClosed = false
+        newWindow.delegate = self
+        newWindow.center()
+        return newWindow
+    }
+
+    private func showMainWindow() {
+        let window = self.window ?? makeMainWindow()
+        self.window = window
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        if !NSScreen.screens.contains(where: {
+            let overlap = $0.visibleFrame.intersection(window.frame)
+            return overlap.width >= 140 && overlap.height >= 100
+        }) { window.center() }
+        if NSApp.isHidden { NSApp.unhide(nil) }
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
     }
 
     func applicationDidResignActive(_ notification: Notification) {
@@ -74,14 +98,11 @@ import SwiftUI
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        closingWindow = canCloseLibrary()
-        return closingWindow
+        canCloseLibrary()
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
-
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        return closingWindow || canCloseLibrary() ? .terminateNow : .terminateCancel
+        return canCloseLibrary() ? .terminateNow : .terminateCancel
     }
 
     private func canCloseLibrary() -> Bool {
