@@ -1,8 +1,29 @@
 # Préparer et ajuster un modèle local
 
-Le module `prepare_px` prépare **des données de développement**, sans entraîner ni modifier le moteur de NoteVive. Les nouveaux modules `train_lora` et `export_lora` réalisent un ajustement expérimental et son export, explicitement séparés de l’application distribuée. Il utilise uniquement l’archive **PxCorpus v4** déjà employée par le banc. Il fonctionne hors ligne avec Python 3.11 ou 3.12 et sa bibliothèque standard ; aucune bibliothèque de calcul, compte ou carte graphique n’est nécessaire.
+Le module `prepare_px` prépare **des données de développement** à partir de l’archive **PxCorpus v4** déjà employée par le banc. La préparation et le contrôle des erreurs critiques utilisent Python 3.11 ou 3.12 et sa bibliothèque standard. Ils fonctionnent hors ligne, sans compte ni carte graphique. Le module `train_lora` nécessite les bibliothèques de calcul décrites plus bas et lance explicitement un ajustement expérimental ; `export_lora` prépare sa fusion et sa conversion. Ces opérations sont séparées de l’application distribuée.
 
 Le corpus contient des prescriptions simulées, enregistrées par des volontaires. Les transcriptions de référence sont celles du fichier source `seq.in`, dont les auteurs déclarent la vérification humaine. L’export ne les réécrit pas à partir des sorties d’un moteur. Une relecture à l’écoute reste nécessaire avant de les considérer comme des références validées pour un entraînement médical.
+
+## Résultat de l’expérience terminée le 14 novembre 2026
+
+**Une époque a été exécutée : 1 081 clips, 32 voix, 271 mises à jour et 327 680 paramètres LoRA ajustés.** Sur le Mac M1 Pro à 16 Gio, le temps mesuré est de 1 395,14 secondes, validation finale de la perte comprise. Les gradients sont finis, les poids de base sont inchangés et la recharge des adaptateurs est exacte. La perte pondérée par les 5 660 jetons des 282 clips de validation est de 0,26592. Elle ne mesure pas, à elle seule, la qualité de transcription. Le [rapport d’exécution](lora_epoch_report.json) conserve les mesures et les empreintes du code effectivement utilisé.
+
+Les 32 clips de génération libre représentent huit voix, 196,88 secondes et 371 mots de référence. La grille critique a été figée avant toute prédiction. La sauvegarde finale à 271 mises à jour a été examinée en premier ; un plan borné, écrit ensuite et avant leurs résultats, a fixé la comparaison des sauvegardes 50 puis 150, sans nouvel entraînement.
+
+| Sauvegarde | Erreurs de mots / 371 | WER | Noms reconnus / 24 | Doses reconnues / 46 | Associations médicament–dosage / 16 | Adoption |
+|---|---:|---:|---:|---:|---:|---|
+| Base sans adaptation | 80 | 21,56 % | 8 | 42 | 5 | Base conservée |
+| 50 mises à jour | 55 | 14,82 % | 10 | 41 | 7 | Refusée |
+| 150 mises à jour | 32 | 8,63 % | 10 | 45 | 7 | Refusée |
+| 271 mises à jour | 30 | 8,09 % | 11 | 45 | 7 | Refusée |
+
+Ces nombres décrivent des correspondances avec les références source dans Transformers sur MPS, base FP16 et adaptateurs FP32. **Ils ne mesurent pas directement le modèle Q5_0 distribué.** Les trois sauvegardes introduisent chacune deux erreurs de nom et une erreur d’association que la base ne faisait pas selon la grille. La sauvegarde 50 ajoute également deux régressions de dose ; la sauvegarde 150 ajoute un échec du contrôle de la séquence de nombres. Les catégories peuvent se recouvrir. Le critère d’absence de nouvelle erreur critique n’est donc atteint par aucun candidat, même si les totaux de mots s’améliorent.
+
+Les temps de génération totaux et médians passent le seuil exploratoire de +10 % sur ce Mac. Ils ne mesurent ni le délai du micro à l’écran ni les performances sur Windows à 8 Go. Le [rapport agrégé de sélection](lora_validation_report.json) contient les numérateurs exacts, gains et pertes appariés, temps, empreintes du plan, de la grille et du code. Il contient aussi la correction du diagnostic de fin de génération : les séquences brutes comportent bien le jeton de fin dans 32/32 sorties de chaque variante. Entre les deux évaluations de la sauvegarde 271, les textes sont identiques pour la base dans 32/32 cas et pour l’adaptateur dans **31/32 cas**, avec des scores inchangés ; l’origine de la variation d’un mot déjà incorrect n’est pas établie.
+
+**La sélection est terminée : aucun adaptateur n’est adopté, exporté en HF/Q5_0 ou ajouté à NoteVive. Les 85 audios du banc de régression n’ont pas été utilisés dans cette expérience.** Ces 32 clips sont un lot de développement, limité aux prescriptions simulées. Les fractions ne concernent qu’un clip, la négation annotée une consigne dans un seul clip, sans négation de symptôme. Les références n’ont pas été réauditées médicalement par le projet. Les résultats ne permettent aucune conclusion de fiabilité clinique ni de couverture de toutes les spécialités.
+
+La suite utile consiste à préparer avec un médecin des dictées fictives, leurs corrections vérifiées à l’écoute et un lot de confirmation gardé à part par voix et par texte. Le [plan accessible à Hakan et au médecin](../../docs/entrainement-local.md#prochain-travail-réalisable-avec-un-médecin-volontaire) décrit leurs actions sans installation de Python. Les commandes ci-dessous documentent la reproduction technique et les futurs essais ; elles ne constituent pas une recommandation de relancer un entraînement identique.
 
 ## Utilisation
 
@@ -47,7 +68,7 @@ Le jeu de validation exporté sert au développement. Les 51 cas déjà vus ne d
 
 L’export réel du **14 novembre 2026** a été exécuté puis revérifié : **1 081 audios / 32 voix / 2 h 14 min 37 s** pour train et **282 audios / 8 voix / 27 min 14 s** pour validation. Il réserve 570 audios de 14 voix de médecins. Il retire aussi 29 enregistrements dont la référence apparaît dans cette réserve, 16 dont la référence traverse train/validation et trois doublons PCM internes. Le [rapport agrégé](pxcorpus_v4_report.json) fournit les durées exactes et les empreintes. Aucun de ces audios ni de leurs références n’est ajouté au dépôt.
 
-Pour entraîner ensuite, il faut un modèle au format entraînable, une méthode existante telle que PEFT/LoRA ou NeMo, des ressources adaptées et une évaluation du modèle exporté dans son format final. Le fichier GGML quantifié de l’application ne s’entraîne pas par ajout de ce dossier. **La préparation des données seule n’entraîne aucun poids.** Voir ci-dessous pour lancer explicitement un entraînement.
+L’expérience terminée utilise PEFT/LoRA et les poids d’origine au format entraînable. Le fichier GGML quantifié de l’application ne s’entraîne pas par ajout de ce dossier. **La préparation des données seule n’entraîne aucun poids.** Les commandes suivantes lancent explicitement un entraînement, avec ses propres sorties et contrôles.
 
 Source : [PxCorpus v4, Kocabiyikoglu et al.](https://zenodo.org/records/10080490), licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Attribution : Ali Can Kocabiyikoglu, François Portet, Prudence Gibert, Hervé Blanchon, Jean-Marc Babouchkine et Gaëtan Gavazzi. Publication : *A Spoken Drug Prescription Dataset in French for Spoken Language Understanding*, LREC 2022. L’archive est vérifiée directement ; les comptages exportés décrivent son contenu effectif et peuvent différer des arrondis de la notice.
 
@@ -87,6 +108,19 @@ L’encodeur et la base sont gelés. Seuls 327 680 paramètres LoRA FP32 sont aj
 
 `contract.json`, `events.jsonl`, `report.json` et les sous-dossiers `checkpoints/` permettent de suivre ce qui a réellement eu lieu. `last.json` et `best.json` indiquent les adaptateurs terminés. Avec une seule passe, il n’existe qu’une validation finale : « best » n’est pas une recherche de plusieurs configurations. Les interruptions conservent un rapport d’échec et n’autorisent aucune adoption automatique.
 
+## Évaluer sans choisir sur le seul WER
+
+**Avant de générer les prédictions**, préparer la grille privée sur les références des 32 clips déterministes. Fixer aussi les candidats et les critères de décision ; ne pas retoucher cette grille ni son code en fonction des erreurs observées.
+
+```bash
+python3 -m p0.training.score_validation prepare \
+  --corpus /chemin/local/adaptation-px-v1 \
+  --px-archive /chemin/local/PxCorpus.zip \
+  --output /chemin/local/notevive-entrainement/validation-critical.json
+```
+
+La grille contient les références et les éléments à vérifier ; elle reste hors Git, avec son empreinte. L’outil réutilise les annotations de la source et les contrôles du banc. Ses tests adversariaux vérifient notamment l’échange de doses, les fractions, les signes et le remplacement d’une coordination par une alternative. Cela n’en fait pas un validateur de prescriptions.
+
 ```bash
 /chemin/local/notevive-entrainement/venv/bin/python -m p0.training.train_lora evaluate \
   --model /chemin/local/notevive-entrainement/base \
@@ -98,10 +132,21 @@ L’encodeur et la base sont gelés. Seuls 327 680 paramètres LoRA FP32 sont aj
 
 Les 32 clips sont choisis par une règle fixe sur leurs identifiants, répartis sur les huit voix. La base et l’adaptateur transcrivent les mêmes WAV sans recevoir les références. Les prédictions restent dans `predictions.local.jsonl`, hors Git. Le WER agrégé ne remplace pas la vérification des médicaments, valeurs, fractions, unités, négations et associations.
 
-`export_lora --help` documente la fusion FP32 → HF FP16 puis la conversion officielle whisper.cpp 1.8.5 → Q5_0. Le convertisseur, les filtres mel, le tokenizer, l’architecture et le quantizer sont vérifiés. Reconvertir aussi la base témoin et comparer les fichiers Q5 dans la chaîne finale Windows avant toute adoption. L’export seul ne remplace jamais le modèle de NoteVive.
+```bash
+python3 -m p0.training.score_validation score \
+  --grid /chemin/local/notevive-entrainement/validation-critical.json \
+  --predictions /chemin/local/notevive-entrainement/evaluation-01/predictions.local.jsonl \
+  --output /chemin/local/notevive-entrainement/critical-01
+```
+
+Le rapport agrégé compte séparément les gains et les régressions pour chaque contrôle. `details.local.json` conserve les cas et les textes, hors Git. Pour cette expérience, l’admissibilité exigeait au moins un gain de nom, moins d’erreurs de mots, aucune régression critique et une dégradation de temps total et médian ne dépassant pas 10 %. Les sorties doivent aussi présenter un jeton de fin, et la base témoin répétée doit retrouver les mêmes textes. Les trois sauvegardes échouent sur les régressions critiques. Le banc de 85 audios reste réservé à une étape ultérieure de contrôle d’un candidat admissible, après conversion ; ses cas déjà vus ne constituent pas une confirmation indépendante.
+
+## Export préparé, non exécuté pour ces candidats
+
+`python3 -m p0.training.export_lora --help` documente la fusion FP32 → HF FP16 puis la conversion officielle whisper.cpp 1.8.5 → Q5_0. Les empreintes du convertisseur et des filtres mel, le tokenizer et l’architecture sont contrôlés. Le quantizer doit être fourni avec son SHA-256 ; cette empreinte seule ne prouve pas sa provenance, qui exige aussi le rapport de construction. Reconvertir la base témoin avec la même procédure et comparer les fichiers Q5 dans la chaîne finale Windows avant toute adoption. L’export seul ne remplace jamais le modèle de NoteVive. **Aucun export du modèle adapté n’a été lancé après le refus de cette expérience.**
 
 Tests contractuels (sans GPU ni dépendances ML, sauf une petite régression PEFT facultative dans l’environnement d’entraînement) :
 
 ```bash
-python3 -m unittest p0.bench.test_training p0.bench.test_lora_contract
+python3 -m unittest p0.bench.test_training p0.bench.test_lora_contract p0.bench.test_validation_scoring
 ```

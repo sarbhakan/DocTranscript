@@ -287,8 +287,8 @@ struct RecipeDesktop {
             return false;
         }
 
-        // CreateProcessAsUser's interactive desktop contract calls for full
-        // access. Test the actual medium token instead of assuming its SID.
+        // The logon launcher needs the account on this station and desktop.
+        // Test the actual medium token instead of assuming its SID.
         LocalHandle thread_token;
         if (!DuplicateTokenEx(token, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
                               TokenImpersonation, &thread_token.value)) return false;
@@ -514,7 +514,8 @@ bool grant_stage_access(const wchar_t* path, PSID account, bool write) {
     if (error == ERROR_SUCCESS && current) {
         EXPLICIT_ACCESSW permission{};
         permission.grfAccessPermissions = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
-        if (write) permission.grfAccessPermissions |= FILE_GENERIC_WRITE;
+        // Browsers need to atomically rename and delete their own cache files.
+        if (write) permission.grfAccessPermissions |= FILE_GENERIC_WRITE | DELETE | FILE_DELETE_CHILD;
         permission.grfAccessMode = GRANT_ACCESS;
         permission.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
         BuildTrusteeWithSidW(&permission.Trustee, account);

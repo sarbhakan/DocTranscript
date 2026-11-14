@@ -1,0 +1,38 @@
+# Validation de NoteVive Windows 0.4.0
+
+État au 14 novembre 2026 : recette du candidat en cours. Cette page sépare les preuves de fonctionnement, la comparaison des poids et la qualification d’un usage médical. La version reste un essai sur des données fictives.
+
+## Changements examinés
+
+L’[interface](ui-040.md) conserve les contrôles Windows et leur navigation au clavier, avec une nouvelle hiérarchie visuelle, une bibliothèque latérale et un éditeur plus lisible. La [dictée externe](dictee-externe.md) vérifie la destination, affiche un indicateur du micro et enregistre le texte localement avant son envoi. La copie est une action explicite. Le moteur et les poids du paquet 0.3.1 sont conservés.
+
+## Recette logicielle
+
+Sur Mac, les 98 tests du banc passent, dont un cas optionnel PEFT ignoré dans l’environnement Python ordinaire. Les 12 tests du lexique passent également, dont un cas ignoré faute de fixture optionnelle. La compilation croisée stricte des nouveaux composants complète ces vérifications. Une compilation croisée ne prouve ni l’apparence native ni la saisie dans Word.
+
+Le [run Windows initial de cette refonte](https://github.com/sarbhakan/DocTranscript/actions/runs/43640910690) passe le stockage chiffré, les migrations, les dossiers imbriqués, la récupération, le protocole, le superviseur, la construction du ZIP et les contrôles audio des doses et fractions. Le parcours de bibliothèque passe également la recherche, les tris, le classement et la réouverture. Il échoue ensuite sur le bouton Copier resté désactivé après chargement d’une note. Ce défaut produit est corrigé : l’état de la copie est recalculé après chaque chargement, modification ou changement de visibilité. La recette exige aussi que la copie soit désactivée pour une note vide.
+
+Le premier essai de capture échoue parce que le même compte possède déjà les notes fictives de la recette précédente. La version réservée aux captures utilise maintenant un dossier de stockage distinct et marqué comme tel. Aucun profil n’est supprimé pour faire passer le test. Ce binaire ne fait pas partie du ZIP distribué ; la protection de capture de l’application ordinaire reste active.
+
+Les sondes de dictée externe sont exécutées dans un job indépendant. Les premiers essais ont révélé que le serveur Windows de CI et son bureau fonctionnent en administrateur ; la protection du produit refuse correctement cette destination. La recette doit utiliser une session de test non élevée. Un échec d’initialisation du processus de recette n’est pas présenté comme une réussite de la saisie.
+
+Le [run `625d94e`](https://github.com/sarbhakan/DocTranscript/actions/runs/43643536468/job/132596101512) crée un véritable compte standard et réussit la recette des champs `EDIT` natifs. Les insertions Unicode au curseur, les deux segments, l’absence d’écriture dans l’autre champ, le refus des mots de passe, de la lecture seule, des contrôles ANSI et des sélections, ainsi que l’invalidation après changement de champ ou de fenêtre sont vérifiés. Le même run échoue ensuite au démarrage du profil Edge de test, avant toute assertion de saisie dans le navigateur. La compatibilité navigateur n’est donc pas encore déclarée réussie sur cette preuve.
+
+Les preuves finales, l’empreinte du paquet et les éventuels écarts sont consignés ici après la recette du candidat exact.
+
+## Entraînement réellement exécuté, modèle distribué conservé
+
+Le [rapport d’entraînement](entrainement-local.md) et les rapports JSON dans `p0/training` documentent une passe complète : 1 081 extraits, 32 voix, 271 mises à jour LoRA, puis 282 extraits de validation sur huit autres voix. La copie exacte des poids, la fin de séquence, le gel du modèle de base et l’absence de recouvrement des partitions sont contrôlés.
+
+Sur 32 dictées sélectionnées pour le développement, les erreurs de mots passent de 80/371 à 30/371 avec l’adaptateur final. Le contrôle apparié trouve néanmoins deux pertes de noms de médicaments et une perte d’association médicament–dosage. Les points 50 et 150 sont également refusés. Les bénéfices moyens ne compensent pas de nouvelles erreurs critiques. Aucun modèle adapté n’est exporté ni ajouté au ZIP ; le lot de régression de 85 WAV réservé à cette étape n’est pas utilisé pour choisir un autre réglage.
+
+Ce petit lot ne représente pas les spécialités médicales. Il contient seulement trois occurrences de fractions dans une même dictée et une négation d’instruction ; il ne valide pas les négations cliniques. Les temps mesurés sur Mac ne qualifient pas le délai sur Windows.
+
+## Essais encore nécessaires
+
+1. Essayer le même ZIP sur deux PC Windows physiques compatibles, dont un à 8 Go sans GPU dédié : installation, ouverture, micro, délai après les pauses, sauvegarde, fermeture et réouverture.
+2. Dans des documents fictifs, vérifier Word, un éditeur Windows et les champs réellement utilisés dans le navigateur : insertion Unicode, raccourci, changement de champ, arrêt, restauration et absence de doublon. Les contrôles automatisés sur une page locale ne couvrent pas tous les logiciels métier.
+3. Observer le redimensionnement, le clavier, le contraste élevé et les facteurs d’affichage 100–200 % sur un écran réel.
+4. Faire relire de courtes dictées fictives par le médecin volontaire. Constituer des voix et des textes indépendants, avec annotation explicite des médicaments, doses, fractions, latéralités et négations avant tout nouvel entraînement.
+
+Ces points restent des conditions d’évolution vers un pilote ; la préversion ne vaut pas validation en cabinet.

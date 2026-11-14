@@ -203,7 +203,9 @@ def quantize(args):
     rt = load_runtime("cpu")  # Check pinned converter dependencies, no model loading here.
     started = time.monotonic()
     output.mkdir(mode=0o700)
-    env = dict(os.environ, OMP_NUM_THREADS=str(args.threads), MKL_NUM_THREADS=str(args.threads),
+    env = dict({key: value for key, value in os.environ.items()
+                if key != "GGML_BACKEND_PATH" and not key.startswith(("DYLD_", "LD_"))},
+               OMP_NUM_THREADS=str(args.threads), MKL_NUM_THREADS=str(args.threads),
                HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1", HF_HUB_DISABLE_TELEMETRY="1")
     try:
         with tempfile.TemporaryDirectory(prefix=".conversion-", dir=output) as temporary:

@@ -594,6 +594,18 @@ def verify_adapter(adapter: Path, provenance: dict, manifest_hashes: dict) -> di
     return metadata
 
 
+def generated_sequence(generated) -> tuple[list[int], bool]:
+    """Inspect the raw sequence; Whisper's default tensor return strips EOS."""
+    sequences = getattr(generated, "sequences", None)
+    if sequences is None or len(sequences) != 1:
+        raise ValueError("Résultat de génération structuré attendu pour un seul clip")
+    token_ids = sequences[0].tolist()
+    if (not isinstance(token_ids, list) or token_ids[:len(PREFIX)] != PREFIX
+            or any(type(value) is not int or not 0 <= value < 51866 for value in token_ids)):
+        raise ValueError("Séquence de génération française inattendue")
+    return token_ids, EOS in token_ids[len(PREFIX):]
+
+
 def evaluate(args):
     corpus, source, adapter, output, summary, provenance, partitions, hashes = prepare(args)
     selected = validation_selection(partitions["validation"], args.count)
@@ -613,6 +625,8 @@ def evaluate(args):
                 "selected_rows_sha256": json_digest([row["id"] for row in selected]),
                 "selected_clips": len(selected), "selected_speakers": len({r["speaker_id"] for r in selected}),
                 "generation": GENERATION, "dtype": args.dtype, "device": args.device,
+                "return_dict_in_generate": True,
+                "eos_observation": "raw sequences after decoder prefix, before Whisper strips special tokens",
                 "versions": rt["versions"], "seed": args.seed, "development_only": True,
                 "references_never_passed_to_generate": True,
                 "scoring": "p0.bench.scoring.words + edit_distance; corpus-weighted WER",
@@ -630,20 +644,21 @@ def evaluate(args):
                 begin = time.monotonic()
                 with context, torch.autocast(device_type=args.device, dtype=torch.float16,
                                              enabled=args.dtype == "float16"):
-                    generated = model.generate(input_features=features, attention_mask=mask, **GENERATION)
+                    generated = model.generate(input_features=features, attention_mask=mask,
+                                               return_dict_in_generate=True, **GENERATION)
                 if args.device == "mps":
                     torch.mps.synchronize()
                 elapsed = time.monotonic() - begin
-                token_ids = generated[0].tolist()
+                token_ids, eos_present = generated_sequence(generated)
                 text = processor.tokenizer.decode(token_ids, skip_special_tokens=True).strip()
                 errors, count = edit_distance(words(row["text"]), words(text)), len(words(row["text"]))
                 result[method] = {"text": text, "inference_seconds": elapsed, "word_errors": errors,
-                                  "reference_words": count, "eos_present": EOS in token_ids}
+                                  "reference_words": count, "eos_present": eos_present}
                 metrics = aggregate[method]
                 metrics["clips"] += 1
                 metrics["reference_words"] += count
                 metrics["word_errors"] += errors
-                metrics["generation_without_eos"] += int(EOS not in token_ids)
+                metrics["generation_without_eos"] += int(not eos_present)
                 metrics["inference_seconds"] += elapsed
                 del generated
             stream.write(json.dumps(result, ensure_ascii=False, sort_keys=True, allow_nan=False) + "\n")

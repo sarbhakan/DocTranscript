@@ -49,7 +49,9 @@ Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez u
 
 ## Ce qui change dans cet essai
 
-La version 0.4.0 revoit la fenêtre autour de la bibliothèque et de l’éditeur, ajoute la copie explicite et propose une dictée vers un champ externe compatible. Le [guide Windows](docs/guide-essai-windows.md) explique les gestes et leur dépannage. Les [mesures du paquet 0.3.1](docs/audit-consolidation-031.md) restent consultables pour comparaison.
+La version 0.4.0 revoit la fenêtre autour de la bibliothèque et de l’éditeur, ajoute la copie explicite et propose une dictée vers un champ externe compatible. Le [guide Windows](docs/guide-essai-windows.md) explique les gestes et leur dépannage. Le [rapport de validation 0.4.0](docs/validation-040.md) distingue les contrôles effectués des essais encore nécessaires.
+
+Un [entraînement local du modèle](docs/entrainement-local.md) a aussi été réalisé. Il réduit les erreurs de mots sur un petit lot de développement, mais dégrade encore certains noms de médicaments. Les poids entraînés restent expérimentaux et ne sont pas inclus dans le ZIP ; le moteur distribué est conservé. Les [mesures du paquet 0.3.1](docs/audit-consolidation-031.md) restent consultables pour comparaison.
 
 ## Besoin d’aide ou envie de transmettre un résultat ?
 
@@ -82,6 +84,8 @@ Le paquet Windows s’appuie sur **Whisper Large-v3 Turbo, whisper.cpp 1.8.5, Op
 | [Résultats comparés](p0/asr_benchmark.md) · [Choix du moteur](docs/p0-choix-moteur.md) | Mesures disponibles, erreurs observées et limites de performance. |
 | [Banc P0](p0/README.md) · [Procédure Windows](docs/p0-windows.md) · [Recette par lot](docs/recette-iterative.md) | Préparation des essais, reproduction et critères de vérification. |
 | [Veille des moteurs](docs/veille-moteurs.md) · [Réemploi](docs/reemploi.md) | Alternatives, licences et rôle de Dev Toolkit Orchestrator. |
+| [Refonte Windows](docs/ui-040.md) · [Toolkit et composants retenus](docs/toolkit-040.md) | Choix d’interface, accessibilité, sources réutilisées et périmètre des outils. |
+| [Entraînement local](docs/entrainement-local.md) · [Outils de reproduction](p0/training/README.md) | Données séparées, adaptation LoRA, contrôles critiques et décision sur les poids. |
 | [Qualité médicale](docs/qualite-medicale.md) · [Adaptation lexicale](docs/adaptation-lexicale.md) | Vocabulaire, évaluation des erreurs critiques et effets des lexiques. |
 | [Référentiels médicaux](docs/referentiels-medicaux.md) · [Catalogue local](lexique/README.md) | Sources françaises, licences et imports reproductibles. |
 | [Expérience praticien](docs/experience-praticien.md) · [Données et usage professionnel](docs/donnees-et-usage.md) | Scénarios d’usage, flux des données et conditions préalables à un pilote. |

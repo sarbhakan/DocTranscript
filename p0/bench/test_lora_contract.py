@@ -9,6 +9,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -177,6 +178,22 @@ class LoRAContractTests(unittest.TestCase):
         self.assertEqual(options.accumulation, 4)
         self.assertEqual(options.epochs, 1)
         self.assertFalse(hasattr(options, "resume"))
+
+    def test_eos_is_observed_in_raw_structured_generation_sequence(self):
+        class Tokens:
+            def __init__(self, values):
+                self.values = values
+
+            def tolist(self):
+                return self.values
+        finished = runner.PREFIX + [1200, runner.EOS]
+        self.assertEqual(runner.generated_sequence(SimpleNamespace(sequences=[Tokens(finished)])), (finished, True))
+        limited = runner.PREFIX + [1200, 1300]
+        self.assertEqual(runner.generated_sequence(SimpleNamespace(sequences=[Tokens(limited)])), (limited, False))
+        for invalid in ([Tokens([1200])], SimpleNamespace(sequences=[]),
+                        SimpleNamespace(sequences=[Tokens([1200, runner.EOS])])):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                runner.generated_sequence(invalid)
 
     def test_failed_run_or_changed_adapter_cannot_be_evaluated_as_validated_checkpoint(self):
         with tempfile.TemporaryDirectory() as directory:

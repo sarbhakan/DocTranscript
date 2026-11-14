@@ -13,6 +13,8 @@ function Invoke-Recipe {
     if ($Case -eq 'Native') {
         & $ProbeExe
         if ($LASTEXITCODE) { throw "Native external target probe exited with code $LASTEXITCODE." }
+    } elseif ($ResultFile) {
+        & (Join-Path $PSScriptRoot 'external_edge_test.ps1') -ProbeExe $ProbeExe -ScratchRoot (Split-Path -Parent $ResultFile)
     } else {
         & (Join-Path $PSScriptRoot 'external_edge_test.ps1') -ProbeExe $ProbeExe
     }
@@ -35,11 +37,12 @@ if ($ResultFile) {
         }
         Invoke-Recipe *> "$ResultFile.log"
         [IO.File]::WriteAllText($ResultFile, '0')
+        exit 0
     } catch {
         $_ | Out-String | Add-Content -LiteralPath "$ResultFile.log"
         [IO.File]::WriteAllText($ResultFile, '1')
+        exit 1
     }
-    exit
 }
 if ($integrity -lt 8192) { throw "Windows interactive user integrity is too low ($integrity)." }
 if ($integrity -lt 12288) { Invoke-Recipe; exit }
@@ -103,6 +106,7 @@ $ErrorActionPreference = 'Stop'
 try {
     $probe = Join-Path $PSScriptRoot 'external-target-test.exe'
     & (Join-Path $PSScriptRoot 'external_interactive_test.ps1') -ProbeExe $probe -Case Edge -ResultFile (Join-Path $PSScriptRoot 'out\result')
+    exit $LASTEXITCODE
 } catch {
     $_ | Out-String | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'out\bootstrap.log')
     exit 1

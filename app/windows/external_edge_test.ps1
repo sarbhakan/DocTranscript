@@ -3,7 +3,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$ProbeExe,
-    [string]$EdgeExe
+    [string]$EdgeExe,
+    [string]$ScratchRoot
 )
 $ErrorActionPreference = 'Stop'
 if (-not [Environment]::UserInteractive) { throw 'An interactive desktop is required for the Edge smoke test.' }
@@ -76,8 +77,32 @@ function Select-Editable {
     Require (Eval '(() => { rich.focus(); const r=document.createRange(); r.setStart(rich.firstChild,1); r.collapse(true); const s=getSelection(); s.removeAllRanges(); s.addRange(r); return document.hasFocus() && document.activeElement===rich; })()') 'Edge contenteditable did not receive focus.'
 }
 
-$work = Join-Path ([IO.Path]::GetTempPath()) ("notevive-edge-" + [guid]::NewGuid().ToString('N'))
+function Log-EdgeFailure {
+    if ($edge) {
+        $state = if ($edge.HasExited) { 'exited 0x{0:X8}' -f $edge.ExitCode } else { 'still running' }
+        Write-Output "Edge startup: $state; version=$([Diagnostics.FileVersionInfo]::GetVersionInfo($EdgeExe).FileVersion); profileExists=$(Test-Path -LiteralPath $profile -PathType Container); profileState=$(Test-Path -LiteralPath (Join-Path $profile 'Local State') -PathType Leaf); portFile=$(Test-Path -LiteralPath $portFile -PathType Leaf)."
+    }
+    foreach ($scope in @('HKLM', 'HKCU')) {
+        $key = "${scope}:\Software\Policies\Microsoft\Edge"
+        foreach ($policy in @('RemoteDebuggingAllowed', 'DeveloperToolsAvailability')) {
+            $value = (Get-ItemProperty -LiteralPath $key -Name $policy -ErrorAction SilentlyContinue).$policy
+            if ($null -ne $value) { Write-Output "Edge policy ${scope}.$policy=$value" }
+        }
+    }
+    # Only logs from the new synthetic profile. Bound the amount printed and
+    # never inspect any existing profile or browsing data.
+    foreach ($debug in @((Join-Path $profile 'chrome_debug.log'), (Join-Path $profile 'msedge_debug.log'))) {
+        if (Test-Path -LiteralPath $debug -PathType Leaf) {
+            Get-Content -LiteralPath $debug -Tail 6 -ErrorAction SilentlyContinue |
+                ForEach-Object { Write-Output ("Edge startup log: " + $_.Substring(0, [Math]::Min($_.Length, 300))) }
+        }
+    }
+}
+
+$scratch = if ($ScratchRoot) { (Resolve-Path -LiteralPath $ScratchRoot).Path } else { [IO.Path]::GetTempPath() }
+$work = Join-Path $scratch ("notevive-edge-" + [guid]::NewGuid().ToString('N'))
 $profile = Join-Path $work 'profile'
+$portFile = Join-Path $profile 'DevToolsActivePort'
 $edge = $null; $probe = $null; $ws = $null
 $script:sequence = 0
 New-Item -ItemType Directory -Path $work | Out-Null
@@ -99,19 +124,34 @@ try {
     # of 0 is assigned by Edge; DevToolsActivePort identifies that listener.
     $flags = @("--user-data-dir=`"$profile`"", '--remote-debugging-port=0',
         '--remote-debugging-address=127.0.0.1', '--no-first-run', '--no-default-browser-check',
+        '--enable-logging',
         '--disable-background-networking', '--disable-sync', '--disable-component-update',
         '--disable-default-apps', '--disable-extensions', '--no-proxy-server',
         '--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost"',
         '--new-window', $url)
-    $edge = Start-Process -FilePath $EdgeExe -ArgumentList $flags -PassThru
-    $portFile = Join-Path $profile 'DevToolsActivePort'
-    Wait-Until { Test-Path -LiteralPath $portFile -PathType Leaf } 'Disposable Edge profile did not start DevTools.' 20000
+    # The hosted desktop has no GPU requirement. Leave the rendering path
+    # unchanged for a local smoke test from a normal Windows account.
+    if ($ScratchRoot) { $flags += '--disable-gpu' }
+    $browserStart = [Diagnostics.ProcessStartInfo]::new()
+    $browserStart.FileName = $EdgeExe
+    $browserStart.Arguments = $flags -join ' '
+    $browserStart.WorkingDirectory = $work
+    $browserStart.UseShellExecute = $false
+    $browserStart.EnvironmentVariables['TEMP'] = $work
+    $browserStart.EnvironmentVariables['TMP'] = $work
+    $edge = [Diagnostics.Process]::Start($browserStart)
+    Wait-Until {
+        if ($edge.HasExited) { throw 'The isolated Edge process exited during startup.' }
+        if (-not (Test-Path -LiteralPath $portFile -PathType Leaf)) { return $false }
+        try { return (Get-Content -LiteralPath $portFile -TotalCount 1) -match '^\d+$' } catch { return $false }
+    } 'Disposable Edge profile did not start DevTools.' 25000
     $port = [int](Get-Content -LiteralPath $portFile -TotalCount 1)
     Require ($port -gt 0 -and $port -lt 65536) 'Bad loopback port.'
     $page = $null
-    for ($n = 0; $n -lt 50 -and -not $page; $n++) {
+    $discovery = [Diagnostics.Stopwatch]::StartNew()
+    while (-not $page -and $discovery.ElapsedMilliseconds -lt 12000) {
         try {
-            $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$port/json/list" -TimeoutSec 2
+            $targets = Invoke-RestMethod -UseBasicParsing -Uri "http://127.0.0.1:$port/json/list" -TimeoutSec 2
             $page = $targets | Where-Object { $_.type -eq 'page' -and $_.url -eq $url } | Select-Object -First 1
         } catch { Start-Sleep -Milliseconds 80 }
         if (-not $page) { Start-Sleep -Milliseconds 80 }
@@ -168,6 +208,9 @@ try {
     $probe.StandardInput.WriteLine('quit')
     if (-not $probe.WaitForExit(4000) -or $probe.ExitCode -ne 0) { throw 'Edge probe did not shut down cleanly.' }
     Write-Output 'Edge local input probe: textarea, contenteditable, focus and protected fields passed.'
+} catch {
+    Log-EdgeFailure
+    throw
 } finally {
     if ($probe) {
         if (-not $probe.HasExited) { $probe.Kill() }
