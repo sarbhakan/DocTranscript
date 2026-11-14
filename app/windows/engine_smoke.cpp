@@ -22,6 +22,10 @@ int wmain(int argc, wchar_t** argv) {
     std::wstring error;
     std::mutex mutex;
     std::condition_variable changed;
+    const auto start = std::chrono::steady_clock::now();
+    auto elapsed_ms = [&] {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+    };
     try {
         doct::Engine engine([&](doct::EngineEvent event) {
             std::lock_guard<std::mutex> lock(mutex);
@@ -37,7 +41,7 @@ int wmain(int argc, wchar_t** argv) {
                     break;
                 case Kind::final:
                     if (event.text.empty()) unexpected = true;
-                    else ++finals;
+                    else { ++finals; std::cout << "final_index=" << finals << " elapsed_ms=" << elapsed_ms() << std::endl; }
                     break;
                 case Kind::error:
                     error = std::move(event.text);
@@ -65,7 +69,8 @@ int wmain(int argc, wchar_t** argv) {
             std::wcerr << error << L'\n';
             return 1;
         }
-        std::cout << "partials_nonempty=" << partials << " finals_nonempty=" << finals << '\n';
+        std::cout << "partials_nonempty=" << partials << " finals_nonempty=" << finals
+                  << " elapsed_ms=" << elapsed_ms() << '\n';
         const bool ok = speech ? finals > 0 : (partials == 0 && finals == 0);
         return (!unexpected && ok) ? 0 : 1;
     } catch (...) {

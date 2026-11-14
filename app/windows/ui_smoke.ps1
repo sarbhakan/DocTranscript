@@ -14,6 +14,9 @@ public static class NvWindow {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll", EntryPoint = "PostMessageW", ExactSpelling = true)] public static extern bool Post(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp);
     [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", ExactSpelling = true)]
     static extern IntPtr SendBounded(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp, uint flags, uint timeout, out UIntPtr result);
@@ -42,6 +45,16 @@ public static class NvWindow {
         if (Send(combo, 0x014e, new IntPtr(index), IntPtr.Zero) != index) return false; // CB_SETCURSEL
         return Post(parent, 0x0111, new IntPtr((1 << 16) | 113), combo); // WM_COMMAND / CBN_SELCHANGE
     }
+    public static IntPtr PopupMenu(uint processId) {
+        IntPtr popup = IntPtr.Zero;
+        do {
+            popup = FindWindowEx(IntPtr.Zero, popup, "#32768", null);
+            if (popup == IntPtr.Zero) return popup;
+            uint owner;
+            if (GetWindowThreadProcessId(popup, out owner) != 0 && owner == processId && IsWindowVisible(popup))
+                return popup;
+        } while (true);
+    }
 }
 '@
 $root = [System.Windows.Automation.AutomationElement]::RootElement
@@ -54,6 +67,7 @@ $typeProperty = [System.Windows.Automation.AutomationElement]::ControlTypeProper
 $listItemType = [System.Windows.Automation.ControlType]::ListItem
 $selection = [System.Windows.Automation.SelectionItemPattern]::Pattern
 $expand = [System.Windows.Automation.ExpandCollapsePattern]::Pattern
+$invoke = [System.Windows.Automation.InvokePattern]::Pattern
 $prefix = "NVTEST-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
 $testProfile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) 'NoteVive-Pilote'
 $records = Join-Path $testProfile 'notes'
@@ -61,6 +75,7 @@ $testNote = "$prefix B"
 $testOlder = "$prefix A"
 $testFolder = "$prefix parent"
 $testChild = "$prefix enfant"
+$testChildRenamed = "$prefix sous-dossier"
 $testRenamed = "$prefix classe"
 $marker = "$prefix marqueur éphémère."
 $process = $null
@@ -176,6 +191,22 @@ function Editor-Folder {
     return [NvWindow]::Text([NvWindow]::GetDlgItem((Window-Handle $app), 120))
 }
 
+function Rename-SelectedFolder([string]$Name) {
+    $button = ById 115
+    $button.SetFocus()
+    Click $button
+    $item = Wait-For {
+        # TrackPopupMenu creates a separate top-level HWND, outside the main UIA tree.
+        $popup = [NvWindow]::PopupMenu($process.Id)
+        if ($popup -ne [IntPtr]::Zero) {
+            $menu = [System.Windows.Automation.AutomationElement]::FromHandle($popup)
+            $menu.FindFirst($enumScope, (Condition $nameProperty 'Renommer le dossier'))
+        }
+    } 'find Renommer le dossier in the folder menu'
+    $item.GetCurrentPattern($invoke).Invoke()
+    Folder-Dialog 'Renommer le dossier' $Name
+}
+
 function Move-Note([string]$Destination) {
     Click (ById 116)
     $dialog = Find-Dialog 'Classer la transcription'
@@ -200,11 +231,19 @@ try {
     $parent.GetCurrentPattern($selection).Select()
     Click (ById 114) # Child of selected folder.
     Folder-Dialog 'Nouveau dossier' $testChild
-    $null = ByName (ById 110) $testChild
+    $null = Wait-For {
+        # Saving the child rebuilds the tree; never keep a pre-save item handle.
+        $parent = (ById 110).FindFirst($enumScope, (Condition $nameProperty $testFolder))
+        if ($parent) { $parent.FindFirst($enumScope, (Condition $nameProperty $testChild)) }
+    } 'child nested under the saved parent'
 
     # Type a title first, allow autosave, then verify title and body survive.
     Click (ById 101)
-    $null = Wait-For { [NvWindow]::Text((Window-Handle (ById 107))) -eq '' } 'new editor clear'
+    $null = Wait-For {
+        # The empty title alone is already true while the posted click is pending.
+        $inChild = (Editor-Folder) -ceq "$testFolder / $testChild"
+        $inChild -and ([NvWindow]::Text((Window-Handle (ById 107))) -ceq '')
+    } 'new editor in the child folder'
     Input-Text (ById 107) $testOlder
     Input-Text (ById 108) $marker
     $null = Wait-For { Test-NoteVisible $testOlder } 'first note autosaved under child folder'
@@ -241,13 +280,26 @@ try {
         $where = [NvWindow]::GetDlgItem((Window-Handle $app), 120)
         [NvWindow]::Text($where).Contains("$testFolder / $testChild")
     } 'persisted note links to the nested folder'
+    (ByName $parent $testChild).GetCurrentPattern($selection).Select()
+    Rename-SelectedFolder $testChildRenamed
+    $null = Wait-For { (Editor-Folder) -ceq "$testFolder / $testChildRenamed" } 'note remains in the renamed folder'
     Move-Note 'Sans dossier'
-    Move-Note "$testFolder / $testChild"
+    Move-Note $testFolder
+    End-App
+    Begin-App
+    $parent = ByName (ById 110) $testFolder
+    $parent.GetCurrentPattern($expand).Expand()
+    $null = ByName $parent $testChildRenamed
+    $moved = Wait-For { Test-NoteVisible $testRenamed } 'find the moved note on restart'
+    $moved.GetCurrentPattern($selection).Select()
+    $null = Wait-For {
+        (Editor-Folder) -ceq $testFolder -and [NvWindow]::Text((Window-Handle (ById 108))) -ceq 'Deuxième transcription fictive.'
+    } 'new folder and note body persisted after moving'
     End-App
     $savedCount = @(Get-ChildItem -LiteralPath $records -Filter '*.nvn' -File).Count
     $folderCount = @(Get-ChildItem -LiteralPath $records -Filter '*.nvf' -File).Count
     if ($savedCount -ne 2 -or $folderCount -ne 2) { throw "Expected exactly two notes and folders, found $savedCount / $folderCount." }
-    Write-Output 'Windows UI, nested folders, moving notes, sort, body search, autosave and close/reopen verified with fictitious text.'
+    Write-Output 'Windows UI, nested folders, renaming, moving notes, sort, body search, autosave and close/reopen verified with fictitious text.'
 } finally {
     if ($process -and -not $process.HasExited) {
         $process.CloseMainWindow() | Out-Null

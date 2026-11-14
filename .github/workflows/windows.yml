@@ -37,7 +37,11 @@ jobs:
       - name: Extraire le ZIP livré
         run: Expand-Archive dist/NoteVive-Windows-x64-Essai.zip "$env:RUNNER_TEMP/NoteVive-paquet"
       - name: Tester le moteur du ZIP en mode automatique et SSE2
-        run: python -m app.test_windows --compiler msvc --engine-only --output "$env:RUNNER_TEMP/NoteVive-engine-tests" --package "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive"
+        run: |
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
+          Get-CimInstance Win32_ComputerSystem | Select-Object TotalPhysicalMemory | Format-List
+          python -m app.test_windows --compiler msvc --engine-only --output "$env:RUNNER_TEMP/NoteVive-engine-tests" --package "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Tester la fenêtre et le parcours des notes sans micro
         shell: powershell
         run: ./app/windows/ui_smoke.ps1 -Executable "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive/NoteVive.exe"

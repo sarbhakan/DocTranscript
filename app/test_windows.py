@@ -1,12 +1,13 @@
 """Compile and run isolated Windows tests; no real microphone or user library."""
 import argparse
+import gzip
 import hashlib
 import json
 import os
 from pathlib import Path
 import platform
 import subprocess
-import tarfile
+import time
 import wave
 from app.build_windows import WIN, ROOT, CXX_FLAGS, LOCK, run
 from app.build_whisper_windows import GENERATOR, TOOLSET
@@ -175,7 +176,7 @@ def main():
         generated = args.package.resolve() / 'Build/runtime_integrity.h'
         (real / generated.name).write_bytes(generated.read_bytes())
         smoke_target = target('engine-smoke.exe', [WIN / 'engine.cpp', WIN / 'integrity.cpp', WIN / 'engine_smoke.cpp'],
-                              includes=[real], libraries=['bcrypt'], wide_main=True)
+                              defines=['NOTEVIVE_ENGINE_DIAGNOSTICS'], includes=[real], libraries=['bcrypt'], wide_main=True)
         targets.append(smoke_target)
         smoke = smoke_target[0]
         silence = out / 'silence.wav'
@@ -183,22 +184,39 @@ def main():
             file.setparams((1, 2, 16000, 0, 'NONE', 'not compressed'))
             file.writeframes(bytes(16000 * 2 * 8))
         commands.append([smoke, runtime, silence, '--silence'])
-        # Official upstream demonstration, included in the hash-pinned source
-        # archive. A speech/nonempty lifecycle test, not French accuracy data.
-        from app.build_whisper_windows import SOURCE_NAME, SOURCE_SHA256, SOURCE_ROOT
-        source = ROOT / 'app/private/downloads' / SOURCE_NAME
-        with source.open('rb') as stream:
-            if hashlib.file_digest(stream, 'sha256').hexdigest() != SOURCE_SHA256:
-                raise ValueError('Archive de test altérée.')
-        speech = out / 'upstream-demo.wav'
-        with tarfile.open(source) as archive:
-            speech.write_bytes(archive.extractfile(SOURCE_ROOT + '/samples/jfk.wav').read())
+        # Human French simulated prescription, redistributable under CC BY 4.0.
+        # The reference and provenance live with the fixture; no patient data.
+        fixture_dir = ROOT / 'p0/fixtures'
+        spec = json.loads((fixture_dir / 'fixture.json').read_text(encoding='utf-8'))
+        packed = (fixture_dir / 'px-826.wav.gz').read_bytes()
+        if hashlib.sha256(packed).hexdigest() != spec['gzip_sha256']:
+            raise ValueError('Fixture française altérée.')
+        audio = gzip.decompress(packed)
+        if len(audio) != spec['wav_bytes'] or hashlib.sha256(audio).hexdigest() != spec['wav_sha256']:
+            raise ValueError('WAV français altéré.')
+        speech = out / 'french-prescription.wav'
+        speech.write_bytes(audio)
         commands.append([smoke, runtime, speech, '--speech'])
     build('tests', targets)
     (out / 'commands.json').write_text(json.dumps([[str(v) for v in cmd] for cmd in commands], indent=2), encoding='utf-8')
     if args.compile_only:
         print(f'Tests compilés, non exécutés : {out}')
         return
+    timings = []
+    def execute(cmd, env, is_smoke):
+        label = 'speech-fr' if is_smoke and cmd[-1] == '--speech' else ('silence' if is_smoke else cmd[0].name)
+        requested_cpu = env.get('NOTEVIVE_CPU', 'auto')
+        print(f'Test {label}, requested_cpu={requested_cpu}', flush=True)
+        start = time.perf_counter()
+        subprocess.run(cmd, check=True, env=env, timeout=120 if is_smoke else 30)
+        result = {'test': label, 'requested_cpu': requested_cpu, 'elapsed_seconds': round(time.perf_counter() - start, 3)}
+        if is_smoke:
+            with wave.open(str(cmd[2]), 'rb') as audio:
+                result['audio_seconds'] = audio.getnframes() / audio.getframerate()
+            result['elapsed_audio_ratio'] = round(result['elapsed_seconds'] / result['audio_seconds'], 3)
+        timings.append(result)
+        print(json.dumps(result), flush=True)
+
     for cmd in commands:
         env = os.environ.copy()
         is_smoke = cmd[0].name == 'engine-smoke.exe'
@@ -206,10 +224,11 @@ def main():
             env['NOTEVIVE_CPU'] = 'baseline'
         elif is_smoke:
             env.pop('NOTEVIVE_CPU', None)
-        subprocess.run(cmd, check=True, env=env, timeout=120 if is_smoke else 30)
+        execute(cmd, env, is_smoke)
         if is_smoke:
             env['NOTEVIVE_CPU'] = 'baseline'
-            subprocess.run(cmd, check=True, env=env, timeout=120)
+            execute(cmd, env, is_smoke)
+    (out / 'timings.json').write_text(json.dumps(timings, indent=2) + '\n', encoding='utf-8')
     print('Tests Windows isolés : OK')
 
 

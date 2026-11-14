@@ -25,6 +25,9 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#ifdef NOTEVIVE_ENGINE_DIAGNOSTICS
+#include <iostream>
+#endif
 
 namespace doct {
 namespace {
@@ -110,6 +113,16 @@ struct Child {
             !verify_worker_file(directory) || !verify_engine_files(directory))
             fail(L"Le programme de dictée est absent ou altéré. Réextrayez le paquet complet.");
         const auto execution = execution_directory(directory);
+#ifdef NOTEVIVE_ENGINE_DIAGNOSTICS
+        // Test harness only: aggregate hardware/path diagnostics, never notes or audio.
+        SYSTEM_INFO system{};
+        GetNativeSystemInfo(&system);
+        std::cout << "selected_cpu=" << (execution == directory ? "baseline" : "avx2")
+                  << " compatible_avx2=" << processor_supports_avx2()
+                  << " os_avx=" << IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE)
+                  << " os_avx2=" << IsProcessorFeaturePresent(PF_AVX2_INSTRUCTIONS_AVAILABLE)
+                  << " logical_processors=" << system.dwNumberOfProcessors << std::endl;
+#endif
         if (execution != directory && !verify_worker_file(execution))
             fail(L"Le moteur optimisé est absent ou altéré. Réextrayez le paquet complet.");
         SECURITY_ATTRIBUTES security{sizeof(security), nullptr, TRUE};
