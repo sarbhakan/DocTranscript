@@ -4,7 +4,6 @@
     "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43614042322",
     "commit_abbrev": "265d16",
     "ci_artifact_name": "Mesures-Windows",
-    "candidate_zip_sha256": "5357bb1dbe8ae436b8858d0276492d5f9f8e8df8e0ba51662b31655a7c5dcc2d",
     "downloaded_metrics_sha256": {
       "ct2-memory-2.json": "0c88c58a7ceb13d0c0fdcf7d87c949e52638eb63ab2b8c53e9dffb7d8c3603bf",
       "ct2-memory-4.json": "f37d82cd477767199ddbf64a47e34394e0702f800f7d4e3b7884678840fe111c",
@@ -12,7 +11,8 @@
       "ct2-metrics-4.json": "872acaccbdecb3d27e56962f1b3b89974a57603e744cddd4c2a1803c5a467520",
       "timings.json": "88c36fce8e2d28350e3c846a88e9103ff478e2600ecf7bc2ce2ac92981250cb3"
     },
-    "native_slice_observation_source": "Native benchmark step log, nv_segment and whisper_print_timings"
+    "native_slice_observation_source": "Native benchmark step log, nv_segment and whisper_print_timings",
+    "measurements_artifact_zip_sha256": "5357bb1dbe8ae436b8858d0276492d5f9f8e8df8e0ba51662b31655a7c5dcc2d"
   },
   "host": {
     "cpu": "AMD EPYC 9V74",
@@ -647,5 +647,979 @@
     "supporting_observation": "Independent macOS native reproduction distinguishes grammatical feminine quantity wording from a numeric reference despite semantic equivalence.",
     "windows_transcript_retained": false,
     "retrospectively_corrected": false
+  },
+  "follow_up": {
+    "source": {
+      "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43616372644",
+      "commit_abbrev": "b880817",
+      "ci_artifact_name": "Mesures-Windows",
+      "measurements_artifact_zip_sha256": "a4fe29f28e2224e455f735976bb9cd5e3ff003a5cef6aec1fcd5ead59e5c54eb",
+      "downloaded_metrics_sha256": {
+        "ct2-corti-metrics.json": "64743ecfc72a10574458726bde2a639707e915fd951c46c0575e24f499665a4c",
+        "ct2-memory-4.json": "5ac37f9676ab7970a80a3024b063eb06349c030540fac544de5508d8439ac72b",
+        "ct2-metrics-4.json": "04fc7b295d2b16100baae873d41d0582db0c17cbc93ae99b4310421d31ee3923",
+        "timings.json": "4ff197144b886e5321979f21d93e003728d58e55fac3d5ac1b01d7730ad4c0b0"
+      }
+    },
+    "host": {
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "cores": 2,
+      "logical_processors": 4,
+      "virtualized": true,
+      "memory_bytes": 17174360064
+    },
+    "px_corpus": {
+      "warmup_policy": "As in first comparison; CT2 warmed on px-826, native uses a new worker per fixture.",
+      "native_case_scope": "Fresh worker for each fixture. Whole accelerated WAV replay with process/model startup, VAD, decode and termination.",
+      "ct2_case_scope": "Single warmed model per thread setting. Only prepared slices, input conversion and inference; no native VAD, device capture or UI. Imports, load and warmup reported separately.",
+      "ct2_slice_lock_matches_first_comparison": true,
+      "native_cases": [
+        {
+          "test": "silence",
+          "requested_cpu": "auto",
+          "elapsed_seconds": 1.246,
+          "audio_seconds": 8.0,
+          "elapsed_audio_ratio": 0.156,
+          "resources": {
+            "interval_ms_requested": 200,
+            "peak_sampled_private_bytes": 1000034304,
+            "observed_cpu_seconds": 1.03125,
+            "observed_mean_cpu_core_equivalents": 0.8748454757785201,
+            "snapshot_errors": 0,
+            "partial_samples": 0,
+            "exit_code": 0,
+            "parent_and_worker_observed": true
+          }
+        },
+        {
+          "test": "px-826",
+          "requested_cpu": "auto",
+          "elapsed_seconds": 16.252,
+          "audio_seconds": 6.44,
+          "elapsed_audio_ratio": 2.524,
+          "resources": {
+            "interval_ms_requested": 200,
+            "peak_sampled_private_bytes": 1954643968,
+            "observed_cpu_seconds": 59.015625,
+            "observed_mean_cpu_core_equivalents": 3.6457788413110395,
+            "snapshot_errors": 0,
+            "partial_samples": 0,
+            "exit_code": 0,
+            "parent_and_worker_observed": true
+          },
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              1,
+              1
+            ],
+            "passed": true
+          }
+        },
+        {
+          "test": "px-23",
+          "requested_cpu": "auto",
+          "elapsed_seconds": 60.482,
+          "audio_seconds": 16.8,
+          "elapsed_audio_ratio": 3.6,
+          "resources": {
+            "interval_ms_requested": 200,
+            "peak_sampled_private_bytes": 1955422208,
+            "observed_cpu_seconds": 232.859375,
+            "observed_mean_cpu_core_equivalents": 3.8544261438862524,
+            "snapshot_errors": 0,
+            "partial_samples": 0,
+            "exit_code": 0,
+            "parent_and_worker_observed": true
+          },
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ],
+              "fraction": [
+                1,
+                1
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              0,
+              1
+            ],
+            "passed": true
+          }
+        },
+        {
+          "test": "px-584",
+          "requested_cpu": "auto",
+          "elapsed_seconds": 45.999,
+          "audio_seconds": 15.2,
+          "elapsed_audio_ratio": 3.026,
+          "resources": {
+            "interval_ms_requested": 200,
+            "peak_sampled_private_bytes": 1954557952,
+            "observed_cpu_seconds": 176.40625,
+            "observed_mean_cpu_core_equivalents": 3.8404498196945513,
+            "snapshot_errors": 0,
+            "partial_samples": 0,
+            "exit_code": 0,
+            "parent_and_worker_observed": true
+          },
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ],
+              "fraction": [
+                2,
+                2
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              1,
+              1
+            ],
+            "passed": true
+          }
+        }
+      ],
+      "ct2_4": {
+        "schema": 1,
+        "engine": {
+          "faster-whisper": "1.2.1",
+          "ctranslate2": "4.9.0"
+        },
+        "model_revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+        "model_sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+        "cpu_threads": 4,
+        "worker_count": 1,
+        "device": "cpu",
+        "compute_type": "int8_float32",
+        "decode": {
+          "language": "fr",
+          "task": "transcribe",
+          "beam_size": 1,
+          "best_of": 1,
+          "temperature": 0.0,
+          "condition_on_previous_text": false,
+          "vad_filter": false,
+          "word_timestamps": false
+        },
+        "segmentation": "silero576",
+        "slice_lock_sha256": "f8b56f48960c293153cda82ddc005ce6ad871cbe480c98001d36ef2f44369712",
+        "import_ms": 426.163,
+        "model_load_ms": 3315.979,
+        "warmup": {
+          "id": "px-826",
+          "elapsed_ms": 10764.621
+        },
+        "cases": [
+          {
+            "id": "px-826",
+            "audio_ms": 6440,
+            "elapsed_ms": 10713.902,
+            "asr_elapsed_audio_ratio": 1.66365,
+            "slices": [
+              {
+                "start_frame": 6144,
+                "end_frame": 80384,
+                "elapsed_ms": 10713.764,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "f3e871b317886221"
+              }
+            ],
+            "fixture_checks": {
+              "critical_span_presence": {
+                "dose": [
+                  1,
+                  1
+                ]
+              },
+              "numeric_sequence_equal": true,
+              "no_added_negation": true,
+              "no_added_concentration": true,
+              "terms": [
+                1,
+                1
+              ],
+              "passed": true
+            }
+          },
+          {
+            "id": "px-23",
+            "audio_ms": 16800,
+            "elapsed_ms": 42824.567,
+            "asr_elapsed_audio_ratio": 2.54908,
+            "slices": [
+              {
+                "start_frame": 5120,
+                "end_frame": 57856,
+                "elapsed_ms": 10669.409,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "a72c6ea901956a34"
+              },
+              {
+                "start_frame": 70656,
+                "end_frame": 156672,
+                "elapsed_ms": 10803.712,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "80293e4df40e6812"
+              },
+              {
+                "start_frame": 156672,
+                "end_frame": 195584,
+                "elapsed_ms": 10652.768,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "9aadc4b7a34ee326"
+              },
+              {
+                "start_frame": 214528,
+                "end_frame": 240640,
+                "elapsed_ms": 10697.57,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "b2a8bba4ba777d9f"
+              }
+            ],
+            "fixture_checks": {
+              "critical_span_presence": {
+                "dose": [
+                  1,
+                  1
+                ],
+                "fraction": [
+                  1,
+                  1
+                ]
+              },
+              "numeric_sequence_equal": true,
+              "no_added_negation": true,
+              "no_added_concentration": true,
+              "terms": [
+                0,
+                1
+              ],
+              "passed": true
+            }
+          },
+          {
+            "id": "px-584",
+            "audio_ms": 15200,
+            "elapsed_ms": 32552.785,
+            "asr_elapsed_audio_ratio": 2.14163,
+            "slices": [
+              {
+                "start_frame": 37376,
+                "end_frame": 98816,
+                "elapsed_ms": 10755.555,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "4a3c19d6e3f92074"
+              },
+              {
+                "start_frame": 98816,
+                "end_frame": 157696,
+                "elapsed_ms": 10795.715,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "5dbfa464a403f695"
+              },
+              {
+                "start_frame": 182784,
+                "end_frame": 232448,
+                "elapsed_ms": 11000.768,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "f0cd6a097d9bda6a"
+              }
+            ],
+            "fixture_checks": {
+              "critical_span_presence": {
+                "dose": [
+                  1,
+                  1
+                ],
+                "fraction": [
+                  0,
+                  2
+                ]
+              },
+              "numeric_sequence_equal": false,
+              "no_added_negation": true,
+              "no_added_concentration": true,
+              "terms": [
+                1,
+                1
+              ],
+              "passed": false
+            }
+          }
+        ],
+        "critical_passed": false,
+        "sampled_process_tree_resources": {
+          "schema_version": 1,
+          "interval_ms_requested": 200,
+          "duration_ms": 102160.915,
+          "peak_sampled_private_bytes": 2025652224,
+          "observed_cpu_seconds": 392.9375,
+          "observed_mean_cpu_core_equivalents": 3.846260597050544,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0
+        }
+      },
+      "ct2_4_slice_summary": {
+        "count": 8,
+        "median_ms": 10734.6595,
+        "min_ms": 10652.768,
+        "max_ms": 11000.768,
+        "sum_ms": 86089.261
+      },
+      "new_score_on_px_826": "All controls passed for both configurations after targeted normalization fix; first run scores unchanged.",
+      "open_fraction_regression": {
+        "case": "px-584",
+        "previous_ct2_fraction_score": [
+          2,
+          2
+        ],
+        "current_ct2_fraction_score": [
+          0,
+          2
+        ],
+        "current_native_fraction_score": [
+          2,
+          2
+        ],
+        "ct2_numeric_sequence_equal": false,
+        "native_numeric_sequence_equal": true,
+        "exact_ct2_text_available": false,
+        "cause": "Unresolved: score coverage and inference differences are both plausible."
+      }
+    },
+    "corti_fidelity_cross_platform": {
+      "schema": 1,
+      "dataset": "corti/med-dictate",
+      "dataset_revision": "2a840558d221b4f306c52419d58f93270ea599bb",
+      "benchmark_lock_sha256": "9488f397c8bbeb75037fe1b0429a3fea06cdac5a3b6823f77ee16fd08c1d0b0e",
+      "cases": 2,
+      "slices": 18,
+      "whole_note_audio_ms": 240000.0,
+      "note": "Exploratory CT2 Windows vs prior whisper.cpp macOS fidelity. Timings are only CT2 Windows.",
+      "ct2": {
+        "runtime": "Windows-2022Server-10.0.20348-SP0",
+        "versions": {
+          "faster-whisper": "1.2.1",
+          "ctranslate2": "4.9.0"
+        },
+        "threads": 4,
+        "compute_type": "int8_float32",
+        "model_revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+        "model_sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+        "decode": {
+          "language": "fr",
+          "task": "transcribe",
+          "beam_size": 1,
+          "best_of": 1,
+          "temperature": 0.0,
+          "condition_on_previous_text": false,
+          "vad_filter": false,
+          "word_timestamps": false
+        },
+        "import_ms": 166.152,
+        "load_ms": 3431.492,
+        "warmup": {
+          "id": "px-826",
+          "elapsed_ms": 10705.428
+        },
+        "decode_ms_sum": 212205.557,
+        "empty_slices": 0
+      },
+      "reference_engine": {
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "name": "Whisper.cpp 1.8.5 Turbo Q5_0 / Silero 576 ms",
+        "model_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+        "libwhisper_sha256": "d5efc017f45c1a312d393be336e2a8934d6af73dcf8d180f185a960dd3f31e67",
+        "bridge_sha256": "5b697560d6ebf9d9ee0b54c8e5e9687d0af34efb6312c17348639de4d08cc798",
+        "raw_result_sha256": "4700b60cad3be96a88f51ee339c7f9e32896db11d300c3379142e4821940b02f"
+      },
+      "critical": {
+        "dose": {
+          "tested": 4,
+          "ct2_windows_correct": 3,
+          "whisper_cpp_macos_correct": 3,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "duration": {
+          "tested": 5,
+          "ct2_windows_correct": 4,
+          "whisper_cpp_macos_correct": 4,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "negation": {
+          "tested": 12,
+          "ct2_windows_correct": 7,
+          "whisper_cpp_macos_correct": 7,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "vitals": {
+          "tested": 2,
+          "ct2_windows_correct": 2,
+          "whisper_cpp_macos_correct": 2,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "laterality": {
+          "tested": 3,
+          "ct2_windows_correct": 1,
+          "whisper_cpp_macos_correct": 1,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "scale": {
+          "tested": 1,
+          "ct2_windows_correct": 1,
+          "whisper_cpp_macos_correct": 1,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        }
+      },
+      "ct2_no_new_strict_negation_loss": true,
+      "normalized_wer": {
+        "reference_words": 433,
+        "ct2_windows": {
+          "edits": 107,
+          "wer": 0.247113
+        },
+        "whisper_cpp_macos": {
+          "edits": 110,
+          "wer": 0.254042
+        }
+      }
+    },
+    "decision": "Retain native Whisper.cpp Turbo Q5_0 with OpenBLAS for the Windows trial. Keep CT2 an engineering benchmark until fraction stability and acceptable real-time dictation on the physical target PCs are demonstrated."
+  },
+  "third_comparison": {
+    "source": {
+      "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43618734575",
+      "commit": "0c0661b6916916419242ca4b8884de7ef32b23d1",
+      "ci_artifact_name": "Mesures-Windows",
+      "measurements_artifact_zip_sha256": "30359c486361903972e2bf3effd2688690bae39280063790d2ade03ce2de61cf",
+      "downloaded_metrics_sha256": {
+        "ct2-corti-metrics.json": "0ad0511cf1db870bd9b756f1e66891cf9a8b890017fb21d8255bd2ec5c49d255",
+        "ct2-memory-4.json": "2c8310ae650aab67c0330d02f59d63e5293ef5787db142b525311b0bb2fa6126",
+        "ct2-metrics-4.json": "75661c4b3f4dc8903f1d6eae49215d4caf16843890edbf4c34c84b4870dc497f",
+        "timings.json": "07862f5fe390194458f54392d9695ddb40a20490f18ddf431bc56487b33f4a13"
+      }
+    },
+    "host": {
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "virtualized": true,
+      "cores": 2,
+      "logical_processors": 4
+    },
+    "px_corpus": {
+      "native_case_scope": "Fresh worker for each fixture. Whole accelerated WAV replay with process/model startup, VAD, decode and termination.",
+      "ct2_case_scope": "Single warmed model per thread setting. Only prepared slices, input conversion and inference; no native VAD, device capture or UI. Imports, load and warmup reported separately.",
+      "native_cases": [
+        {
+          "test": "silence",
+          "requested_cpu": "auto",
+          "elapsed_seconds": 1.101,
+          "audio_seconds": 8.0,
+          "elapsed_audio_ratio": 0.138,
+          "resources": {
+            "interval_ms_requested": 200,
+            "peak_sampled_private_bytes": 1783742464,
+            "observed_cpu_seconds": 1.015625,
+            "observed_mean_cpu_core_equivalents": 0.970017771441878,
+            "snapshot_errors": 0,
+            "partial_samples": 0,
+            "exit_code": 0,
+            "parent_and_worker_observed": true
+          }
+        },
+        {
+          "test": "px-826",
+          "requested_cpu": "auto",
+          "elapsed_seconds": 14.202,
+          "audio_seconds": 6.44,
+          "elapsed_audio_ratio": 2.205,
+          "resources": {
+            "interval_ms_requested": 200,
+            "peak_sampled_private_bytes": 1954607104,
+            "observed_cpu_seconds": 51.859375,
+            "observed_mean_cpu_core_equivalents": 3.664539839437372,
+            "snapshot_errors": 0,
+            "partial_samples": 1,
+            "exit_code": 0,
+            "parent_and_worker_observed": true
+          },
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "expected_numeric_sequence": [
+              "20",
+              "1"
+            ],
+            "actual_numeric_sequence": [
+              "20",
+              "1"
+            ],
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              1,
+              1
+            ],
+            "passed": true
+          }
+        },
+        {
+          "test": "px-23",
+          "requested_cpu": "auto",
+          "elapsed_seconds": 53.48,
+          "audio_seconds": 16.8,
+          "elapsed_audio_ratio": 3.183,
+          "resources": {
+            "interval_ms_requested": 200,
+            "peak_sampled_private_bytes": 1955414016,
+            "observed_cpu_seconds": 206.328125,
+            "observed_mean_cpu_core_equivalents": 3.8617212540359787,
+            "snapshot_errors": 0,
+            "partial_samples": 0,
+            "exit_code": 0,
+            "parent_and_worker_observed": true
+          },
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ],
+              "fraction": [
+                1,
+                1
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "expected_numeric_sequence": [
+              "7,5",
+              "1",
+              "¼",
+              "7"
+            ],
+            "actual_numeric_sequence": [
+              "7,5",
+              "1",
+              "¼",
+              "7"
+            ],
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              0,
+              1
+            ],
+            "passed": true
+          }
+        },
+        {
+          "test": "px-584",
+          "requested_cpu": "auto",
+          "elapsed_seconds": 40.548,
+          "audio_seconds": 15.2,
+          "elapsed_audio_ratio": 2.668,
+          "resources": {
+            "interval_ms_requested": 200,
+            "peak_sampled_private_bytes": 1954709504,
+            "observed_cpu_seconds": 155.75,
+            "observed_mean_cpu_core_equivalents": 3.8460113077226628,
+            "snapshot_errors": 0,
+            "partial_samples": 0,
+            "exit_code": 0,
+            "parent_and_worker_observed": true
+          },
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ],
+              "fraction": [
+                2,
+                2
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "expected_numeric_sequence": [
+              "80",
+              "½",
+              "½",
+              "2"
+            ],
+            "actual_numeric_sequence": [
+              "80",
+              "½",
+              "½",
+              "2"
+            ],
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              1,
+              1
+            ],
+            "passed": true
+          }
+        }
+      ],
+      "ct2_4": {
+        "schema": 1,
+        "engine": {
+          "faster-whisper": "1.2.1",
+          "ctranslate2": "4.9.0"
+        },
+        "model_revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+        "model_sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+        "cpu_threads": 4,
+        "worker_count": 1,
+        "device": "cpu",
+        "compute_type": "int8_float32",
+        "decode": {
+          "language": "fr",
+          "task": "transcribe",
+          "beam_size": 1,
+          "best_of": 1,
+          "temperature": 0.0,
+          "condition_on_previous_text": false,
+          "vad_filter": false,
+          "word_timestamps": false
+        },
+        "segmentation": "silero576",
+        "slice_lock_sha256": "f8b56f48960c293153cda82ddc005ce6ad871cbe480c98001d36ef2f44369712",
+        "import_ms": 377.243,
+        "model_load_ms": 2793.207,
+        "warmup": {
+          "id": "px-826",
+          "elapsed_ms": 7221.542
+        },
+        "cases": [
+          {
+            "id": "px-826",
+            "audio_ms": 6440,
+            "elapsed_ms": 7348.594,
+            "asr_elapsed_audio_ratio": 1.14109,
+            "slices": [
+              {
+                "start_frame": 6144,
+                "end_frame": 80384,
+                "elapsed_ms": 7348.459,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "f3e871b317886221"
+              }
+            ],
+            "fixture_checks": {
+              "critical_span_presence": {
+                "dose": [
+                  1,
+                  1
+                ]
+              },
+              "numeric_sequence_equal": true,
+              "expected_numeric_sequence": [
+                "20",
+                "1"
+              ],
+              "actual_numeric_sequence": [
+                "20",
+                "1"
+              ],
+              "no_added_negation": true,
+              "no_added_concentration": true,
+              "terms": [
+                1,
+                1
+              ],
+              "passed": true
+            }
+          },
+          {
+            "id": "px-23",
+            "audio_ms": 16800,
+            "elapsed_ms": 28531.089,
+            "asr_elapsed_audio_ratio": 1.69828,
+            "slices": [
+              {
+                "start_frame": 5120,
+                "end_frame": 57856,
+                "elapsed_ms": 7125.097,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "a72c6ea901956a34"
+              },
+              {
+                "start_frame": 70656,
+                "end_frame": 156672,
+                "elapsed_ms": 7231.08,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "80293e4df40e6812"
+              },
+              {
+                "start_frame": 156672,
+                "end_frame": 195584,
+                "elapsed_ms": 7076.922,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "9aadc4b7a34ee326"
+              },
+              {
+                "start_frame": 214528,
+                "end_frame": 240640,
+                "elapsed_ms": 7097.37,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "b2a8bba4ba777d9f"
+              }
+            ],
+            "fixture_checks": {
+              "critical_span_presence": {
+                "dose": [
+                  1,
+                  1
+                ],
+                "fraction": [
+                  1,
+                  1
+                ]
+              },
+              "numeric_sequence_equal": true,
+              "expected_numeric_sequence": [
+                "7,5",
+                "1",
+                "¼",
+                "7"
+              ],
+              "actual_numeric_sequence": [
+                "7,5",
+                "1",
+                "¼",
+                "7"
+              ],
+              "no_added_negation": true,
+              "no_added_concentration": true,
+              "terms": [
+                0,
+                1
+              ],
+              "passed": true
+            }
+          },
+          {
+            "id": "px-584",
+            "audio_ms": 15200,
+            "elapsed_ms": 21427.4,
+            "asr_elapsed_audio_ratio": 1.4097,
+            "slices": [
+              {
+                "start_frame": 37376,
+                "end_frame": 98816,
+                "elapsed_ms": 7144.16,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "4a3c19d6e3f92074"
+              },
+              {
+                "start_frame": 98816,
+                "end_frame": 157696,
+                "elapsed_ms": 7133.393,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "5dbfa464a403f695"
+              },
+              {
+                "start_frame": 182784,
+                "end_frame": 232448,
+                "elapsed_ms": 7149.1,
+                "nonempty": true,
+                "pcm_float32_fnv1a64_expected": "f0cd6a097d9bda6a"
+              }
+            ],
+            "fixture_checks": {
+              "critical_span_presence": {
+                "dose": [
+                  1,
+                  1
+                ],
+                "fraction": [
+                  2,
+                  2
+                ]
+              },
+              "numeric_sequence_equal": true,
+              "expected_numeric_sequence": [
+                "80",
+                "½",
+                "½",
+                "2"
+              ],
+              "actual_numeric_sequence": [
+                "80",
+                "½",
+                "½",
+                "2"
+              ],
+              "no_added_negation": true,
+              "no_added_concentration": true,
+              "terms": [
+                1,
+                1
+              ],
+              "passed": true
+            }
+          }
+        ],
+        "critical_passed": true,
+        "sampled_process_tree_resources": {
+          "schema_version": 1,
+          "interval_ms_requested": 200,
+          "duration_ms": 69169.322,
+          "peak_sampled_private_bytes": 2092257280,
+          "observed_cpu_seconds": 264.296875,
+          "observed_mean_cpu_core_equivalents": 3.821012937437747,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0
+        }
+      },
+      "ct2_4_slice_summary": {
+        "count": 8,
+        "median_ms": 7138.7765,
+        "min_ms": 7076.922,
+        "max_ms": 7348.459,
+        "sum_ms": 57305.581
+      },
+      "numeric_signatures_logged": true,
+      "px_584_regression_from_second_run_resolved": false,
+      "px_584_evidence": "Both engines pass on this host with expected normalized numeric sequence and two fraction spans. The EPYC 7763 failure lacks a numeric signature or transcript and remains unexplained."
+    },
+    "corti_fidelity_cross_platform": {
+      "schema": 1,
+      "dataset": "corti/med-dictate",
+      "dataset_revision": "2a840558d221b4f306c52419d58f93270ea599bb",
+      "benchmark_lock_sha256": "9488f397c8bbeb75037fe1b0429a3fea06cdac5a3b6823f77ee16fd08c1d0b0e",
+      "cases": 2,
+      "slices": 18,
+      "whole_note_audio_ms": 240000.0,
+      "note": "Exploratory CT2 Windows vs prior whisper.cpp macOS fidelity. Timings are only CT2 Windows.",
+      "ct2": {
+        "runtime": "Windows-2022Server-10.0.20348-SP0",
+        "versions": {
+          "faster-whisper": "1.2.1",
+          "ctranslate2": "4.9.0"
+        },
+        "threads": 4,
+        "compute_type": "int8_float32",
+        "model_revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+        "model_sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+        "decode": {
+          "language": "fr",
+          "task": "transcribe",
+          "beam_size": 1,
+          "best_of": 1,
+          "temperature": 0.0,
+          "condition_on_previous_text": false,
+          "vad_filter": false,
+          "word_timestamps": false
+        },
+        "import_ms": 132.593,
+        "load_ms": 2802.783,
+        "warmup": {
+          "id": "px-826",
+          "elapsed_ms": 7247.647
+        },
+        "decode_ms_sum": 144883.986,
+        "empty_slices": 0
+      },
+      "reference_engine": {
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "name": "Whisper.cpp 1.8.5 Turbo Q5_0 / Silero 576 ms",
+        "model_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+        "libwhisper_sha256": "d5efc017f45c1a312d393be336e2a8934d6af73dcf8d180f185a960dd3f31e67",
+        "bridge_sha256": "5b697560d6ebf9d9ee0b54c8e5e9687d0af34efb6312c17348639de4d08cc798",
+        "raw_result_sha256": "4700b60cad3be96a88f51ee339c7f9e32896db11d300c3379142e4821940b02f"
+      },
+      "critical": {
+        "dose": {
+          "tested": 4,
+          "ct2_windows_correct": 3,
+          "whisper_cpp_macos_correct": 3,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "duration": {
+          "tested": 5,
+          "ct2_windows_correct": 4,
+          "whisper_cpp_macos_correct": 4,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "negation": {
+          "tested": 12,
+          "ct2_windows_correct": 7,
+          "whisper_cpp_macos_correct": 7,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "vitals": {
+          "tested": 2,
+          "ct2_windows_correct": 2,
+          "whisper_cpp_macos_correct": 2,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "laterality": {
+          "tested": 3,
+          "ct2_windows_correct": 1,
+          "whisper_cpp_macos_correct": 1,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        },
+        "scale": {
+          "tested": 1,
+          "ct2_windows_correct": 1,
+          "whisper_cpp_macos_correct": 1,
+          "ct2_gains": 0,
+          "ct2_losses": 0
+        }
+      },
+      "ct2_no_new_strict_negation_loss": true,
+      "normalized_wer": {
+        "reference_words": 433,
+        "ct2_windows": {
+          "edits": 109,
+          "wer": 0.251732
+        },
+        "whisper_cpp_macos": {
+          "edits": 110,
+          "wer": 0.254042
+        }
+      }
+    },
+    "decision": "Retain the native Whisper.cpp Turbo Q5_0 plus OpenBLAS as the only Windows trial engine. CT2 stays an opt-in engineering benchmark; there is no CT2 product integration."
   }
 }

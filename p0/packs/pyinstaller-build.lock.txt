@@ -1,0 +1,19 @@
+# Build-only addendum for Windows AMD64 CPython 3.12; not included in the app.
+# Dependencies, filenames and hashes from the exact non-yanked PyPI releases.
+# In the clean Windows build venv, install with both -r options (this and
+# ct2-cp312-win-amd64.lock.txt), --require-hashes and --only-binary=:all:.
+# The interpreter is a separate input: see ct2-python-windows.lock.json.
+# altgraph-0.17.4-py2.py3-none-any.whl
+altgraph==0.17.4 --hash=sha256:642743b4750de17e655e6711601b077bc6598dbfa3ba5fa2b2a35ce12b508dff
+# packaging-25.0-py3-none-any.whl (also pinned in the CT2 probe lock)
+packaging==25.0 --hash=sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484
+# pefile-2024.8.26-py3-none-any.whl
+pefile==2024.8.26 --hash=sha256:76f8b485dcd3b1bb8166f1128d395fa3d87af26360c2358fb75b80019b957c6f
+# pyinstaller-6.22.3-py3-none-win_amd64.whl
+pyinstaller==6.22.3 --hash=sha256:500bd58c7bf7e584a8435adccbd763a0b918d5c12b08d74ff50fd79b2915458b
+# pyinstaller_hooks_contrib-2026.7-py3-none-any.whl
+pyinstaller-hooks-contrib==2026.7 --hash=sha256:24257a04c7a5a7a034cf28e39dcee20fbeeb9f043076729480f2e1b69904408a
+# pywin32_ctypes-0.2.3-py3-none-any.whl
+pywin32-ctypes==0.2.3 --hash=sha256:8a1513379d709975552d202d942d9837758905c8d01eb82b8bcc30918929e7b8
+# setuptools-82.0.1-py3-none-any.whl
+setuptools==82.0.1 --hash=sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb

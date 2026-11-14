@@ -1,8 +1,8 @@
 # Recette Windows de NoteVive 0.3.0
 
-Effectuer cette recette avec **un seul ZIP Windows x64**, identique sur les deux postes. Le candidat 0.3.0, non publié, est réservé aux données fictives. Tant que les mesures ci-dessous ne sont pas remplies sur les deux PC, le fonctionnement et le confort sur un poste à 8 Go ne sont pas établis. La construction sous Windows, les tests hors interface et les comparaisons sur Mac ne remplacent pas cette recette. Aucun résultat de ce document ne vaut qualification clinique.
+Effectuer cette recette avec **le même ZIP Windows x64** de la [préversion v0.3.0-essai](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai) sur les deux postes, en utilisant uniquement des données fictives. Tant que les mesures ci-dessous ne sont pas remplies, le confort d’usage sur un poste à 8 Go n’est pas établi. Cette recette ne vaut pas qualification clinique.
 
-Point de départ : le [banc CI OpenBLAS](p0-choix-moteur.md#détail-du-run-openblas) passe les contrôles audio disponibles. Sur sa VM, le contrôle de 6,44 s prend 14,742 s, démarrage compris, et un nom de médicament manque sur un des extraits de régression. Le test d’interface reste à confirmer. Consigner les mesures au microphone et à l’écran dans le relevé ci-dessous ; ces valeurs CI ne doivent pas y être reprises comme résultats W1/W2.
+Point de départ : la [CI Windows](https://github.com/sarbhakan/DocTranscript/actions/runs/43620136119/job/132523751821) passe le stockage, le moteur et le parcours automatisé de l’interface. Le [banc audio](p0-choix-moteur.md#détail-du-run-openblas) mesure le traitement de fichiers sur des machines virtuelles ; il a relevé des temps de calcul supérieurs à la durée de la parole et un nom de médicament manquant. Relever ici les nouvelles mesures au microphone et à l’écran, sur W1 et W2.
 
 ## Préparer les deux postes
 

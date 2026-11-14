@@ -5,7 +5,7 @@ NoteVive transcrit dictées et notes en français, sur le PC. Il ne demande ni c
 ## 1. Télécharger, vérifier et ouvrir
 
 1. Dans **Paramètres → Système → Informations système**, vérifiez que le système est Windows 11 avec un processeur **x64** Intel ou AMD. La dictée exige aussi AVX2 et les extensions associées. NoteVive vérifie ce prérequis avant d’activer le bouton **Dicter**. Aucun GPU dédié n’est nécessaire.
-2. Le ZIP 0.3.0 n’est pas encore publié. Lorsqu’il sera disponible dans les [Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases), prendre le `NoteVive-Windows-x64-Essai.zip` de cette préversion. La 0.1.0 utilise un autre moteur. Une fois le bon ZIP téléchargé, calculez son empreinte PowerShell :
+2. Dans la [préversion Windows v0.3.0-essai](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai), téléchargez `NoteVive-Windows-x64-Essai.zip` et son fichier `.sha256`. Calculez l’empreinte du ZIP dans PowerShell :
 
    ```powershell
    Get-FileHash -Algorithm SHA256 -LiteralPath '.\NoteVive-Windows-x64-Essai.zip'

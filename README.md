@@ -4,15 +4,15 @@
 
 **Dictée médicale en français, aux pauses et hors ligne.** NoteVive transforme une dictée en brouillon éditable sur Windows. Les phrases reconnues sont ajoutées au fil des pauses. La bibliothèque locale permet de renommer les notes, les classer en dossiers et sous-dossiers, rechercher leur contenu et trier par titre, création ou modification.
 
-**État : candidat Windows 0.3.0 en cours de recette, réservé aux données fictives.** Après le [comparatif sur Mac](p0/asr_benchmark.md), le candidat Windows associe Whisper Large-v3 Turbo Q5_0, Silero 6.2 et une pause de 576 ms. En CI avec OpenBLAS, le moteur traite 6,44 s de parole en 14,74 s, démarrage compris : le calcul reste plus long que la parole. Les doses et les fractions attendues des deux extraits de régression passent, mais un nom de médicament n’est pas reconnu et le test d’interface reste à confirmer. Voir le [détail des mesures Windows](docs/p0-choix-moteur.md). La recette sur deux PC physiques, dont un à 8 Go sans GPU dédié, reste à faire.
+**Préversion Windows 0.3.0, réservée aux données fictives.** Le paquet utilise Whisper Large-v3 Turbo Q5_0 avec whisper.cpp, OpenBLAS et Silero 6.2. Le traitement démarre après une pause de 576 ms ; l’affichage dépend ensuite du temps de calcul. La [CI Windows](https://github.com/sarbhakan/DocTranscript/actions/runs/43620136119/job/132523751821) valide les contrôles natifs, les trois extraits fictifs et le parcours automatisé de l’interface. Les [mesures](docs/p0-choix-moteur.md) montrent que le calcul reste plus long que la parole sur les contrôles Windows. Les essais au micro sur deux PC physiques, dont un à 8 Go sans GPU dédié, restent à faire.
 
 ## Préparer l’essai sur Windows 11 x64
 
-**Le ZIP 0.3.0 n’est pas publié.** La publication dans les [Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases) reste bloquée tant que les échecs de la recette Windows persistent. La seule préversion actuellement publiée, `v0.1.0-essai`, utilise l’ancien moteur. Les archives « Source code » ne contiennent pas l’EXE.
+**Téléchargement : [préversion Windows v0.3.0-essai](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai).** Choisir `NoteVive-Windows-x64-Essai.zip` et son fichier `.sha256`. Les archives « Source code » ne contiennent pas l’EXE.
 
 La dictée dans le candidat 0.3.0 demande un processeur x64 compatible **AVX2** et ses extensions associées, sans GPU dédié. Si le processeur est incompatible, NoteVive le signale avant d’ouvrir le micro et la bibliothèque reste accessible.
 
-Lorsqu’un paquet 0.3.0 est disponible pour un essai autorisé, vérifier son SHA-256 et l’extraire en entier dans un dossier local. Garder `runtime` à côté de `NoteVive.exe`, puis ouvrir l’EXE. Aucun compte, Python, .NET ou téléchargement de modèle n’est nécessaire au lancement. Pour un premier test : cliquer sur **Dicter**, attendre **Micro ouvert**, puis lire « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Cliquer sur **Arrêter**, relire et renommer la note. Fermer puis rouvrir NoteVive pour vérifier la sauvegarde.
+Vérifier le SHA-256 du ZIP, l’extraire en entier et ouvrir `NoteVive.exe` dans le dossier extrait. Le modèle est inclus. Pour un premier test, cliquer sur **Dicter**, attendre **Micro ouvert**, puis lire « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Cliquer sur **Arrêter**, relire et renommer la note. Fermer puis rouvrir NoteVive pour vérifier la sauvegarde.
 
 [Guide d’essai et dépannage](docs/guide-essai-windows.md) · [Recette 0.3.0 sur deux PC](docs/windows-recette-030.md) · [Résultats comparés](p0/asr_benchmark.md)
 

@@ -2,7 +2,7 @@
 
 Analyse du 13 novembre 2026. Les choix ci-dessous sont proposés pour le prototype. Aucune performance, compatibilité ou installation n’a encore été vérifiée sur un poste Windows par le projet.
 
-**Mise en œuvre d’essai.** Le [premier EXE portable](../app/README.md) utilise Win32/C++ et WinMM, ce qui a permis une compilation Windows x64 depuis macOS. Il embarque un seul candidat Sherpa/Zipformer. Cette décision accélère la recette ; elle ne clôt pas l’arbitrage entre Win32 et WPF ou WinMM et WASAPI sur les postes du parc.
+**Mise en œuvre du candidat 0.3.0.** Le [paquet Windows portable](../app/README.md) conserve Win32/C++ et la capture WinMM. La dictée tourne dans un [processus natif supervisé](../app/windows/engine.md), avec whisper.cpp, le modèle Whisper Large-v3 Turbo Q5_0, Silero et OpenBLAS. Zipformer appartenait au premier essai Windows. Le reste de cette page conserve les choix étudiés au cadrage ; le paquet actuel et sa recette sont décrits dans le [guide Windows 0.3.0](windows-recette-030.md).
 
 ## Choix de socle
 

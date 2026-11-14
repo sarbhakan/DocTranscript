@@ -2,6 +2,8 @@
 
 Le test compare la fidélité de CTranslate2 sous Windows aux résultats déjà mesurés de Whisper.cpp sous macOS, sur les deux notes humaines françaises de Corti Med-Dictate qui contiennent les **12 négations préannotées**. Les deux notes couvrent aussi quatre doses et trois latéralités. Les entrées sont 18 tranches de même longueur, préparées par Silero GGML 6.2.0 et le découpage NoteVive à 576 ms avant l'essai CT2. L'évaluation CT2 utilise les mêmes dépendances, le même poids, le préchauffage Px et les mêmes options de décodage que le banc Px, sur quatre fils et en CPU INT8. Seul le temps CT2 Windows est mesuré dans ce contrôle ; les plateformes et les quantifications diffèrent.
 
+Le workflow Windows peut refaire ce comparatif à la demande : **Actions → Windows — construction et recette → Run workflow**, puis cocher `compare_ct2`. Les tests du paquet natif et de son interface restent obligatoires ; les sondes CT2 et Corti sont des comparaisons de développement facultatives, absentes du ZIP utilisateur. Les builds ordinaires ne téléchargent pas leurs dépendances.
+
 Depuis le dépôt, après la préparation du venv et du poids vérifiés pour le [banc Px](ct2_probe.py), utiliser PowerShell :
 
 ```powershell
