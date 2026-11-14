@@ -204,6 +204,7 @@ function Trace-SyntheticLowBox {
             if (-not $debugger.HasExited) { $debugger.Kill() }
             $debugger.Dispose()
         }
+    }
 }
 
 function Log-EdgeFailure {
