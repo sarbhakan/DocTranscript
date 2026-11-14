@@ -149,9 +149,25 @@ function Trace-SyntheticLowBox {
     }
     $symbols = Join-Path $work 'local-symbols-only'
     $null = [IO.Directory]::CreateDirectory($symbols)
+    $rawLog = Join-Path $work 'private-lowbox-debugger.log'
+    # x64 ZwDuplicateObject: source process, source handle and target
+    # process are RCX, RDX and R8. Args five through seven are on the stack.
+    # !handle only examines a real source handle of this synthetic process.
+    @'
+.printf "NV_DUP_WANTED=%08x attributes=%08x options=%08x\n", dwo(@rsp+0x28), dwo(@rsp+0x30), dwo(@rsp+0x38)
+.if (@rcx == 0xffffffffffffffff) { .echo NV_DUP_SOURCE=self-pseudo } .else { .if (@rcx == 0) { .echo NV_DUP_SOURCE=null } .else { .echo NV_DUP_SOURCE=process-handle } }
+.if (@r8 == 0xffffffffffffffff) { .echo NV_DUP_TARGET=self-pseudo } .else { .if (@r8 == 0) { .echo NV_DUP_TARGET=null } .else { .echo NV_DUP_TARGET=process-handle } }
+.if (@rcx == 0xffffffffffffffff) { .if (@rdx > 0) { .if (@rdx < 0xfffffffffffffff0) { r @$t2=@rdx; !handle @$t2 7 } } }
+bp /1 poi(@rsp) "$$><nv-duplicate-return.txt"
+gc
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-duplicate-entry.txt') -Encoding Ascii
+    @'
+.printf "NV_DUP_STATUS=%08x\n", @eax
+gc
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-duplicate-return.txt') -Encoding Ascii
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $kits
-    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -c "bu kernelbase!CreateAppContainerToken;g" "{1}" --edge-lowbox-trace' -f $symbols, $ProbeExe
+    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -logo "{1}" -c "bu kernelbase!CreateAppContainerToken;g" "{2}" --edge-lowbox-trace' -f $symbols, $rawLog, $ProbeExe
     $start.WorkingDirectory = $work
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -163,11 +179,11 @@ function Trace-SyntheticLowBox {
         $debugger = [Diagnostics.Process]::Start($start)
         $stdout = $debugger.StandardOutput.ReadToEndAsync()
         $stderr = $debugger.StandardError.ReadToEndAsync()
-        # The initial command stops at the exported factory. These commands
-        # are consumed at its prompt and after the traced return.
+        # Trace the duplicate call only during the first synthetic factory call.
         $debugger.StandardInput.WriteLine('bc *')
-        $debugger.StandardInput.WriteLine('wt -l 14 -ns -nw -or')
-        $debugger.StandardInput.WriteLine('q')
+        $debugger.StandardInput.WriteLine('bp /1 poi(@rsp) ".echo NV_FACTORY_RETURN; q"')
+        $debugger.StandardInput.WriteLine('bu ntdll!ZwDuplicateObject "$$><nv-duplicate-entry.txt"')
+        $debugger.StandardInput.WriteLine('g')
         $debugger.StandardInput.Flush()
         if (-not $debugger.WaitForExit(18000)) {
             Write-Output 'Synthetic LowBox trace: debugger deadline reached.'
@@ -178,23 +194,43 @@ function Trace-SyntheticLowBox {
             Write-Output 'Synthetic LowBox trace: debugger stream did not close.'
             return
         }
-        # wt prints symbol names and return registers. Exclude command lines,
-        # process paths, registers other than reported returns, and all raw SIDs.
-        $kept = @()
-        foreach ($line in ($stdout.Result -split "`r?`n")) {
-            if ($line -match '^\s*(?:\d+\s+){2}\[\s*\d+\]\s+(?<symbol>ntdll!(?:Nt|Zw)[A-Za-z0-9_]{2,64})\b(?<tail>.*)$') {
-                $symbol = $Matches.symbol
-                $tail = $Matches.tail
-                $codes = @([regex]::Matches($tail, '(?i)\b(?:0x)?[0-9a-f]{8}(?:`[0-9a-f]{8})?\b') |
-                    ForEach-Object Value | Select-Object -First 3)
-                $kept += "Synthetic LowBox trace call $symbol returns=$($codes -join ',')"
+        # This text stays in the disposable profile. Emit only allowlisted
+        # metadata; never emit actual object names, paths, SIDs or handles.
+        $raw = if (Test-Path -LiteralPath $rawLog -PathType Leaf) { Get-Content -LiteralPath $rawLog -Raw } else { $stdout.Result }
+        $pending = $null
+        $kept = 0
+        foreach ($line in ($raw -split "`r?`n")) {
+            if ($line -match '^\s*NV_DUP_WANTED=(?<mask>[0-9a-f]{8}) attributes=(?<attr>[0-9a-f]{8}) options=(?<options>[0-9a-f]{8})\s*$') {
+                $pending = @{mask=$Matches.mask; attr=$Matches.attr; options=$Matches.options; source='unknown';
+                    target='unknown'; type='unknown'; granted='unknown'; kind='unknown'}
+            } elseif ($pending -and $line -match '^\s*NV_DUP_(?<which>SOURCE|TARGET)=(?<category>self-pseudo|null|process-handle)\s*$') {
+                $pending[$Matches.which.ToLowerInvariant()] = $Matches.category
+            } elseif ($pending -and $line -match '^\s+Type\s+(?<type>Directory|SymbolicLink|Token|Process|Thread|File|Key|Section|Event)\s*$') {
+                $pending.type = $Matches.type
+            } elseif ($pending -and $line -match '^\s+GrantedAccess\s+(?<granted>0x[0-9a-f]{1,8}):?\s*$') {
+                $pending.granted = $Matches.granted
+            } elseif ($pending -and $line -match '^\s+Name\s+(?<name>.*)$') {
+                $objectName = $Matches.name.Trim()
+                $pending.kind = switch -Regex ($objectName) {
+                    '^\\Sessions\\\d+\\AppContainerNamedObjects\\.+$' { 'session-app-child'; break }
+                    '^\\Sessions\\\d+\\AppContainerNamedObjects\\?$' { 'session-app-root'; break }
+                    '^\\Sessions\\\d+\\BaseNamedObjects\\?$' { 'session-base-root'; break }
+                    '^<none>$|^$' { 'unnamed'; break }
+                    default { 'other' }
+                }
+            } elseif ($pending -and $line -match '^\s*NV_DUP_STATUS=(?<status>[0-9a-f]{8})\s*$') {
+                $status = $Matches.status
+                $kept++
+                if ($kept -le 16) {
+                    Write-Output "Synthetic LowBox ZwDuplicateObject: source=$($pending.source) target=$($pending.target) object_type=$($pending.type) object_kind=$($pending.kind) granted=$($pending.granted) desired=0x$($pending.mask) attributes=0x$($pending.attr) options=0x$($pending.options) ntstatus=0x$status"
+                }
+                $pending = $null
             }
         }
-        $kept | Select-Object -Last 80 | Write-Output
-        Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); debugger_exited=$($debugger.HasExited)."
-        if (-not $kept.Count) {
-            $raw = $stdout.Result + $stderr.Result
-            Write-Output "Synthetic LowBox trace state: factory_symbol=$($raw -match 'kernelbase!CreateAppContainerToken'); trace_command=$($raw -match 'wt -l 14'); command_error=$($raw -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
+        Write-Output "Synthetic LowBox duplicate trace: captured_calls=$kept; factory_return=$($raw -match '(?m)^\s*NV_FACTORY_RETURN\s*$'); debugger_exited=$($debugger.HasExited)."
+        if (-not $kept) {
+            $diagnosis = $raw + $stderr.Result
+            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-duplicate-entry'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
         }
     } catch {
         # Do not print raw debugger command lines/paths.
