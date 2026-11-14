@@ -70,6 +70,7 @@ Le paquet Windows 0.3.0 utilise **Whisper Large-v3 Turbo Q5_0, whisper.cpp 1.8.5
 
 | Document | Ce qu’il permet de comprendre |
 | --- | --- |
+| [Plan de fiabilisation médicale](docs/plan-fiabilisation-medicale.md) | Prochaines étapes, rôle de Hakan et des médecins, méthodes d’amélioration et preuves nécessaires avant un pilote. |
 | [Feuille de route](docs/feuille-de-route.md) · [Registre de suivi](docs/suivi.md) | Périmètre, tâches, décisions, risques et preuves de réalisation. |
 | [Construction Windows](app/README.md) · [Architecture](docs/architecture-windows.md) | Composants, compilation, capture et stockage. |
 | [Résultats comparés](p0/asr_benchmark.md) · [Choix du moteur](docs/p0-choix-moteur.md) | Mesures disponibles, erreurs observées et limites de performance. |
