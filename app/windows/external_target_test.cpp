@@ -9,7 +9,10 @@
 #include "external_target.h"
 
 #include <aclapi.h>
+#include <bcrypt.h>
+#include <lm.h>
 #include <sddl.h>
+#include <userenv.h>
 
 #include <cstdio>
 #include <cwchar>
@@ -178,6 +181,15 @@ struct LocalHandle {
     ~LocalHandle() { if (value && value != INVALID_HANDLE_VALUE) CloseHandle(value); }
 };
 
+bool hosted_recipe() {
+    const auto expected = [](const wchar_t* name, const wchar_t* value) {
+        wchar_t buffer[32]{};
+        const DWORD size = GetEnvironmentVariableW(name, buffer, 32);
+        return size && size < 32 && std::wcscmp(buffer, value) == 0;
+    };
+    return expected(L"GITHUB_ACTIONS", L"true") && expected(L"RUNNER_ENVIRONMENT", L"github-hosted");
+}
+
 struct RecipeDesktop {
     static constexpr DWORD station_access = STANDARD_RIGHTS_REQUIRED | WINSTA_ALL_ACCESS;
     static constexpr DWORD desktop_access = STANDARD_RIGHTS_REQUIRED | DESKTOP_READOBJECTS |
@@ -251,13 +263,8 @@ struct RecipeDesktop {
         }
         return error;
     }
-    bool start(HANDLE filtered, PSID logon) {
-        const auto allowed = [](const wchar_t* name, const wchar_t* expected) {
-            wchar_t value[32]{};
-            const DWORD size = GetEnvironmentVariableW(name, value, 32);
-            return size && size < 32 && std::wcscmp(value, expected) == 0;
-        };
-        if (!allowed(L"GITHUB_ACTIONS", L"true") || !allowed(L"RUNNER_ENVIRONMENT", L"github-hosted")) {
+    bool start(HANDLE token, PSID account) {
+        if (!hosted_recipe()) {
             std::fputs("Run the recipe from an ordinary Windows account; desktop setup is limited to hosted CI.\n", stderr);
             SetLastError(ERROR_ACCESS_DENIED);
             return false;
@@ -283,7 +290,7 @@ struct RecipeDesktop {
         // CreateProcessAsUser's interactive desktop contract calls for full
         // access. Test the actual medium token instead of assuming its SID.
         LocalHandle thread_token;
-        if (!DuplicateTokenEx(filtered, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
+        if (!DuplicateTokenEx(token, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
                               TokenImpersonation, &thread_token.value)) return false;
         const HWINSTA label_station = OpenWindowStationW(station_name, FALSE, READ_CONTROL);
         if (label_station) {
@@ -293,7 +300,7 @@ struct RecipeDesktop {
             std::fprintf(stderr, "WinSta0 label handle unavailable (%lu)\n", static_cast<unsigned long>(GetLastError()));
         }
         const DWORD access_error = access_with(thread_token.value, station_name);
-        std::fprintf(stderr, "Filtered token WinSta0 full access: %lu\n", static_cast<unsigned long>(access_error));
+        std::fprintf(stderr, "Recipe account WinSta0 full access: %lu\n", static_cast<unsigned long>(access_error));
         if (access_error && access_error != ERROR_ACCESS_DENIED) {
             SetLastError(access_error);
             return false;
@@ -317,7 +324,7 @@ struct RecipeDesktop {
                 EXPLICIT_ACCESSW access{};
                 access.grfAccessPermissions = station_access;
                 access.grfAccessMode = GRANT_ACCESS;
-                BuildTrusteeWithSidW(&access.Trustee, logon);
+                BuildTrusteeWithSidW(&access.Trustee, account);
                 err = SetEntriesInAclW(1, &access, station_original_dacl, &changed);
                 if (err == ERROR_SUCCESS) {
                     SECURITY_DESCRIPTOR descriptor{};
@@ -331,14 +338,14 @@ struct RecipeDesktop {
             } else err = ERROR_INVALID_ACL;
             if (changed) LocalFree(changed);
             if (err != ERROR_SUCCESS) { SetLastError(err); return false; }
-            std::fputs("WinSta0 access was granted temporarily to the current logon SID.\n", stderr);
+            std::fputs("WinSta0 access was granted temporarily to the isolated test account.\n", stderr);
             const DWORD retry = access_with(thread_token.value, station_name);
-            std::fprintf(stderr, "Filtered token WinSta0 full access after grant: %lu\n", static_cast<unsigned long>(retry));
+            std::fprintf(stderr, "Recipe account WinSta0 full access after grant: %lu\n", static_cast<unsigned long>(retry));
             if (retry) { SetLastError(retry); return false; }
         }
 
         LPWSTR sid_text = nullptr;
-        if (!ConvertSidToStringSidW(logon, &sid_text)) return false;
+        if (!ConvertSidToStringSidW(account, &sid_text)) return false;
         const std::wstring sddl = std::wstring(L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;") +
             sid_text + L")S:(ML;;NW;;;ME)";
         LocalFree(sid_text);
@@ -354,7 +361,7 @@ struct RecipeDesktop {
         if (!temporary) { SetLastError(create_error); return false; }
         log_label(temporary, "Recipe desktop");
         const DWORD desktop_check = access_with(thread_token.value, station_name, name.c_str());
-        std::fprintf(stderr, "Filtered token recipe desktop full access: %lu\n", static_cast<unsigned long>(desktop_check));
+        std::fprintf(stderr, "Recipe account desktop full access: %lu\n", static_cast<unsigned long>(desktop_check));
         if (desktop_check) { SetLastError(desktop_check); return false; }
         path = std::wstring(station_name) + L"\\" + name;
         if (!SwitchDesktop(temporary)) return false;
@@ -364,108 +371,228 @@ struct RecipeDesktop {
     }
 };
 
-int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory,
-                      const wchar_t* diagnostics) {
-    // The runner and Explorer may both be elevated. Filter only the test
-    // child: keep its ordinary user/logon SID and use a disposable desktop.
+struct RecipeAccount {
+    std::wstring name;
+    std::wstring sid_string;
+    std::vector<BYTE> sid_storage;
+    wchar_t password[41]{};
+    LocalHandle token;
+    bool created = false, launch_succeeded = false;
+
+    ~RecipeAccount() {
+        if (!cleanup()) std::fputs("Unable to remove test account or profile.\n", stderr);
+    }
+    PSID sid() { return sid_storage.empty() ? nullptr : sid_storage.data(); }
+    bool join_local_users() {
+        wchar_t computer[MAX_COMPUTERNAME_LENGTH + 1]{};
+        DWORD computer_size = static_cast<DWORD>(sizeof(computer) / sizeof(wchar_t));
+        if (!GetComputerNameW(computer, &computer_size)) return false;
+        const std::wstring qualified = std::wstring(computer) + L"\\" + name;
+        DWORD sid_size = 0, domain_size = 0;
+        SID_NAME_USE use{};
+        LookupAccountNameW(nullptr, qualified.c_str(), nullptr, &sid_size, nullptr, &domain_size, &use);
+        if (!sid_size || sid_size > SECURITY_MAX_SID_SIZE || !domain_size || domain_size > 1024) return false;
+        sid_storage.resize(sid_size);
+        std::wstring domain(domain_size, L'\0');
+        if (!LookupAccountNameW(nullptr, qualified.c_str(), sid(), &sid_size, domain.data(), &domain_size, &use))
+            return false;
+        if (use != SidTypeUser || !IsValidSid(sid())) { SetLastError(ERROR_INVALID_SID); return false; }
+        BYTE builtin_users[SECURITY_MAX_SID_SIZE]{};
+        DWORD builtin_size = sizeof(builtin_users);
+        if (!CreateWellKnownSid(WinBuiltinUsersSid, nullptr, builtin_users, &builtin_size)) return false;
+        wchar_t group[256]{}, group_domain[256]{};
+        DWORD group_size = 256, group_domain_size = 256;
+        if (!LookupAccountSidW(nullptr, builtin_users, group, &group_size, group_domain, &group_domain_size, &use))
+            return false;
+        LOCALGROUP_MEMBERS_INFO_0 member{sid()};
+        const DWORD status = NetLocalGroupAddMembers(nullptr, group, 0, reinterpret_cast<BYTE*>(&member), 1);
+        if (status == NERR_Success || status == ERROR_MEMBER_IN_ALIAS) return true;
+        SetLastError(status);
+        return false;
+    }
+    bool cleanup() {
+        SecureZeroMemory(password, sizeof(password));
+        if (token.value) {
+            CloseHandle(token.value);
+            token.value = nullptr;
+        }
+        if (launch_succeeded && !sid_string.empty()) {
+            bool deleted = false;
+            for (unsigned n = 0; n < 20 && !deleted; ++n) {
+                deleted = DeleteProfileW(sid_string.c_str(), nullptr, nullptr) != FALSE;
+                if (!deleted) {
+                    const auto error = GetLastError();
+                    if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) deleted = true;
+                    else if (n == 19) std::fprintf(stderr, "DeleteProfile failed: %lu\n", static_cast<unsigned long>(error));
+                    else Sleep(100);
+                }
+            }
+            if (deleted) launch_succeeded = false;
+        }
+        if (created) {
+            const auto status = NetUserDel(nullptr, name.c_str());
+            if (status == NERR_Success || status == NERR_UserNotFound) created = false;
+            else std::fprintf(stderr, "NetUserDel failed: %lu\n", static_cast<unsigned long>(status));
+        }
+        return !created && !launch_succeeded;
+    }
+    bool start() {
+        BYTE random[40]{};
+        if (BCryptGenRandom(nullptr, random, sizeof(random), BCRYPT_USE_SYSTEM_PREFERRED_RNG) < 0) {
+            SetLastError(ERROR_GEN_FAILURE);
+            return false;
+        }
+        constexpr wchar_t hex[] = L"0123456789abcdef";
+        name = L"nvrecipe-";
+        for (unsigned n = 0; n < 5; ++n) {
+            name += hex[random[n] >> 4];
+            name += hex[random[n] & 0xf];
+        }
+        constexpr wchar_t alphabet[] = L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#%+-";
+        password[0] = L'N'; password[1] = L'v'; password[2] = L'2'; password[3] = L'!';
+        for (unsigned n = 4; n < 39; ++n) password[n] = alphabet[random[n + 1] % (sizeof(alphabet) / sizeof(wchar_t) - 1)];
+        SecureZeroMemory(random, sizeof(random));
+        USER_INFO_1 account{};
+        account.usri1_name = name.data();
+        account.usri1_password = password;
+        account.usri1_priv = USER_PRIV_USER;
+        account.usri1_flags = UF_NORMAL_ACCOUNT | UF_SCRIPT | UF_DONT_EXPIRE_PASSWD;
+        DWORD bad = 0;
+        const DWORD status = NetUserAdd(nullptr, 1, reinterpret_cast<BYTE*>(&account), &bad);
+        if (status != NERR_Success) { SetLastError(status); return false; }
+        created = true;
+        if (!join_local_users()) return false;
+        if (!LogonUserW(name.c_str(), L".", password, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT,
+                        &token.value)) return false;
+        DWORD bytes = 0;
+        GetTokenInformation(token.value, TokenUser, nullptr, 0, &bytes);
+        std::vector<BYTE> user(bytes && bytes <= 4096 ? bytes : 0);
+        if (user.empty() || !GetTokenInformation(token.value, TokenUser, user.data(), bytes, &bytes)) return false;
+        auto account_sid = reinterpret_cast<TOKEN_USER*>(user.data())->User.Sid;
+        if (!IsValidSid(account_sid) || !EqualSid(sid(), account_sid)) {
+            SetLastError(ERROR_INVALID_SID);
+            return false;
+        }
+        LPWSTR text = nullptr;
+        if (!ConvertSidToStringSidW(sid(), &text)) return false;
+        sid_string = text;
+        LocalFree(text);
+
+        TOKEN_ELEVATION elevation{};
+        if (!GetTokenInformation(token.value, TokenElevation, &elevation, sizeof(elevation), &bytes)) return false;
+        if (elevation.TokenIsElevated) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+        bytes = 0;
+        GetTokenInformation(token.value, TokenIntegrityLevel, nullptr, 0, &bytes);
+        std::vector<BYTE> integrity(bytes && bytes <= 4096 ? bytes : 0);
+        if (integrity.empty() || !GetTokenInformation(token.value, TokenIntegrityLevel, integrity.data(), bytes, &bytes))
+            return false;
+        auto level = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(integrity.data())->Label.Sid;
+        if (!IsWellKnownSid(level, WinMediumLabelSid)) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+
+        bytes = 0;
+        GetTokenInformation(token.value, TokenGroups, nullptr, 0, &bytes);
+        std::vector<BYTE> groups(bytes && bytes <= 65536 ? bytes : 0);
+        if (groups.empty() || !GetTokenInformation(token.value, TokenGroups, groups.data(), bytes, &bytes)) return false;
+        const auto* memberships = reinterpret_cast<const TOKEN_GROUPS*>(groups.data());
+        for (DWORD n = 0; n < memberships->GroupCount; ++n) {
+            const auto group = memberships->Groups[n];
+            if (IsWellKnownSid(group.Sid, WinBuiltinAdministratorsSid) && (group.Attributes & SE_GROUP_ENABLED)) {
+                SetLastError(ERROR_ACCESS_DENIED);
+                return false;
+            }
+        }
+        std::fputs("Fresh local recipe account verified: integrity=0x2000 elevated=0 administrators_disabled=1\n", stderr);
+        return true;
+    }
+};
+
+bool grant_stage_access(const wchar_t* path, PSID account, bool write) {
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    PACL current = nullptr, changed = nullptr;
+    DWORD error = GetNamedSecurityInfoW(const_cast<LPWSTR>(path), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+                                        nullptr, nullptr, &current, nullptr, &descriptor);
+    if (error == ERROR_SUCCESS && current) {
+        EXPLICIT_ACCESSW permission{};
+        permission.grfAccessPermissions = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
+        if (write) permission.grfAccessPermissions |= FILE_GENERIC_WRITE;
+        permission.grfAccessMode = GRANT_ACCESS;
+        permission.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
+        BuildTrusteeWithSidW(&permission.Trustee, account);
+        error = SetEntriesInAclW(1, &permission, current, &changed);
+        if (error == ERROR_SUCCESS)
+            error = SetNamedSecurityInfoW(const_cast<LPWSTR>(path), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+                                          nullptr, nullptr, changed, nullptr);
+    } else if (error == ERROR_SUCCESS) error = ERROR_INVALID_ACL;
+    if (changed) LocalFree(changed);
+    if (descriptor) LocalFree(descriptor);
+    if (error != ERROR_SUCCESS) SetLastError(error);
+    return error == ERROR_SUCCESS;
+}
+
+bool stage_directory(const wchar_t* directory) {
+    // Only the fixed, fresh staging layout created by the hosted recipe is
+    // eligible for an ACL grant. Never act on a caller's checkout.
+    wchar_t public_directory[MAX_PATH]{};
+    const auto n = GetEnvironmentVariableW(L"PUBLIC", public_directory, MAX_PATH);
+    if (!n || n >= MAX_PATH) return false;
+    constexpr wchar_t prefix[] = L"\\notevive-interactive-";
+    const std::wstring expected = std::wstring(public_directory) + prefix;
+    const std::wstring path(directory);
+    if (path.compare(0, expected.size(), expected) != 0 || path.size() != expected.size() + 32) return false;
+    if (path.find_first_not_of(L"0123456789abcdef", expected.size()) != std::wstring::npos) return false;
+    const auto normal_directory = [](const std::wstring& p) {
+        const auto flags = GetFileAttributesW(p.c_str());
+        return flags != INVALID_FILE_ATTRIBUTES && (flags & FILE_ATTRIBUTE_DIRECTORY) &&
+            !(flags & FILE_ATTRIBUTE_REPARSE_POINT);
+    };
+    return normal_directory(public_directory) && normal_directory(path) && normal_directory(path + L"\\out");
+}
+
+int launch_standard(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory) {
+    if (!hosted_recipe()) {
+        std::fputs("Temporary local accounts are only used on hosted GitHub Actions.\n", stderr);
+        return 1;
+    }
+    if (!stage_directory(directory)) {
+        std::fputs("The standard recipe needs a fresh private staging directory.\n", stderr);
+        return 1;
+    }
+    // Declare cleanup in reverse order: stop processes, restore desktop ACLs,
+    // then remove the isolated profile and account.
+    RecipeAccount account;
     RecipeDesktop desktop;
-    LocalHandle own, filtered, job, output, input;
+    LocalHandle job;
     const auto failure = [](const char* operation) {
         const auto error = GetLastError();
         std::fprintf(stderr, "%s failed (Windows error %lu)\n", operation, static_cast<unsigned long>(error));
         return 1;
     };
-    constexpr DWORD token_access = TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY |
-        TOKEN_ADJUST_DEFAULT | TOKEN_IMPERSONATE;
-    if (!OpenProcessToken(GetCurrentProcess(), token_access, &own.value))
-        return failure("OpenProcessToken");
-    alignas(DWORD) BYTE builtin_admin[SECURITY_MAX_SID_SIZE]{};
-    DWORD admin_size = sizeof(builtin_admin);
-    if (!CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, builtin_admin, &admin_size))
-        return failure("CreateWellKnownSid");
-    SID_AND_ATTRIBUTES admin{builtin_admin, 0};
-    if (!CreateRestrictedToken(own.value, DISABLE_MAX_PRIVILEGE | LUA_TOKEN, 1, &admin,
-                               0, nullptr, 0, nullptr, &filtered.value))
-        return failure("CreateRestrictedToken");
-
-    alignas(DWORD) BYTE medium[SECURITY_MAX_SID_SIZE]{};
-    DWORD medium_size = sizeof(medium);
-    if (!CreateWellKnownSid(WinMediumLabelSid, nullptr, medium, &medium_size))
-        return failure("CreateWellKnownSid for medium integrity");
-    TOKEN_MANDATORY_LABEL label{{medium, SE_GROUP_INTEGRITY}};
-    if (!SetTokenInformation(filtered.value, TokenIntegrityLevel, &label, sizeof(label) + GetLengthSid(medium)))
-        return failure("SetTokenInformation medium integrity");
-    TOKEN_ELEVATION elevation{};
-    DWORD received = 0;
-    if (!GetTokenInformation(filtered.value, TokenElevation, &elevation, sizeof(elevation), &received))
-        return failure("GetTokenInformation TokenElevation");
-    if (elevation.TokenIsElevated) {
-        std::fputs("Windows still reports the filtered test token as elevated.\n", stderr);
-        return 1;
-    }
-    GetTokenInformation(filtered.value, TokenIntegrityLevel, nullptr, 0, &received);
-    if (!received || received > 4096) return failure("GetTokenInformation TokenIntegrityLevel size");
-    std::vector<BYTE> actual_label(received);
-    if (!GetTokenInformation(filtered.value, TokenIntegrityLevel, actual_label.data(), received, &received))
-        return failure("GetTokenInformation TokenIntegrityLevel");
-    auto sid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(actual_label.data())->Label.Sid;
-    if (!IsValidSid(sid) || !EqualSid(sid, medium)) {
-        std::fputs("Windows did not confirm the medium integrity label of the filtered token.\n", stderr);
-        return 1;
-    }
-    received = 0;
-    GetTokenInformation(filtered.value, TokenGroups, nullptr, 0, &received);
-    if (!received || received > 65536) return failure("GetTokenInformation TokenGroups size");
-    std::vector<BYTE> groups_data(received);
-    if (!GetTokenInformation(filtered.value, TokenGroups, groups_data.data(), received, &received))
-        return failure("GetTokenInformation TokenGroups");
-    const auto* groups = reinterpret_cast<const TOKEN_GROUPS*>(groups_data.data());
-    PSID logon = nullptr;
-    for (DWORD i = 0; i < groups->GroupCount; ++i) {
-        const auto group = groups->Groups[i];
-        if ((group.Attributes & SE_GROUP_LOGON_ID) == SE_GROUP_LOGON_ID &&
-            (group.Attributes & SE_GROUP_ENABLED) && IsValidSid(group.Sid)) logon = group.Sid;
-        if (EqualSid(group.Sid, builtin_admin) &&
-            ((group.Attributes & SE_GROUP_ENABLED) || !(group.Attributes & SE_GROUP_USE_FOR_DENY_ONLY))) {
-            std::fputs("Administrators remains enabled in the filtered test token.\n", stderr);
-            return 1;
-        }
-    }
-    if (!logon) {
-        std::fputs("The filtered token has no enabled interactive logon SID.\n", stderr);
-        return 1;
-    }
-    std::fputs("Windows confirmed filtered test token: integrity=0x2000 elevated=0 administrators_disabled=1\n", stderr);
+    if (!account.start()) return failure("Create and verify local standard test account");
+    const std::wstring output = std::wstring(directory) + L"\\out";
+    if (!grant_stage_access(directory, account.sid(), false) || !grant_stage_access(output.c_str(), account.sid(), true))
+        return failure("Grant access to isolated test files");
 
     job.value = CreateJobObjectW(nullptr, nullptr);
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
     if (!job.value || !SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
         return failure("SetInformationJobObject");
-    // Create both standard handles in the parent, which reports diagnostics
-    // even if the restricted child cannot read its script or write its result.
-    SECURITY_ATTRIBUTES inherited{sizeof(inherited), nullptr, TRUE};
-    output.value = CreateFileW(diagnostics, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,
-                               &inherited, CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY, nullptr);
-    input.value = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                              &inherited, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (output.value == INVALID_HANDLE_VALUE || input.value == INVALID_HANDLE_VALUE)
-        return failure("Open restricted test diagnostics");
-    if (!desktop.start(filtered.value, logon)) return failure("Prepare temporary Windows input desktop");
+    if (!desktop.start(account.token.value, account.sid())) return failure("Prepare temporary Windows input desktop");
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
     startup.lpDesktop = desktop.path.data();
-    startup.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+    startup.dwFlags = STARTF_USESHOWWINDOW;
     startup.wShowWindow = SW_HIDE;
-    startup.hStdInput = input.value;
-    startup.hStdOutput = startup.hStdError = output.value;
+    // The child writes its diagnostics inside out, avoiding handle inheritance
+    // across the two logon sessions.
     PROCESS_INFORMATION child{};
     std::wstring command = L"\"" + std::wstring(executable) + L"\" " + arguments;
-    // CreateProcessAsUser does not require AssignPrimaryToken privilege for a
-    // restricted version of the caller's primary token (Microsoft contract).
-    if (!CreateProcessAsUserW(filtered.value, executable, command.data(), nullptr, nullptr, TRUE,
-                             CREATE_SUSPENDED | CREATE_NO_WINDOW, nullptr, directory, &startup, &child))
-        return failure("CreateProcessAsUser for filtered token");
+    if (!CreateProcessWithLogonW(account.name.c_str(), L".", account.password, LOGON_WITH_PROFILE,
+                                 executable, command.data(), CREATE_SUSPENDED | CREATE_NO_WINDOW,
+                                 nullptr, directory, &startup, &child))
+        return failure("CreateProcessWithLogonW for the standard account");
+    account.launch_succeeded = true;
+    SecureZeroMemory(account.password, sizeof(account.password));
     LocalHandle child_process{child.hProcess}, child_thread{child.hThread};
     if (!AssignProcessToJobObject(job.value, child_process.value)) {
         const auto code = failure("AssignProcessToJobObject");
@@ -480,14 +607,18 @@ int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const
     }
     DWORD elapsed_code = 1;
     if (!GetExitCodeProcess(child_process.value, &elapsed_code)) return failure("GetExitCodeProcess");
-    std::fprintf(stderr, "Restricted test process exit: 0x%08lx (%lu)\n",
+    std::fprintf(stderr, "Standard test process exit: 0x%08lx (%lu)\n",
                  static_cast<unsigned long>(elapsed_code), static_cast<unsigned long>(elapsed_code));
     TerminateJobObject(job.value, 1); // No browser/fixture descendants on the retired desktop.
     if (!desktop.restore()) {
         std::fputs("Restoring the original input desktop or station ACL failed.\n", stderr);
         return 1;
     }
-    return elapsed_code == 0 ? 0 : 1;
+    CloseHandle(child_process.value);
+    child_process.value = nullptr;
+    CloseHandle(child_thread.value);
+    child_thread.value = nullptr;
+    return account.cleanup() && elapsed_code == 0 ? 0 : 1;
 }
 
 std::wstring text(HWND edit) {
@@ -664,12 +795,15 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-probe") == 0)
             return edge_probe(static_cast<DWORD>(std::stoul(argv[2])));
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
-        if (argc == 6 && std::wcscmp(argv[1], L"--launch-restricted") == 0)
-            return launch_restricted(argv[2], argv[3], argv[4], argv[5]);
-        if (argc == 2 && std::wcscmp(argv[1], L"--native-restricted") == 0) {
+        if (argc == 5 && std::wcscmp(argv[1], L"--launch-standard") == 0)
+            return launch_standard(argv[2], argv[3], argv[4]);
+        if (argc == 2 && std::wcscmp(argv[1], L"--native-standard") == 0) {
+            if (!_wfreopen(L"out\\native.log", L"wb", stderr)) return 3;
             token_environment("executing native recipe", GetCurrentProcess());
             require(ordinary_token(), "test process did not inherit an ordinary Windows token");
-            return run(false);
+            const int result = run(false);
+            if (!result) std::fputs("Native external dictation recipe passed.\n", stderr);
+            return result;
         }
         if (argc == 1) return run(false);
         if (argc == 2 && std::wcscmp(argv[1], L"--clipboard") == 0) return run(true);

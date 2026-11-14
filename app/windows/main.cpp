@@ -1124,6 +1124,13 @@ struct App {
                     external_failed(R::unsupported);
                     return;
                 }
+                // Writing the destination note can block. Refuse to open
+                // the microphone if the selected field has changed since.
+                const auto current_target = external_target.check();
+                if (current_target != R::ready) {
+                    external_failed(current_target);
+                    return;
+                }
                 start_or_stop();
                 if (phase == Phase::idle) finish_external();
             }
@@ -1150,17 +1157,30 @@ struct App {
             return;
         }
         if (phase != Phase::idle) { start_or_stop(); return; }
-        if (GetForegroundWindow() == window) { external_status.clear(); start_or_stop(); return; }
+        const auto foreground = GetForegroundWindow();
+        if (foreground == window) { external_status.clear(); start_or_stop(); return; }
+        if (!foreground) return;
         if (!can_organize() || !dictation_cpu_supported || !wts_registered || runtime.empty() ||
-                microphone_unconfirmed || editor_needs_review || !rejected_segment.empty() || !save_note()) return;
-        external_window = GetForegroundWindow();
+                microphone_unconfirmed || editor_needs_review || !rejected_segment.empty()) return;
+        // Lock the user's current field before the previous note's autosave
+        // can block on storage. Focus events meanwhile invalidate this target.
+        external_window = foreground;
         const auto result = external_target.capture(window, external_window);
         external_status = doct::external::message(result);
-        if (result != doct::external::Result::pending ||
-                !SetTimer(window, ExternalTimer, EnginePollMs, nullptr) ||
-                !overlay.show(window, external_window, ui::OverlayState::preparing)) {
+        if (result != doct::external::Result::pending) {
             finish_external();
             overlay.show(window, external_window, ui::OverlayState::unavailable);
+            return;
+        }
+        if (!save_note()) {
+            external_status = L"Dictée externe non démarrée · Enregistrez d’abord la note ouverte.";
+            finish_external();
+            return;
+        }
+        if (!SetTimer(window, ExternalTimer, EnginePollMs, nullptr) ||
+                !overlay.show(window, external_window, ui::OverlayState::preparing)) {
+            external_status = L"Dictée externe non démarrée · Indicateur indisponible.";
+            finish_external();
             return;
         }
         external_active = external_pending = external_sending = true;
@@ -1325,7 +1345,9 @@ struct App {
                     const auto result = external_target.forward(editor_text(event.text));
                     if (result != doct::external::Result::queued && result != doct::external::Result::no_text)
                         external_failed(result);
-                } else if (external_active && !saved) {
+                } else if (external_active && !saved && !blocked_generation) {
+                    // keep_rejected_segment() already cancelled and preserved
+                    // the visible rejected passage when editor insertion failed.
                     cancel_capture(L"Micro coupé · Le passage n’a pas été sauvegardé. Aucun envoi externe.");
                 }
                 if (!blocked_generation) SetWindowTextW(draft, editor_text(event.text).c_str());
