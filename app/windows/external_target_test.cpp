@@ -8,8 +8,9 @@
 #endif
 #include "external_target.h"
 
-#include <exdisp.h>
+// Include COM's base declarations before the Windows SDK's MIDL headers.
 #include <ole2.h>
+#include <exdisp.h>
 #include <servprov.h>
 #include <shldisp.h>
 #include <shlobj.h>
