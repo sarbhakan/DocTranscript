@@ -53,7 +53,18 @@ try {
         & $ProbeExe --launch-restricted $ProbeExe '--native-restricted' $PSScriptRoot $diagnostics
         $status = $LASTEXITCODE
         if (Test-Path -LiteralPath $diagnostics) { Get-Content -LiteralPath $diagnostics }
-        if ($status) { throw 'The restricted native recipe failed; see Windows diagnostics.' }
+        if ($status) {
+            $minimal = Join-Path (Split-Path -Parent $ProbeExe) 'external-user32-fixture.exe'
+            if (Test-Path -LiteralPath $minimal -PathType Leaf) {
+                Write-Output 'Native recipe failed. Checking minimal User32 process initialization on a fresh recipe desktop.'
+                $fixtureDiagnostics = Join-Path $work 'user32-output.log'
+                & $ProbeExe --launch-restricted $minimal '--diagnostic' $PSScriptRoot $fixtureDiagnostics
+                $fixtureStatus = $LASTEXITCODE
+                if (Test-Path -LiteralPath $fixtureDiagnostics) { Get-Content -LiteralPath $fixtureDiagnostics }
+                Write-Output "Minimal User32 launcher status: $fixtureStatus"
+            }
+            throw 'The restricted native recipe failed; see Windows diagnostics.'
+        }
         exit
     }
     $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'

@@ -179,6 +179,10 @@ struct LocalHandle {
 };
 
 struct RecipeDesktop {
+    static constexpr DWORD station_access = STANDARD_RIGHTS_REQUIRED | WINSTA_ALL_ACCESS;
+    static constexpr DWORD desktop_access = STANDARD_RIGHTS_REQUIRED | DESKTOP_READOBJECTS |
+        DESKTOP_WRITEOBJECTS | DESKTOP_CREATEWINDOW | DESKTOP_CREATEMENU | DESKTOP_ENUMERATE |
+        DESKTOP_HOOKCONTROL | DESKTOP_JOURNALRECORD | DESKTOP_JOURNALPLAYBACK | DESKTOP_SWITCHDESKTOP;
     HDESK original = nullptr, temporary = nullptr;
     HWINSTA station = nullptr;
     std::vector<BYTE> station_descriptor;
@@ -198,6 +202,54 @@ struct RecipeDesktop {
             if (SetUserObjectSecurity(station, &security, station_descriptor.data())) station_changed = false;
         }
         return !switched && !station_changed;
+    }
+    static void log_label(HANDLE object, const char* name) {
+        SECURITY_INFORMATION security = LABEL_SECURITY_INFORMATION;
+        DWORD needed = 0;
+        GetUserObjectSecurity(object, &security, nullptr, 0, &needed);
+        std::vector<BYTE> descriptor(needed && needed <= 65536 ? needed : 0);
+        if (descriptor.empty() ||
+            !GetUserObjectSecurity(object, &security, descriptor.data(), needed, &needed)) {
+            std::fprintf(stderr, "%s integrity label unreadable (%lu)\n", name,
+                         static_cast<unsigned long>(GetLastError()));
+            return;
+        }
+        BOOL present = FALSE, defaulted = FALSE;
+        PACL sacl = nullptr;
+        if (GetSecurityDescriptorSacl(descriptor.data(), &present, &sacl, &defaulted) && present && sacl) {
+            for (DWORD i = 0; i < sacl->AceCount; ++i) {
+                void* ace = nullptr;
+                if (!GetAce(sacl, i, &ace) ||
+                    static_cast<ACE_HEADER*>(ace)->AceType != SYSTEM_MANDATORY_LABEL_ACE_TYPE) continue;
+                auto* label = static_cast<SYSTEM_MANDATORY_LABEL_ACE*>(ace);
+                PSID sid = &label->SidStart;
+                if (IsValidSid(sid) && *GetSidSubAuthorityCount(sid)) {
+                    std::fprintf(stderr, "%s integrity=0x%04lx mandatory_policy=0x%lx\n", name,
+                        static_cast<unsigned long>(*GetSidSubAuthority(sid, *GetSidSubAuthorityCount(sid) - 1)),
+                        static_cast<unsigned long>(label->Mask));
+                    return;
+                }
+            }
+        }
+        std::fprintf(stderr, "%s has no explicit integrity label\n", name);
+    }
+    static DWORD access_with(HANDLE thread_token, const wchar_t* station_name, const wchar_t* desktop_name = nullptr) {
+        if (!ImpersonateLoggedOnUser(thread_token)) return GetLastError();
+        HWINSTA station_check = OpenWindowStationW(station_name, FALSE, station_access);
+        DWORD error = station_check ? ERROR_SUCCESS : GetLastError();
+        if (station_check) CloseWindowStation(station_check);
+        if (!error && desktop_name) {
+            HDESK desktop_check = OpenDesktopW(desktop_name, 0, FALSE, desktop_access);
+            error = desktop_check ? ERROR_SUCCESS : GetLastError();
+            if (desktop_check) CloseDesktop(desktop_check);
+        }
+        if (!RevertToSelf()) {
+            // Continuing this launcher under the wrong identity could make
+            // restoration unreliable.
+            TerminateProcess(GetCurrentProcess(), 2);
+            return ERROR_ACCESS_DENIED;
+        }
+        return error;
     }
     bool start(HANDLE filtered, PSID logon) {
         const auto allowed = [](const wchar_t* name, const wchar_t* expected) {
@@ -228,24 +280,20 @@ struct RecipeDesktop {
             return false;
         }
 
-        // Inspect existing WinSta0 rights using the actual medium token. Only
-        // add an ACE when that session's logon SID lacks a required right.
-        constexpr DWORD station_access = WINSTA_READATTRIBUTES | WINSTA_ACCESSGLOBALATOMS |
-            WINSTA_ENUMDESKTOPS | WINSTA_ENUMERATE | WINSTA_ACCESSCLIPBOARD;
+        // CreateProcessAsUser's interactive desktop contract calls for full
+        // access. Test the actual medium token instead of assuming its SID.
         LocalHandle thread_token;
         if (!DuplicateTokenEx(filtered, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
-                              TokenImpersonation, &thread_token.value) ||
-            !ImpersonateLoggedOnUser(thread_token.value)) return false;
-        HWINSTA access_probe = OpenWindowStationW(station_name, FALSE, station_access);
-        const DWORD access_error = access_probe ? ERROR_SUCCESS : GetLastError();
-        if (access_probe) CloseWindowStation(access_probe);
-        if (!RevertToSelf()) {
-            // Continuing the elevated launcher with an unexpected identity
-            // would make both restore and diagnostics unreliable.
-            TerminateProcess(GetCurrentProcess(), 2);
-            return false;
+                              TokenImpersonation, &thread_token.value)) return false;
+        const HWINSTA label_station = OpenWindowStationW(station_name, FALSE, READ_CONTROL);
+        if (label_station) {
+            log_label(label_station, "WinSta0");
+            CloseWindowStation(label_station);
+        } else {
+            std::fprintf(stderr, "WinSta0 label handle unavailable (%lu)\n", static_cast<unsigned long>(GetLastError()));
         }
-        std::fprintf(stderr, "Filtered token WinSta0 access check: %lu\n", static_cast<unsigned long>(access_error));
+        const DWORD access_error = access_with(thread_token.value, station_name);
+        std::fprintf(stderr, "Filtered token WinSta0 full access: %lu\n", static_cast<unsigned long>(access_error));
         if (access_error && access_error != ERROR_ACCESS_DENIED) {
             SetLastError(access_error);
             return false;
@@ -284,6 +332,9 @@ struct RecipeDesktop {
             if (changed) LocalFree(changed);
             if (err != ERROR_SUCCESS) { SetLastError(err); return false; }
             std::fputs("WinSta0 access was granted temporarily to the current logon SID.\n", stderr);
+            const DWORD retry = access_with(thread_token.value, station_name);
+            std::fprintf(stderr, "Filtered token WinSta0 full access after grant: %lu\n", static_cast<unsigned long>(retry));
+            if (retry) { SetLastError(retry); return false; }
         }
 
         LPWSTR sid_text = nullptr;
@@ -297,11 +348,14 @@ struct RecipeDesktop {
         const std::wstring name = L"NoteViveRecipe-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
             std::to_wstring(GetTickCount64());
         SECURITY_ATTRIBUTES attributes{sizeof(attributes), descriptor, FALSE};
-        temporary = CreateDesktopW(name.c_str(), nullptr, nullptr, 0,
-            DESKTOP_CREATEWINDOW | DESKTOP_READOBJECTS | DESKTOP_SWITCHDESKTOP, &attributes);
+        temporary = CreateDesktopW(name.c_str(), nullptr, nullptr, 0, desktop_access, &attributes);
         const auto create_error = temporary ? ERROR_SUCCESS : GetLastError();
         LocalFree(descriptor);
         if (!temporary) { SetLastError(create_error); return false; }
+        log_label(temporary, "Recipe desktop");
+        const DWORD desktop_check = access_with(thread_token.value, station_name, name.c_str());
+        std::fprintf(stderr, "Filtered token recipe desktop full access: %lu\n", static_cast<unsigned long>(desktop_check));
+        if (desktop_check) { SetLastError(desktop_check); return false; }
         path = std::wstring(station_name) + L"\\" + name;
         if (!SwitchDesktop(temporary)) return false;
         switched = true;

@@ -183,6 +183,8 @@ def main():
         supervisor = targets[-1][0]
         commands = [[test[0]] for test in targets[:-1]] + [[supervisor, fixture]]
     if not args.engine_only and not args.without_external:
+        targets.append(target('external-user32-fixture.exe', [WIN / 'external_user32_fixture.cpp'],
+                              libraries=['user32']))
         external_probe = target('external-target-test.exe', [WIN / 'external_target.cpp', WIN / 'external_target_test.cpp'],
                                 libraries=['user32', 'advapi32', 'ole32', 'oleaut32', 'uuid'], wide_main=True)
         targets.append(external_probe)
