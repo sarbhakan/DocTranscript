@@ -13,26 +13,30 @@ Ce banc sépare la reconnaissance sur audio identique, le coût de calcul, et la
 
 ## Résultats Mac
 
-Les moteurs comparés sur la totalité du lot ont reçu les mêmes 89 WAV. Les variantes Turbo par pause ont un lot stress de 32 WAV et, pour la configuration retenue, un contrôle de quatre notes Corti. Machine : MacBook Pro M1 Pro, 16 Gio, macOS 27.2 (26B123), CPU uniquement. Un passage par variante, aucune mesure Windows. Les résultats en fin de fichier et ceux par pause n’ont pas la même latence pour l’utilisateur.
+Les cinq moteurs et la configuration native Turbo retenue ont reçu les mêmes 89 WAV. Les autres réglages Turbo par pause ont été comparés sur les 32 cas stress. Machine : MacBook Pro M1 Pro, 16 Gio, macOS 27.2 (26B123), CPU uniquement. Un passage mesuré par fichier et par configuration, hors préchauffage ; aucune mesure Windows. Les résultats en fin de fichier et ceux par pause n’ont pas la même latence pour l’utilisateur.
 
-| Mesure | UltiMed par pause | Whisper Turbo, note complète | Whisper Large-v3, note complète |
-| --- | ---: | ---: | ---: |
-| Force commerciale exacte sur les prescriptions Px, valeur et unité | 47/49 | **49/49** | **49/49** |
-| Nom exact / nom et force proches et ordonnés | **26/51 · 25/49** | 15/51 · 15/49 | 12/51 · 12/49 |
-| Quantité administrée / durée Px | 34/49 · 41/43 | 34/49 · 41/43 | **36/49** · 41/43 |
-| Critiques stress (dont doses, fractions, négations) | 46/64 (14/26, 7/8, 20/22) | 54/64 (24/26, 6/8, 19/22) | **56/64** (24/26, 6/8, 18/22) |
-| Termes rares stress | 25/66 | 25/66 | **32/66** |
-| Corti : critiques strictes / termes médicaux | 18/29 · **48/63** | **19/29** · 47/63 | 18/29 · 46/63 |
-| Corti : écarts de mots normalisés | 150/728 | **118/728** | 151/728 |
-| Contrôles bruit/silence avec texte | 0/4 | 0/4 | 0/4 |
-| P95 calcul du fichier P0 / stress, modèle chaud | 0,41 s · 0,94 s | 3,35 s · 3,83 s | 4,54 s · 6,86 s |
-| RSS max du processus sur ce Mac, Go décimaux | 2,05 | **1,46** | 2,14 |
+| Mesure | UltiMed par pause | Whisper Turbo, note complète | Whisper Large-v3, note complète | Turbo + Silero GGML 576 ms, retenu |
+| --- | ---: | ---: | ---: | ---: |
+| Force commerciale exacte sur les prescriptions Px, valeur et unité | 47/49 | **49/49** | **49/49** | **49/49** |
+| Nom exact / nom et force proches et ordonnés | **26/51 · 25/49** | 15/51 · 15/49 | 12/51 · 12/49 | 14/51 · 14/49 |
+| Quantité administrée / durée Px | 34/49 · 41/43 | 34/49 · 41/43 | **36/49** · 41/43 | 31/49 · 41/43 |
+| Critiques stress (dont doses, fractions, négations) | 46/64 (14/26, 7/8, 20/22) | 54/64 (24/26, 6/8, 19/22) | **56/64** (24/26, 6/8, 18/22) | 50/64 (22/26, 8/8, 15/22) |
+| Termes rares stress | 25/66 | 25/66 | **32/66** | 25/66 |
+| Corti : critiques strictes / termes médicaux | 18/29 · **48/63** | **19/29** · 47/63 | 18/29 · 46/63 | **19/29 · 48/63** |
+| Corti : écarts de mots normalisés | 150/728 | **118/728** | 151/728 | 149/728 |
+| Contrôles bruit/silence avec texte | 0/4 | 0/4 | 0/4 | 0/4 |
+| P95 calcul du fichier P0 / stress, modèle chaud | 0,41 s · 0,94 s | 3,35 s · 3,83 s | 4,54 s · 6,86 s | 9,43 s · 13,09 s |
+| RSS max du processus sur ce Mac, Go décimaux | 2,05 | 1,46 | 2,14 | non mesuré sur tout le lot |
 
 La relecture montre des erreurs critiques différentes selon le moteur. Par exemple, sur les fixtures fictives, UltiMed rend `0,3 mL` par `0,3 mm`, et sur Px il écrit `4 mg` là où la référence dit `400 mg`. Large et Turbo gardent les valeurs attendues dans ces deux cas. Turbo écrit toutefois deux fois `1,5` à la place de `un demi` sur une prise Px ; Large renvoie deux `à demi`, rendu ambigu. Un passage fictif avec `et non 0,3 %` devient `et au 0,3 %` chez UltiMed. Les contrôles Corti repèrent surtout des écarts de formulation des négations, parfois de simples flexions, donc 18 ou 19/29 ne signifie pas autant d’inversions du sens. Au contraire, les scores justes ne garantissent pas l’absence d’ajouts : on observe par exemple, chez Large, `6 allergies` à la place de `si allergie`, bien que la force industrielle de la phrase soit exacte.
 
 Turbo offre le meilleur compromis du test en note complète si la priorité est de conserver les doses sur une machine CPU modeste. Large ne dépasse pas Turbo sur les doses du stress, améliore la reconnaissance de termes rares synthétiques mais perd sur le nom commercial Px, coûte davantage en temps et mémoire, et n’améliore pas les résultats sur ces quatre notes humaines. Cette recommandation provisoire vaut pour le protocole de décodage complet testé. Le passage à des fragments aux pauses change le résultat. Sur les 32 stress, Turbo et le découpage ONNX macOS récupèrent les deux fractions perdues par le décodage complet (8/8), mais la justesse baisse sur les doses (22/26 contre 24/26) et les négations (15/22 contre 19/22). Le coût P95 est de 3,33 s **par fragment**, plus au moins 576 ms pour détecter la pause. Sur une prise Px, ce découpage rend correctement le nom de la norfloxacine avec ses 400 mg ; sur une autre il ajoute une phrase sans rapport à l’ouverture de la dictée, alors que les quatre silences/bruits isolés sont correctement rendus vides. Le rendu à chaque pause appelle donc une file de transcription indépendante de la capture et une vérification du texte. Le pont natif de NoteVive avec **Silero GGML** à 576 ms (le même découpage logique, sans ONNX) obtient ces mêmes scores critiques, avec 29 sorties textuelles strictement identiques sur 32. Sur le protocole synthétique, les 32 pauses annotées ont un résultat et le P95 fin de parole → texte **estimé** est de 4,20 s (P95 décodage 3,39 s). Cela exclut l’entrée micro et le rendu Windows.
 
 **Réglage retenu pour le paquet Windows d’essai : Turbo Q5_0 + Silero GGML 576 ms.** Sur les mêmes 32 cas, porter le détecteur à 1 216 ms (demande 1 200 ms, par trames de 32 ms) améliore légèrement le score agrégé, de 50/64 à 51/64, mais fait régresser les fractions de 8/8 à 5/8 et fusionne toutes les pauses synthétiques attendues. En particulier, les deux « un demi » sur une prise humaine redeviennent « 1,5 ». Le texte par pause de la configuration retenue corrige cette erreur mesurée et gagne sur les doses par rapport à UltiMed par pause (22/26 contre 14/26), avec une perte sur les négations strictes (15/22 contre 20/22) et **aucun gain mesuré de termes rares** (25/66 dans les deux cas).
+
+Le complément sur les 51 prescriptions Px confirme les **49/49 forces commerciales** et **3/3 fractions** annotées (1/3 pour Turbo en note complète, 2/3 pour UltiMed aux pauses). Comparé à Turbo en note complète, le rendu aux pauses gagne deux paires médicament–force et en perd trois. Il perd aussi trois quantités administrées : dans ces trois cas, « un comprimé » est rendu par « incomprimé » ou « incomprimés ». La durée est exacte dans les mêmes 41/43 cas. Sur un autre enregistrement, le moteur conserve la force attendue mais transcrit « 6 allergies » au lieu de « si allergie ». La force exacte seule ne garantit donc ni l’identification du médicament ni la fidélité du reste de la prescription. Ces écarts restent des points de vérification pour l’essai, sans correction automatique du texte.
+
+Le résultat réunit trois lots disjoints : 32 cas stress avec la pause fixe de 18 trames, 4 Corti et 53 WAV complémentaires avec le pont paramétrable appelé à 576 ms, soit les mêmes 18 trames. Les deux binaires du pont ont des SHA distincts dans le rapport JSON ; les WAV, le modèle, le VAD et la bibliothèque Whisper 1.8.5 sont inchangés. Le processus était préchauffé avant chaque lot. Le rejeu Mac alimente le pont par paquets de 100 ms ; le worker Windows utilise 20 ms et le pont recompose les mêmes trames internes de 512 échantillons. Les temps concernent le rejeu sur Mac.
 
 | Découpage Turbo natif | Doses | Fractions | Négations strictes | Rares | RTF P95 | Pauses de test avec texte |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |

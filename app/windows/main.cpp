@@ -317,7 +317,7 @@ struct App {
     bool create() {
         dpi = GetDpiForWindow(window);
         if (!dpi) dpi = 96;
-        banner = control(L"STATIC", L"NoteVive · Prototype hors ligne — données fictives uniquement", SS_LEFT);
+        banner = control(L"STATIC", L"NoteVive 0.3.0 · Essai hors ligne — données fictives uniquement", SS_LEFT);
         new_note = control(L"BUTTON", L"+ &Transcription", WS_TABSTOP | BS_PUSHBUTTON, New);
         new_folder = control(L"BUTTON", L"+ &Dossier", WS_TABSTOP | BS_PUSHBUTTON, NewFolder);
         folder_actions = control(L"BUTTON", L"Dossier…", WS_TABSTOP | BS_PUSHBUTTON, FolderActions);

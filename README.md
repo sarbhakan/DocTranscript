@@ -8,7 +8,7 @@
 
 ## Essayer sur Windows 11 x64
 
-1. Ouvrir le dernier [workflow Windows réussi](https://github.com/sarbhakan/DocTranscript/actions/workflows/windows.yml) correspondant au commit à tester, puis télécharger l’artefact **NoteVive-Windows-x64-Essai**. Il contient le ZIP portable et son empreinte SHA-256. GitHub demande une connexion pour les artefacts Actions. La Release `v0.1.0-essai` utilise encore l’ancien moteur : elle ne contient pas ces améliorations. Les archives « Source code » ne contiennent pas l’EXE.
+1. Télécharger **[NoteVive-Windows-x64-Essai.zip](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip)** depuis la [préversion 0.3.0](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai), avec son fichier `.sha256`. La publication est conditionnée à la réussite des tests Windows. Pour une branche en cours de recette, utiliser l’artefact du [workflow réussi](https://github.com/sarbhakan/DocTranscript/actions/workflows/windows.yml), qui demande une connexion GitHub. La Release `v0.1.0-essai` utilise l’ancien moteur. Les archives « Source code » ne contiennent pas l’EXE.
 2. Extraire le ZIP en entier dans un dossier local. Garder `runtime` à côté de `NoteVive.exe`, puis ouvrir l’EXE. Aucun compte, Python, .NET ou téléchargement de modèle n’est nécessaire au lancement.
 3. Cliquer sur **Dicter**, attendre **Micro ouvert**, puis lire : « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Cliquer sur **Arrêter**, relire et renommer la note. Fermer puis rouvrir NoteVive pour vérifier la sauvegarde.
 

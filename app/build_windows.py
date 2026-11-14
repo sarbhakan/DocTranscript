@@ -131,6 +131,13 @@ def compile_bundle(zig, work, package, cache, whisper_runtime):
         f'#define NOTEVIVE_CATALOGUE_SIZE {spec["bytes"]}\n'
         f'#define NOTEVIVE_CATALOGUE_SHA256 "{spec["hash"]}"\n', encoding="ascii")
     (package / "Build").mkdir()
+    (package / "Build/version.json").write_text(json.dumps({
+        "product": "NoteVive", "version": "0.3.0-essai",
+        "source_commit": os.environ.get("GITHUB_SHA", "local-build"),
+        "asr": "whisper.cpp-1.8.5", "model": "large-v3-turbo-q5_0",
+        "vad": "silero-6.2.0-ggml", "pause_ms": 576, "asr_threads": 4,
+        "cpu_variants": ["baseline", "avx2"], "audio_queue_seconds": 30,
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     shutil.copyfile(whisper_runtime / "attestation.json", package / "Build/whisper.json")
     inputs = sorted(p for p in (package / "runtime").rglob('*') if p.is_file() and p.name != "catalogue.sqlite")
     runtime_header = 'constexpr Expected kEngine[] = {\n' + ''.join(

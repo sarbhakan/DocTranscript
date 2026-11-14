@@ -25,17 +25,30 @@ def main():
     parser.add_argument('--zig', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--package', type=Path)
-    parser.add_argument('--build-cache', type=Path, default=ROOT / 'app/private/build-cache')
+    parser.add_argument('--build-cache', type=Path)
     parser.add_argument('--compile-only', action='store_true')
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    cache = args.build_cache.resolve()
+    # A test run owns its cache: production generated headers live in a
+    # temporary directory which no longer exists once its ZIP is complete.
+    cache = args.build_cache.resolve() if args.build_cache else out / 'cache'
     cache.mkdir(parents=True, exist_ok=True)
     zig = args.zig.resolve()
     def compile(name, sources, extra=()):
         path = out / name
-        run(zig, ['c++', *CXX_FLAGS, '-UNDEBUG', '-Werror', *sources, *extra, '-o', path], cache)
+        objects = out / 'objects' / Path(name).stem
+        objects.mkdir(parents=True)
+        compile_extra = [value for value in extra if not (str(value).startswith('-l') or value == '-municode')]
+        built = []
+        # Compile sequentially to avoid Zig 0.15.2's CacheCheckFailed race
+        # while C++ units populate the same newly generated include set.
+        for index, source in enumerate(sources):
+            obj = objects / f'{index}.obj'
+            run(zig, ['c++', *CXX_FLAGS, '-UNDEBUG', '-Werror', *compile_extra,
+                      '-c', source, '-o', obj], cache)
+            built.append(obj)
+        run(zig, ['c++', *CXX_FLAGS, *built, *extra, '-o', path], cache)
         return path
     model = compile('notes-model-test.exe', [WIN / 'notes_model_test.cpp'])
     protocol = compile('worker-protocol-test.exe', [WIN / 'worker_protocol_test.cpp'])
