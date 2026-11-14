@@ -1,12 +1,12 @@
 # Installer et utiliser NoteVive sur Windows, pas à pas
 
-[Retour à l’accueil du projet](../README.md) · **[Télécharger l’application Windows — ZIP, environ 544 Mo](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.1-essai/NoteVive-Windows-x64-Essai.zip)**
+[Retour à l’accueil du projet](../README.md) · **[Télécharger l’application Windows — Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases)**
 
-Ce guide concerne **NoteVive 0.3.1 pour Windows**. Il part du principe que vous découvrez GitHub. Vous pouvez suivre toutes les étapes avec la souris ; vous n’avez aucun logiciel de programmation à installer et aucun compte à créer pour télécharger l’application.
+Ce guide concerne **NoteVive 0.4.0 pour Windows**. Vous pouvez suivre les étapes sans connaître GitHub : aucun logiciel de programmation à installer et aucun compte à créer pour télécharger l’application.
 
 NoteVive transforme votre voix en texte sur votre PC. Le téléchargement nécessite Internet ; la dictée et la consultation des notes fonctionnent ensuite hors ligne, modèle inclus. **Cette version est un essai avec des données fictives uniquement.** Relisez toujours le résultat : une dose, un côté du corps ou une négation peuvent être mal transcrits.
 
-**Aller directement à une étape :** [préparer le PC](#avant-de-commencer) · [télécharger](#telecharger) · [ouvrir l’application](#ouvrir) · [première dictée](#premiere-dictee) · [organiser les notes](#organiser-les-notes) · [dépannage](#depannage) · [transmettre un retour](#signaler-un-probleme).
+**Aller directement à une étape :** [préparer le PC](#avant-de-commencer) · [télécharger](#telecharger) · [ouvrir l’application](#ouvrir) · [première dictée](#premiere-dictee) · [organiser les notes](#organiser-les-notes) · [copier ou dicter ailleurs](#copier-ou-dicter-ailleurs) · [dépannage](#depannage) · [transmettre un retour](#signaler-un-probleme).
 
 <a id="avant-de-commencer"></a>
 
@@ -24,13 +24,9 @@ Sur un PC professionnel, appliquez les règles de votre organisation. Le paquet 
 
 ## 2. Télécharger le bon fichier
 
-Le plus simple est de cliquer sur **[Télécharger NoteVive pour Windows](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.1-essai/NoteVive-Windows-x64-Essai.zip)**. Le fichier s’appelle **`NoteVive-Windows-x64-Essai.zip`** et pèse environ **544 Mo**. Selon votre connexion, le téléchargement peut durer plusieurs minutes. Attendez sa fin.
-
-Si vous partez de la page GitHub du projet :
-
-1. Ouvrez **[la page de la version v0.3.1-essai](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.1-essai)**. Sur GitHub, une page **Release** rassemble les fichiers d’une version à télécharger.
+1. Ouvrez **[les Releases de NoteVive](https://github.com/sarbhakan/DocTranscript/releases)** et choisissez la version d’essai 0.4.0. Sur GitHub, une page **Release** rassemble les fichiers d’une version à télécharger.
 2. Descendez jusqu’à **Assets**, la liste des fichiers. Cliquez sur ce mot si la liste est repliée.
-3. Cliquez sur **`NoteVive-Windows-x64-Essai.zip`**. La mention **Pre-release** signifie que c’est une version d’essai ; elle est attendue ici.
+3. Cliquez sur **`NoteVive-Windows-x64-Essai.zip`**. Le fichier contient le modèle vocal et peut prendre plusieurs minutes à télécharger. La mention **Pre-release** signifie que c’est une version d’essai.
 
 Le bouton vert **Code → Download ZIP** et les liens **Source code** contiennent les fichiers de développement, sans l’application prête à ouvrir. Le fichier **`.zip.sha256`** est une petite fiche de vérification du téléchargement. Son usage est expliqué à la [fin de ce guide](#verifier-le-telechargement).
 
@@ -118,14 +114,28 @@ Si une note semble avoir disparu, effacez le texte de recherche et choisissez **
 
 ### Raccourcis utiles, facultatifs
 
-| Action dans la fenêtre NoteVive | Raccourci |
+| Action | Raccourci |
 | --- | --- |
 | Nouvelle transcription | `Ctrl+N` |
 | Démarrer ou arrêter la dictée | `F9` — certains claviers demandent `Fn+F9` |
 | Enregistrer | `Ctrl+S` |
+| Copier le corps de la note depuis NoteVive | `Ctrl+Maj+C` |
 | Masquer ou réafficher la note | `Ctrl+M` |
+| Démarrer ou arrêter une dictée depuis un champ externe | `Ctrl+Alt+Espace` |
 
-**Limites de cette version Windows :** le texte reste dans NoteVive. Le copier-coller, l’export de texte et l’insertion dans un autre logiciel ne sont pas disponibles. Aucun enregistrement audio n’est conservé et aucun fichier audio ne peut être importé dans l’application. Les instructions du prototype Mac peuvent décrire d’autres fonctions ; elles ne s’appliquent pas à ce ZIP Windows.
+NoteVive ne conserve pas d’enregistrement audio. L’application ne propose pas d’import de fichier audio ni d’export vers un fichier texte. Les instructions du prototype Mac peuvent décrire d’autres fonctions.
+
+<a id="copier-ou-dicter-ailleurs"></a>
+
+### Copier ou dicter ailleurs
+
+**Copier une note.** Ouvrez votre note, relisez-la, puis cliquez sur **Copier le texte** ou appuyez sur **Ctrl+Maj+C**. La copie contient le corps de la note, avec ses sauts de ligne, sans titre ni dates. Collez-la vous-même dans le document voulu. Si NoteVive ne peut pas sauvegarder la note, la copie est suspendue. Le contenu copié reste accessible aux applications ayant accès au presse-papiers local ; le marqueur d’exclusion de l’historique et de la synchronisation s’applique à Windows, pas aux autres outils de presse-papiers.
+
+**Dicter dans un champ compatible.** Laissez NoteVive ouvert, puis ouvrez un document Word fictif ou une page d’essai locale avec un champ de texte. Placez le curseur dans ce champ sans sélectionner de texte. Appuyez sur **Ctrl+Alt+Espace**, relâchez les touches et attendez que le petit indicateur affiche **Micro ouvert**. Dictez une phrase fictive, marquez une pause, puis appuyez sur le même raccourci pour arrêter.
+
+NoteVive sauvegarde chaque passage confirmé dans une nouvelle note **Dictée externe** avant de tenter de l’envoyer. Gardez le même champ actif pendant toute la dictée et la finalisation. Si l’envoi s’arrête, relisez ce qui a été écrit dans la destination et retrouvez les passages sauvegardés dans NoteVive. Ne recollez pas automatiquement toute la note : une partie pourrait déjà être dans le document.
+
+Word, le navigateur et les autres logiciels n’exposent pas tous des champs compatibles. Le texte transmis peut être synchronisé ou stocké par le logiciel qui le reçoit. Windows ne garantit pas la destination des frappes simulées en cas de changement de focus pendant l’envoi vers Word ou un navigateur. Pour le détail du fonctionnement et les cas à tester, voir le [guide de dictée externe](dictee-externe.md).
 
 ## 6. Comprendre ce qui se passe pendant la dictée
 
@@ -169,13 +179,17 @@ Si NoteVive indique que le processeur ne prend pas en charge **AVX2 et ses exten
 
 Si `F9` ne répond pas, cliquez directement sur **Dicter** dans la fenêtre NoteVive.
 
+### Le raccourci externe ne répond pas ou le champ est refusé
+
+Cliquez sur **Dicter ailleurs** dans NoteVive pour vérifier le raccourci. S’il est déjà utilisé par une autre application, libérez-le puis relancez NoteVive, ou utilisez la dictée interne et **Copier le texte**. Si le champ est protégé, en lecture seule ou incompatible, choisissez un autre champ fictif. Si un envoi n’est pas confirmé, relisez la destination et la note locale avant tout collage manuel.
+
 ### Le texte met longtemps à apparaître, ou certains mots sont faux
 
 Commencez avec une seule phrase courte, laissez une pause et attendez le résultat. Cliquez sur **Arrêter**, puis attendez la fin de la finalisation. Notez le délai, la phrase fictive prononcée et le texte obtenu. Les erreurs sur une négation, une dose, une unité ou un côté du corps sont particulièrement utiles à signaler. Le catalogue **Vocabulaire** ne corrige pas ces erreurs automatiquement.
 
 ### Enregistrer échoue, ou une erreur survient pendant la dictée
 
-En cas d’échec de sauvegarde, gardez la fenêtre ouverte, relevez le message et essayez **Enregistrer**. Si l’application propose de sauvegarder une copie, vérifiez que cette copie apparaît dans la bibliothèque avant de fermer. Le copier-coller ne permet pas de contourner ce problème dans cette version.
+En cas d’échec de sauvegarde, gardez la fenêtre ouverte, relevez le message et essayez **Enregistrer**. Si l’application propose de sauvegarder une copie, vérifiez que cette copie apparaît dans la bibliothèque avant de fermer. **Copier le texte** exige une sauvegarde réussie ; rétablissez d’abord l’enregistrement.
 
 Après une panne du moteur, relisez ce qui a été conservé : le passage en cours peut manquer. Si le message **Arrêt du microphone non confirmé** apparaît, fermez l’application comme demandé. Après une fermeture inattendue, rouvrez la note et vérifiez les dernières phrases ; seule une sauvegarde réussie confirme leur conservation.
 
@@ -210,11 +224,11 @@ Les notes et les dossiers se trouvent dans `%LOCALAPPDATA%\NoteVive-Pilote\notes
 
 Ouvrez le **[formulaire de retour d’essai](https://github.com/sarbhakan/DocTranscript/issues/new?template=essai-notevive.yml)**. GitHub demande un compte pour envoyer un retour, mais pas pour télécharger l’application. Si vous ne souhaitez pas créer de compte, transmettez les mêmes informations à la personne qui vous a fourni le lien du dépôt.
 
-Indiquez la version **0.3.1**, l’étape suivie, le résultat attendu et ce qui s’est réellement passé. Ajoutez le message exact s’il y en a un, ainsi que votre version de Windows. Si vous connaissez le modèle du PC, sa mémoire et le type de micro, précisez-les ; sinon, indiquez simplement que vous ne savez pas.
+Indiquez la version de NoteVive, l’étape suivie, le résultat attendu et ce qui s’est réellement passé. Ajoutez le message exact s’il y en a un, ainsi que votre version de Windows. Si vous connaissez le modèle du PC, sa mémoire et le type de micro, précisez-les. Pour un essai externe, indiquez le logiciel de destination et sa version.
 
 Pour une erreur de transcription, donnez la **phrase fictive prononcée**, le **texte obtenu** et le **délai approximatif**. Vérifiez les captures d’écran avant de les joindre : aucun nom de patient, note réelle, enregistrement de consultation ou fichier de bibliothèque ne doit être publié.
 
-Pour conduire une comparaison structurée sur deux postes, utilisez la [recette Windows 0.3.1](windows-recette-030.md). Elle complète ce premier essai par des contrôles de doses, de fractions, de négations, de performances et de sauvegarde.
+Pour conduire une comparaison structurée sur deux postes, utilisez la [recette Windows](windows-recette-030.md) en relevant la version exacte du ZIP. Elle complète ce premier essai par des contrôles de doses, de fractions, de négations, de performances et de sauvegarde.
 
 <a id="verifier-le-telechargement"></a>
 
@@ -225,7 +239,7 @@ Cette vérification technique permet de confirmer que le ZIP reçu correspond ex
 <details>
 <summary>Afficher la procédure SHA-256 avec PowerShell</summary>
 
-1. Téléchargez aussi le [fichier de vérification `.sha256`](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.1-essai/NoteVive-Windows-x64-Essai.zip.sha256). Il s’ouvre comme du texte, par exemple avec le Bloc-notes.
+1. Dans les fichiers de la même Release, téléchargez aussi **`NoteVive-Windows-x64-Essai.zip.sha256`**. Il s’ouvre comme du texte, par exemple avec le Bloc-notes.
 2. Ouvrez **PowerShell** depuis le menu Démarrer. Il n’est pas nécessaire de le lancer en administrateur.
 3. Dans la commande ci-dessous, remplacez `C:\CHEMIN` par le dossier qui contient votre ZIP. Conservez les guillemets autour du chemin, puis exécutez la commande.
 
@@ -233,11 +247,7 @@ Cette vérification technique permet de confirmer que le ZIP reçu correspond ex
    Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\CHEMIN\NoteVive-Windows-x64-Essai.zip'
    ```
 
-4. Comparez les 64 caractères de la colonne **Hash** avec ceux du fichier `.sha256`, sans tenir compte des majuscules et minuscules. Pour **le ZIP v0.3.1-essai uniquement**, l’empreinte attendue est :
-
-   ```text
-   6993d11fb698c15d050ab69f87c0740fc34c13d80d75307a0ecda98a37e44473
-   ```
+4. Comparez les 64 caractères de la colonne **Hash** avec ceux du fichier `.sha256` provenant de la même Release, sans tenir compte des majuscules et minuscules. Deux versions portant le même nom de ZIP auront des empreintes différentes.
 
 Si l’empreinte diffère, ne lancez pas le paquet : téléchargez-le à nouveau depuis le lien officiel et refaites la vérification. [Documentation Microsoft de `Get-FileHash`](https://learn.microsoft.com/fr-fr/powershell/module/microsoft.powershell.utility/get-filehash).
 

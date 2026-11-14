@@ -36,7 +36,7 @@ jobs:
         run: python -m app.test_windows --compiler msvc --output "$env:RUNNER_TEMP/NoteVive-unit-tests"
       - name: Tester la dictée externe dans Edge sur une page locale fictive
         shell: powershell
-        run: ./app/windows/external_edge_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-unit-tests/external-target-test.exe"
+        run: ./app/windows/external_interactive_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-unit-tests/external-target-test.exe" -Case Edge
       - name: Préparer les entrées officielles et vérifier leurs empreintes
         run: python app/prepare_windows.py
       - name: Compiler Whisper CPU sans redistribuable externe
@@ -129,49 +129,6 @@ jobs:
             dist/NoteVive-Windows-x64-Essai.zip.sha256
           retention-days: 30
           if-no-files-found: error
-  ui-preview:
-    needs: windows
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'codex/interface-dictee-adaptation-040'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: NoteVive-UI-Preview
-          path: preview
-      - name: Rendre consultable la capture de recette fictive
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          SOURCE_SHA: ${{ github.sha }}
-        shell: python
-        run: |
-          import base64, json, os, pathlib, urllib.request, urllib.error
-          repo = os.environ['REPOSITORY']
-          branch = 'codex/interface-previews'
-          def api(method, path, payload=None):
-              request = urllib.request.Request('https://api.github.com/repos/' + repo + '/' + path,
-                  data=json.dumps(payload).encode() if payload is not None else None,
-                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
-                      'Accept': 'application/vnd.github+json'}, method=method)
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  return json.load(response)
-          try:
-              api('GET', 'git/ref/heads/' + branch)
-          except urllib.error.HTTPError as error:
-              if error.code != 404: raise
-              api('POST', 'git/refs', {'ref': 'refs/heads/' + branch, 'sha': os.environ['SOURCE_SHA']})
-          raw = pathlib.Path('preview/NoteVive-preview.png').read_bytes()
-          if not raw.startswith(b'\x89PNG\r\n\x1a\n') or len(raw) > 5 * 1024 * 1024:
-              raise ValueError('Capture PNG fictive attendue')
-          path = 'docs/previews/' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '.png'
-          result = api('PUT', 'contents/' + path, {'branch': branch,
-              'message': 'Capture Windows fictive ' + os.environ['SOURCE_SHA'] + ' [skip ci]',
-              'content': base64.b64encode(raw).decode()})
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
-              stream.write('Capture de recette : ' + result['content']['html_url'] + '\n')
   release:
     needs: windows
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.4.0]')

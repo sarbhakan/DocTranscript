@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "repo": "openai/whisper-large-v3-turbo",
+  "revision": "41f01f3fe87f28c78e2fbf8b568835947dd65ed9",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 21196,
+      "git_blob_sha1": "0bbe30273338d7e19f779c1343808e32617e64d1"
+    },
+    {
+      "path": "added_tokens.json",
+      "bytes": 34648,
+      "git_blob_sha1": "1b33526d33aaa60d79f78ae8651dae50b730185a"
+    },
+    {
+      "path": "config.json",
+      "bytes": 1256,
+      "git_blob_sha1": "ad2f44ff1ed66e12765b2392dc041469db91a462"
+    },
+    {
+      "path": "generation_config.json",
+      "bytes": 3772,
+      "git_blob_sha1": "cbe752958dc3e4671b0e0220aa1c545423a6d5f5"
+    },
+    {
+      "path": "merges.txt",
+      "bytes": 493869,
+      "git_blob_sha1": "6038932a2a1f09a66991b1c2adae0d14066fa29e"
+    },
+    {
+      "path": "model.safetensors",
+      "bytes": 1617824864,
+      "git_blob_sha1": "d31c58c2bcd43b726463567df91f9a2b0581dd8e",
+      "sha256": "542566a422ae4f3fd23f1ba11add198fca01bbf82e66e6a2857b3f608b1eb9d1"
+    },
+    {
+      "path": "normalizer.json",
+      "bytes": 52666,
+      "git_blob_sha1": "dd6ae819ad738ac1a546e9f9282ef325c33b9ea0"
+    },
+    {
+      "path": "preprocessor_config.json",
+      "bytes": 340,
+      "git_blob_sha1": "931c77a740890c46365c7ae0c9d350ba3cca908f"
+    },
+    {
+      "path": "special_tokens_map.json",
+      "bytes": 2186,
+      "git_blob_sha1": "312bc106291bb51bf2cc1648df070bef963a0639"
+    },
+    {
+      "path": "tokenizer.json",
+      "bytes": 2710337,
+      "git_blob_sha1": "17456db595adc78a973f97d69d8cb50bc87c0b1c"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "bytes": 282843,
+      "git_blob_sha1": "06ffdc8308eae6bb7bd1fdd81e94b0a881a539ab"
+    },
+    {
+      "path": "vocab.json",
+      "bytes": 1036558,
+      "git_blob_sha1": "0f3456460629e21d559c6daa23ab6ce3644e8271"
+    }
+  ]
+}

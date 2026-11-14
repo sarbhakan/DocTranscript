@@ -102,7 +102,7 @@ try {
         '--disable-background-networking', '--disable-sync', '--disable-component-update',
         '--disable-default-apps', '--disable-extensions', '--no-proxy-server',
         '--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost"',
-        '--force-renderer-accessibility', '--new-window', $url)
+        '--new-window', $url)
     $edge = Start-Process -FilePath $EdgeExe -ArgumentList $flags -PassThru
     $portFile = Join-Path $profile 'DevToolsActivePort'
     Wait-Until { Test-Path -LiteralPath $portFile -PathType Leaf } 'Disposable Edge profile did not start DevTools.' 20000

@@ -8,6 +8,13 @@
 #endif
 #include "external_target.h"
 
+#include <exdisp.h>
+#include <ole2.h>
+#include <servprov.h>
+#include <shldisp.h>
+#include <shlobj.h>
+#include <shlguid.h>
+
 #include <cstdio>
 #include <cwchar>
 #include <iostream>
@@ -115,6 +122,99 @@ bool focus(HWND window, int id) {
             gui.hwndFocus == field(window, id);
     }, 2000);
 }
+void token_environment(const char* name, HANDLE process) {
+    HANDLE token = nullptr;
+    DWORD bytes = 0;
+    TOKEN_ELEVATION elevation{};
+    std::vector<BYTE> level;
+    if (process && OpenProcessToken(process, TOKEN_QUERY, &token)) {
+        GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &bytes);
+        GetTokenInformation(token, TokenIntegrityLevel, nullptr, 0, &bytes);
+        if (bytes && bytes <= 4096) {
+            level.resize(bytes);
+            if (!GetTokenInformation(token, TokenIntegrityLevel, level.data(), bytes, &bytes)) level.clear();
+        }
+        CloseHandle(token);
+    }
+    DWORD integrity = 0;
+    if (!level.empty()) {
+        auto sid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(level.data())->Label.Sid;
+        if (IsValidSid(sid) && *GetSidSubAuthorityCount(sid))
+            integrity = *GetSidSubAuthority(sid, *GetSidSubAuthorityCount(sid) - 1);
+    }
+    std::fprintf(stderr, "%s integrity=0x%04lx elevated=%lu\n", name,
+                 static_cast<unsigned long>(integrity), static_cast<unsigned long>(elevation.TokenIsElevated));
+}
+int environment() {
+    token_environment("probe", GetCurrentProcess());
+    DWORD shell_pid = 0;
+    const auto shell = GetShellWindow();
+    if (shell) GetWindowThreadProcessId(shell, &shell_pid);
+    auto process = shell_pid ? OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, shell_pid) : nullptr;
+    token_environment("desktop_shell", process);
+    if (process) CloseHandle(process);
+    const auto input = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
+    if (input) CloseDesktop(input);
+    std::fprintf(stderr, "input_desktop_readable=%d\n", input != nullptr);
+    return 0;
+}
+
+int launch_desktop(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory) {
+    // This is the documented Execute In Explorer approach. Only the separate
+    // test executable has this launcher, never the product.
+    const auto apartment = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(apartment)) return 1;
+    IShellWindows* windows = nullptr;
+    IDispatch* desktop = nullptr;
+    IServiceProvider* provider = nullptr;
+    IShellBrowser* browser = nullptr;
+    IShellView* view = nullptr;
+    IDispatch* automation = nullptr;
+    IShellFolderViewDual* folder = nullptr;
+    IDispatch* application = nullptr;
+    IShellDispatch2* shell = nullptr;
+    VARIANT location{}, empty{}, params{}, cwd{}, verb{}, show{};
+    location.vt = VT_I4;
+    location.lVal = CSIDL_DESKTOP;
+    long hwnd = 0;
+    HRESULT result = CoCreateInstance(__uuidof(ShellWindows), nullptr, CLSCTX_LOCAL_SERVER,
+                                      IID_PPV_ARGS(&windows));
+    if (SUCCEEDED(result)) result = windows->FindWindowSW(&location, &empty, SWC_DESKTOP,
+                                                          &hwnd, SWFO_NEEDDISPATCH, &desktop);
+    if (SUCCEEDED(result)) result = desktop ? desktop->QueryInterface(IID_PPV_ARGS(&provider)) : E_FAIL;
+    if (SUCCEEDED(result)) result = provider->QueryService(SID_STopLevelBrowser, IID_PPV_ARGS(&browser));
+    if (SUCCEEDED(result)) result = browser->QueryActiveShellView(&view);
+    if (SUCCEEDED(result)) result = view->GetItemObject(SVGIO_BACKGROUND, IID_PPV_ARGS(&automation));
+    if (SUCCEEDED(result)) result = automation->QueryInterface(IID_PPV_ARGS(&folder));
+    if (SUCCEEDED(result)) result = folder->get_Application(&application);
+    if (SUCCEEDED(result)) result = application->QueryInterface(IID_PPV_ARGS(&shell));
+    if (SUCCEEDED(result)) {
+        auto file = SysAllocString(executable);
+        params.vt = cwd.vt = verb.vt = VT_BSTR;
+        params.bstrVal = SysAllocString(arguments);
+        cwd.bstrVal = SysAllocString(directory);
+        verb.bstrVal = SysAllocString(L"open");
+        show.vt = VT_I4;
+        show.lVal = SW_HIDE;
+        result = file && params.bstrVal && cwd.bstrVal && verb.bstrVal ?
+            shell->ShellExecute(file, params, cwd, verb, show) : E_OUTOFMEMORY;
+        SysFreeString(file);
+        VariantClear(&params);
+        VariantClear(&cwd);
+        VariantClear(&verb);
+    }
+    for (auto* iface : {static_cast<IUnknown*>(shell), static_cast<IUnknown*>(application),
+                        static_cast<IUnknown*>(folder), static_cast<IUnknown*>(automation),
+                        static_cast<IUnknown*>(view), static_cast<IUnknown*>(browser),
+                        static_cast<IUnknown*>(provider), static_cast<IUnknown*>(desktop),
+                        static_cast<IUnknown*>(windows)}) {
+        if (iface) iface->Release();
+    }
+    CoUninitialize();
+    if (FAILED(result)) std::fprintf(stderr, "Explorer ordinary launch HRESULT=0x%08lx\n",
+                                     static_cast<unsigned long>(result));
+    return FAILED(result) ? 1 : 0;
+}
 std::wstring text(HWND edit) {
     // Reading the synthetic fixture, never a third-party document.
     wchar_t value[256]{};
@@ -124,11 +224,15 @@ std::wstring text(HWND edit) {
     return value;
 }
 Result capture(Target& target, HWND owner) {
+    target.reset();
+    Sleep(30); // Do not race the previous native test's worker shutdown.
+    pump();
     const auto status = target.capture(owner);
     if (status != Result::pending) return status;
     require(within([&] { return target.check() != Result::pending; }), "capture deadline");
     return target.check();
 }
+const char* result_id(Result result);
 
 int run(bool test_clipboard) {
     const HINSTANCE instance = GetModuleHandleW(nullptr);
@@ -157,7 +261,13 @@ int run(bool test_clipboard) {
     }), "probe windows missing");
     require(focus(proc.first, kFirst), "probe desktop not interactive or focus denied");
     Target target;
-    require(capture(target, owner) == Result::ready, "ordinary Unicode edit refused");
+    const auto initial = capture(target, owner);
+    if (initial != Result::ready) {
+        token_environment("probe", GetCurrentProcess());
+        token_environment("fixture", proc.process);
+        std::fprintf(stderr, "initial_result=%s\n", result_id(initial));
+    }
+    require(initial == Result::ready, "ordinary Unicode edit refused");
     require(target.forward(L" é\r\n½ ") == Result::queued, "first segment was not queued");
     require(target.forward(L"négatif") == Result::queued, "second segment was not queued");
     require(within([&] { return !target.busy(); }) && target.check() == Result::inserted, "caret insertion did not finish");
@@ -278,6 +388,9 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3 && std::wcscmp(argv[1], L"--child") == 0) return child(argv[2]);
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-probe") == 0)
             return edge_probe(static_cast<DWORD>(std::stoul(argv[2])));
+        if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
+        if (argc == 5 && std::wcscmp(argv[1], L"--launch-from-desktop") == 0)
+            return launch_desktop(argv[2], argv[3], argv[4]);
         if (argc == 1) return run(false);
         if (argc == 2 && std::wcscmp(argv[1], L"--clipboard") == 0) return run(true);
         return 2;

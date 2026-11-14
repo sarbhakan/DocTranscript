@@ -235,7 +235,14 @@ def main():
         if is_smoke:
             resources = out / f'memory-{label}-{requested_cpu}.json'
             measured = [sys.executable, '-m', 'p0.windows.measure', '--output', resources, '--', *cmd]
-        completed = subprocess.run(measured, check=False, env=env, timeout=120 if is_smoke else 30)
+        is_external = cmd[0].name == 'external-target-test.exe'
+        if is_external:
+            measured = [
+                Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe',
+                '-NoProfile', '-NonInteractive', '-File', WIN / 'external_interactive_test.ps1',
+                '-ProbeExe', cmd[0], '-Case', 'Native',
+            ]
+        completed = subprocess.run(measured, check=False, env=env, timeout=125 if is_external else (120 if is_smoke else 30))
         result = {'test': label, 'requested_cpu': requested_cpu, 'elapsed_seconds': round(time.perf_counter() - start, 3)}
         if is_smoke:
             with wave.open(str(cmd[2]), 'rb') as audio:

@@ -128,6 +128,9 @@ std::wstring program_label(HANDLE process) {
     if (equal(L"chrome.exe")) return L"Chrome";
     if (equal(L"msedge.exe")) return L"Edge";
     if (equal(L"firefox.exe")) return L"Firefox";
+    if (equal(L"brave.exe")) return L"Brave";
+    if (equal(L"vivaldi.exe")) return L"Vivaldi";
+    if (equal(L"opera.exe")) return L"Opera";
     if (filename.empty() || filename.size() > 64 || !wire::valid_text(filename)) return {};
     return std::wstring(filename);
 }
@@ -471,7 +474,8 @@ struct Target::State {
         const auto capture_deadline = captured_at + kCaptureMs;
         if (!still_target(capture_deadline)) return fail(Result::target_changed);
         auto name = program_label(process.value);
-        browser = name == L"Chrome" || name == L"Edge" || name == L"Firefox";
+        browser = name == L"Chrome" || name == L"Edge" || name == L"Firefox" ||
+            name == L"Brave" || name == L"Vivaldi" || name == L"Opera";
         Result initial;
         if (is_edit) {
             if (browser) return fail(Result::unsupported);
@@ -533,10 +537,12 @@ Target::Target() = default;
 Target::~Target() { reset(); }
 
 void CALLBACK Target::on_event(HWINEVENTHOOK hook, DWORD event, HWND window,
-                               LONG id_object, LONG id_child, DWORD tid, DWORD) {
+                               LONG id_object, LONG id_child, DWORD tid, DWORD event_time) {
     auto* self = monitoring_;
     if (!self || !self->state_ || (hook != self->foreground_hook_ && hook != self->focus_hook_)) return;
     const auto& state = *self->state_;
+    const auto since_capture = event_time - static_cast<DWORD>(state.captured_at);
+    if (since_capture > 0x7fffffffu) return; // Older queued notification, including tick wrap.
     if (event == EVENT_SYSTEM_FOREGROUND && window != state.target.foreground) {
         self->state_->fail(Result::target_changed);
     } else if (event == EVENT_OBJECT_FOCUS) {

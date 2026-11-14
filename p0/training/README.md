@@ -1,6 +1,6 @@
-# Préparer des données d’adaptation locales
+# Préparer et ajuster un modèle local
 
-Cet outil prépare **des données de développement**, sans entraîner ni modifier le moteur de NoteVive. Il utilise uniquement l’archive **PxCorpus v4** déjà employée par le banc. Il fonctionne hors ligne avec Python 3.11 ou 3.12 et sa bibliothèque standard ; aucune bibliothèque de calcul, compte ou carte graphique n’est nécessaire.
+Le module `prepare_px` prépare **des données de développement**, sans entraîner ni modifier le moteur de NoteVive. Les nouveaux modules `train_lora` et `export_lora` réalisent un ajustement expérimental et son export, explicitement séparés de l’application distribuée. Il utilise uniquement l’archive **PxCorpus v4** déjà employée par le banc. Il fonctionne hors ligne avec Python 3.11 ou 3.12 et sa bibliothèque standard ; aucune bibliothèque de calcul, compte ou carte graphique n’est nécessaire.
 
 Le corpus contient des prescriptions simulées, enregistrées par des volontaires. Les transcriptions de référence sont celles du fichier source `seq.in`, dont les auteurs déclarent la vérification humaine. L’export ne les réécrit pas à partir des sorties d’un moteur. Une relecture à l’écoute reste nécessaire avant de les considérer comme des références validées pour un entraînement médical.
 
@@ -23,7 +23,7 @@ La commande crée :
 - `ATTRIBUTION.txt` : attribution et description des transformations ;
 - `report.json` : rapport agrégé, sans transcription ni liste de locuteurs. **Seul ce rapport peut être proposé pour publication**, après vérification de son contenu.
 
-Le champ `audio_filepath` est relatif à la racine de cet export ; le futur chargeur d’entraînement doit le résoudre par rapport à cette racine. Les champs `text` et `duration` suivent la convention courante des manifestes ASR. Ce fichier n’est pas une configuration d’entraînement NeMo ou Transformers prête à exécuter.
+Le champ `audio_filepath` est relatif à la racine de cet export ; le chargeur d’entraînement le résout par rapport à cette racine. Les champs `text` et `duration` suivent la convention courante des manifestes ASR. Ce fichier n’est pas une configuration d’entraînement NeMo ou Transformers prête à exécuter.
 
 ## Séparation et contrôles
 
@@ -43,11 +43,11 @@ Le rapport conserve l’empreinte de l’archive et celles des manifestes. Ce ra
 
 Ce sous-ensemble est limité aux prescriptions. Il ne couvre pas à lui seul les maladies, examens et spécialités. Les voix de médecins du test sont exclues de l’adaptation : les catégories restantes sont `expert` et `non-expert`, telles que fournies par les auteurs.
 
-Le jeu de validation exporté sert au développement. Les 51 cas déjà vus ne deviennent pas un test indépendant après cette préparation. Le recouvrement éventuel avec le préentraînement de Whisper ou d’un autre modèle est inconnu. Un futur entraînement doit conserver un nouveau jeu de confirmation, avec d’autres voix et textes, et comparer aussi les doses, fractions, négations, médicaments et temps de calcul.
+Le jeu de validation exporté sert au développement. Les 51 cas déjà vus ne deviennent pas un test indépendant après cette préparation. Le recouvrement éventuel avec le préentraînement de Whisper ou d’un autre modèle est inconnu. Une qualification ultérieure doit conserver un nouveau jeu de confirmation, avec d’autres voix et textes, et comparer aussi les doses, fractions, négations, médicaments et temps de calcul.
 
 L’export réel du **14 novembre 2026** a été exécuté puis revérifié : **1 081 audios / 32 voix / 2 h 14 min 37 s** pour train et **282 audios / 8 voix / 27 min 14 s** pour validation. Il réserve 570 audios de 14 voix de médecins. Il retire aussi 29 enregistrements dont la référence apparaît dans cette réserve, 16 dont la référence traverse train/validation et trois doublons PCM internes. Le [rapport agrégé](pxcorpus_v4_report.json) fournit les durées exactes et les empreintes. Aucun de ces audios ni de leurs références n’est ajouté au dépôt.
 
-Pour entraîner ensuite, il faut un modèle au format entraînable, une méthode existante telle que PEFT/LoRA ou NeMo, des ressources adaptées et une évaluation du modèle exporté dans son format final. Le fichier GGML quantifié de l’application ne s’entraîne pas par ajout de ce dossier. **Aucun poids n’est entraîné par cet outil.**
+Pour entraîner ensuite, il faut un modèle au format entraînable, une méthode existante telle que PEFT/LoRA ou NeMo, des ressources adaptées et une évaluation du modèle exporté dans son format final. Le fichier GGML quantifié de l’application ne s’entraîne pas par ajout de ce dossier. **La préparation des données seule n’entraîne aucun poids.** Voir ci-dessous pour lancer explicitement un entraînement.
 
 Source : [PxCorpus v4, Kocabiyikoglu et al.](https://zenodo.org/records/10080490), licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Attribution : Ali Can Kocabiyikoglu, François Portet, Prudence Gibert, Hervé Blanchon, Jean-Marc Babouchkine et Gaëtan Gavazzi. Publication : *A Spoken Drug Prescription Dataset in French for Spoken Language Understanding*, LREC 2022. L’archive est vérifiée directement ; les comptages exportés décrivent son contenu effectif et peuvent différer des arrondis de la notice.
 
@@ -55,4 +55,53 @@ Tests du préparateur :
 
 ```powershell
 python -m unittest p0.bench.test_training -v
+```
+
+
+## Entraînement expérimental sur Mac Apple Silicon
+
+Ces commandes s’adressent au développeur du projet. Le médecin utilise le ZIP Windows et n’a rien à installer de cette chaîne.
+
+L’environnement est isolé, **Python 3.12 ARM64**, PyTorch 2.9.1, Transformers 4.57.3 et PEFT 0.18.0. Le fichier `requirements-macos-arm64.lock.txt` fixe les wheels officielles et leurs SHA-256. La préparation télécharge les dépendances et les poids publics ; l’entraînement et l’évaluation suivants fonctionnent hors ligne. Aucun son n’est envoyé.
+
+```bash
+python3 -m venv /chemin/local/notevive-entrainement/venv
+/chemin/local/notevive-entrainement/venv/bin/python -m pip --isolated install --no-cache-dir --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r p0/training/requirements-macos-arm64.lock.txt
+python3 -m p0.training.fetch_model fetch --model /chemin/local/notevive-entrainement/base
+```
+
+Créer le dossier parent local auparavant, avec suffisamment d’espace libre. Les sorties doivent être neuves, hors dépôt et hors synchronisation. Le modèle OpenAI est fixé à la révision `41f01f3fe87f28c78e2fbf8b568835947dd65ed9` ; tous ses fichiers sont vérifiés, et un fichier supplémentaire susceptible de modifier le chargement fait refuser le dossier.
+
+```bash
+/chemin/local/notevive-entrainement/venv/bin/python -m p0.training.train_lora train \
+  --model /chemin/local/notevive-entrainement/base \
+  --corpus /chemin/local/adaptation-px-v1 \
+  --px-archive /chemin/local/PxCorpus.zip \
+  --output /chemin/local/notevive-entrainement/smoke-01 \
+  --max-updates 8 --validation-limit 8
+```
+
+Le mini-essai vérifie huit mises à jour effectives, des gradients finis, la base inchangée, les adaptateurs modifiés et une sauvegarde/recharge exacte. Il n’établit pas de gain de reconnaissance. Pour une passe complète, choisir **une autre sortie neuve**, avec `--max-updates 271 --epochs 1`, sans `--validation-limit` : 1 081 clips d’entraînement et les 282 clips de validation. Il n’y a pas de reprise implicite du mini-essai.
+
+L’encodeur et la base sont gelés. Seuls 327 680 paramètres LoRA FP32 sont ajustés, sur les 16 projections q/v des quatre couches du décodeur ; la base utilise FP16 sur MPS. L’accumulation utilise quatre clips et un dernier groupe d’un clip. La référence conserve le vrai jeton de fin ; le remplissage ne compte pas dans la perte. Un gradient non fini ou un pas ignoré interrompt l’essai. Aucun lexique n’est utilisé pour réécrire les références.
+
+`contract.json`, `events.jsonl`, `report.json` et les sous-dossiers `checkpoints/` permettent de suivre ce qui a réellement eu lieu. `last.json` et `best.json` indiquent les adaptateurs terminés. Avec une seule passe, il n’existe qu’une validation finale : « best » n’est pas une recherche de plusieurs configurations. Les interruptions conservent un rapport d’échec et n’autorisent aucune adoption automatique.
+
+```bash
+/chemin/local/notevive-entrainement/venv/bin/python -m p0.training.train_lora evaluate \
+  --model /chemin/local/notevive-entrainement/base \
+  --corpus /chemin/local/adaptation-px-v1 \
+  --px-archive /chemin/local/PxCorpus.zip \
+  --adapter /chemin/local/notevive-entrainement/epoch-01/checkpoints/update-000271 \
+  --output /chemin/local/notevive-entrainement/evaluation-01 --count 32
+```
+
+Les 32 clips sont choisis par une règle fixe sur leurs identifiants, répartis sur les huit voix. La base et l’adaptateur transcrivent les mêmes WAV sans recevoir les références. Les prédictions restent dans `predictions.local.jsonl`, hors Git. Le WER agrégé ne remplace pas la vérification des médicaments, valeurs, fractions, unités, négations et associations.
+
+`export_lora --help` documente la fusion FP32 → HF FP16 puis la conversion officielle whisper.cpp 1.8.5 → Q5_0. Le convertisseur, les filtres mel, le tokenizer, l’architecture et le quantizer sont vérifiés. Reconvertir aussi la base témoin et comparer les fichiers Q5 dans la chaîne finale Windows avant toute adoption. L’export seul ne remplace jamais le modèle de NoteVive.
+
+Tests contractuels (sans GPU ni dépendances ML, sauf une petite régression PEFT facultative dans l’environnement d’entraînement) :
+
+```bash
+python3 -m unittest p0.bench.test_training p0.bench.test_lora_contract
 ```

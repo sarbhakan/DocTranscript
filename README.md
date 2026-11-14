@@ -2,19 +2,19 @@
 
 # NoteVive · DocTranscript
 
-**Dictez une note en français, relisez-la et retrouvez-la sur votre ordinateur.** NoteVive transforme la voix en texte, puis permet de renommer les notes, de les classer dans des dossiers et de les rechercher. Le traitement et la sauvegarde se font localement. Une fois le téléchargement terminé, l’application fonctionne sans Internet.
+**Dictez une note en français, relisez-la et retrouvez-la sur votre ordinateur.** NoteVive transforme la voix en texte et vous permet de classer, rechercher et copier vos notes. Le traitement et la sauvegarde se font sur votre PC. Une fois le téléchargement terminé, NoteVive fonctionne sans Internet.
 
 ## Télécharger et essayer l’application
 
-### [Télécharger NoteVive pour Windows — ZIP, environ 544 Mo](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.1-essai/NoteVive-Windows-x64-Essai.zip)
+### [Télécharger NoteVive pour Windows — Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases)
 
-**[Ouvrir le guide pas à pas pour débuter](docs/guide-essai-windows.md)** · [Voir la page de téléchargement sur GitHub](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.1-essai)
+**[Ouvrir le guide pas à pas pour débuter](docs/guide-essai-windows.md)**
 
 Le téléchargement est public : aucun compte GitHub ou NoteVive n’est nécessaire. Le ZIP contient l’application et son modèle de reconnaissance vocale. Vous n’avez aucun outil de programmation à installer.
 
-**Version d’essai 0.3.1 : utilisez uniquement des dictées fictives.** La transcription peut se tromper, notamment sur les doses et les négations. Le texte apparaît après les pauses et le calcul ; ce calcul peut prendre plusieurs secondes, voire davantage selon le PC. L’application n’est pas encore qualifiée pour un usage en cabinet.
+**Version d’essai : utilisez uniquement des dictées fictives.** La transcription peut se tromper, notamment sur les doses et les négations. Le texte apparaît après les pauses et le calcul, dont la durée dépend du PC. L’application n’est pas qualifiée pour les dossiers patients.
 
-1. **Téléchargez le ZIP** avec le lien ci-dessus. Attendez la fin du téléchargement, puis retrouvez le fichier dans le dossier choisi par votre navigateur, souvent **Téléchargements**.
+1. **Téléchargez `NoteVive-Windows-x64-Essai.zip`** dans les fichiers de la Release choisie. Attendez la fin du téléchargement, puis retrouvez le ZIP, souvent dans **Téléchargements**.
 2. **Faites un clic droit sur le ZIP, puis « Extraire tout ».** Ouvrez le dossier obtenu, puis le dossier **NoteVive** qu’il contient. Gardez tous les fichiers ensemble.
 3. **Double-cliquez sur `NoteVive.exe`.** Windows peut afficher simplement **NoteVive**, avec le type **Application**. C’est le fichier à ouvrir à chaque utilisation ; il n’y a pas d’assistant d’installation.
 4. **Cliquez sur « + Transcription »**, donnez un titre, puis cliquez sur **Dicter**. Attendez le message **Micro ouvert**. Dites « Pas de douleur à la cheville droite », puis laissez une pause pour voir le texte apparaître.
@@ -39,15 +39,17 @@ La dictée Windows exige un processeur compatible **AVX2** et ses extensions ass
 - Créer des dossiers et des sous-dossiers ; ranger une note avec **Classer…**.
 - Rechercher dans les titres et le texte ; trier par modification, création ou titre.
 - Fermer puis rouvrir l’application pour retrouver les notes du même compte Windows sur le même PC.
+- Avec **Copier le texte** ou **Ctrl+Maj+C**, copier uniquement le corps de la note pour le coller vous-même.
+- Avec **Ctrl+Alt+Espace**, essayer la dictée vers un champ externe compatible. NoteVive sauvegarde d’abord chaque segment confirmé dans une nouvelle note locale.
 - Consulter le catalogue médical local avec **Vocabulaire**.
 
 Le [guide d’utilisation](docs/guide-essai-windows.md#organiser-les-notes) détaille ces gestes. Les notes sont sauvegardées séparément du dossier de l’application et chiffrées pour le compte Windows courant. Aucun enregistrement audio n’est conservé.
 
-Dans cette version Windows, la dictée reste dans NoteVive : le raccourci **F9** agit dans sa fenêtre. L’insertion dans un autre logiciel, le copier-coller et l’export du texte ne sont pas disponibles. **Vocabulaire** sert à consulter des termes ; il ne corrige pas automatiquement la dictée. Les fonctions du prototype Mac peuvent différer.
+Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez uniquement un document ou un champ fictif. La compatibilité dépend du champ et la destination peut synchroniser ce qu’elle reçoit. Gardez le curseur dans le même champ et vérifiez le résultat après l’envoi. Le texte copié reste lisible par les applications locales qui ont accès au presse-papiers. **F9** continue d’agir dans la fenêtre NoteVive ; **Vocabulaire** reste un catalogue de consultation. Les fonctions du prototype Mac peuvent différer.
 
 ## Ce qui change dans cet essai
 
-La version 0.3.1 améliore la confirmation de fermeture du micro, la récupération après une interruption et la protection du texte avant sauvegarde. Sur le banc Mac, les 85 enregistrements comparés produisent les mêmes textes avec et sans le correctif officiel de reproductibilité. **Les poids n’ont pas été entraînés et les erreurs de vocabulaire restent possibles.** Le [rapport détaillé](docs/audit-consolidation-031.md) présente les corrections, les mesures et les limites.
+La version 0.4.0 revoit la fenêtre autour de la bibliothèque et de l’éditeur, ajoute la copie explicite et propose une dictée vers un champ externe compatible. Le [guide Windows](docs/guide-essai-windows.md) explique les gestes et leur dépannage. Les [mesures du paquet 0.3.1](docs/audit-consolidation-031.md) restent consultables pour comparaison.
 
 ## Besoin d’aide ou envie de transmettre un résultat ?
 
@@ -70,7 +72,7 @@ Pour essayer l’application, le **ZIP de la Release** et le **guide pas à pas*
 <details>
 <summary><strong>Documentation technique et contribution</strong></summary>
 
-Le paquet Windows 0.3.1 utilise **Whisper Large-v3 Turbo Q5_0, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 70 517 libellés de six référentiels, sans BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
+Le paquet Windows s’appuie sur **Whisper Large-v3 Turbo, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 70 517 libellés de six référentiels, sans BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
 
 | Document | Ce qu’il permet de comprendre |
 | --- | --- |
@@ -84,7 +86,7 @@ Le paquet Windows 0.3.1 utilise **Whisper Large-v3 Turbo Q5_0, whisper.cpp 1.8.5
 | [Référentiels médicaux](docs/referentiels-medicaux.md) · [Catalogue local](lexique/README.md) | Sources françaises, licences et imports reproductibles. |
 | [Expérience praticien](docs/experience-praticien.md) · [Données et usage professionnel](docs/donnees-et-usage.md) | Scénarios d’usage, flux des données et conditions préalables à un pilote. |
 
-La [CI du paquet publié](https://github.com/sarbhakan/DocTranscript/actions/runs/43622527596) a vérifié le stockage, les contrôles audio et le parcours automatisé de l’interface. Elle ne remplace pas les essais au micro sur les deux PC physiques. Les [mesures Windows](docs/p0-choix-moteur.md) restent au-dessus des objectifs de latence.
+Les vérifications Windows sont consultables dans les [exécutions de l’intégration continue](https://github.com/sarbhakan/DocTranscript/actions/workflows/windows.yml). Elles ne remplacent pas les essais au micro sur les deux PC physiques, ni les essais manuels dans Word et le navigateur. Les [mesures Windows déjà disponibles](docs/p0-choix-moteur.md) restent au-dessus des objectifs de latence.
 
 Le projet vise **un paquet Windows et une configuration de transcription qualifiée**. Une livraison stable demande encore les essais physiques, la revue avec des praticiens et la signature de l’application. Les versions, empreintes et [licences des composants](app/NOTICE.md) sont documentées. Le dépôt ne déclare pas encore de licence générale pour le code NoteVive.
 
