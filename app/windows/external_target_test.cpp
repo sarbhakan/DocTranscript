@@ -8,14 +8,6 @@
 #endif
 #include "external_target.h"
 
-// Include COM's base declarations before the Windows SDK's MIDL headers.
-#include <ole2.h>
-#include <exdisp.h>
-#include <servprov.h>
-#include <shldisp.h>
-#include <shlobj.h>
-#include <shlguid.h>
-
 #include <cstdio>
 #include <cwchar>
 #include <iostream>
@@ -160,62 +152,108 @@ int environment() {
     return 0;
 }
 
-int launch_desktop(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory) {
-    // This is the documented Execute In Explorer approach. Only the separate
-    // test executable has this launcher, never the product.
-    const auto apartment = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    if (FAILED(apartment)) return 1;
-    IShellWindows* windows = nullptr;
-    IDispatch* desktop = nullptr;
-    IServiceProvider* provider = nullptr;
-    IShellBrowser* browser = nullptr;
-    IShellView* view = nullptr;
-    IDispatch* automation = nullptr;
-    IShellFolderViewDual* folder = nullptr;
-    IDispatch* application = nullptr;
-    IShellDispatch2* shell = nullptr;
-    VARIANT location{}, empty{}, params{}, cwd{}, verb{}, show{};
-    location.vt = VT_I4;
-    location.lVal = CSIDL_DESKTOP;
-    long hwnd = 0;
-    HRESULT result = CoCreateInstance(__uuidof(ShellWindows), nullptr, CLSCTX_LOCAL_SERVER,
-                                      IID_PPV_ARGS(&windows));
-    if (SUCCEEDED(result)) result = windows->FindWindowSW(&location, &empty, SWC_DESKTOP,
-                                                          &hwnd, SWFO_NEEDDISPATCH, &desktop);
-    if (SUCCEEDED(result)) result = desktop ? desktop->QueryInterface(IID_PPV_ARGS(&provider)) : E_FAIL;
-    if (SUCCEEDED(result)) result = provider->QueryService(SID_STopLevelBrowser, IID_PPV_ARGS(&browser));
-    if (SUCCEEDED(result)) result = browser->QueryActiveShellView(&view);
-    if (SUCCEEDED(result)) result = view->GetItemObject(SVGIO_BACKGROUND, IID_PPV_ARGS(&automation));
-    if (SUCCEEDED(result)) result = automation->QueryInterface(IID_PPV_ARGS(&folder));
-    if (SUCCEEDED(result)) result = folder->get_Application(&application);
-    if (SUCCEEDED(result)) result = application->QueryInterface(IID_PPV_ARGS(&shell));
-    if (SUCCEEDED(result)) {
-        auto file = SysAllocString(executable);
-        params.vt = cwd.vt = verb.vt = VT_BSTR;
-        params.bstrVal = SysAllocString(arguments);
-        cwd.bstrVal = SysAllocString(directory);
-        verb.bstrVal = SysAllocString(L"open");
-        show.vt = VT_I4;
-        show.lVal = SW_HIDE;
-        result = file && params.bstrVal && cwd.bstrVal && verb.bstrVal ?
-            shell->ShellExecute(file, params, cwd, verb, show) : E_OUTOFMEMORY;
-        SysFreeString(file);
-        VariantClear(&params);
-        VariantClear(&cwd);
-        VariantClear(&verb);
+struct LocalHandle {
+    HANDLE value = nullptr;
+    ~LocalHandle() { if (value) CloseHandle(value); }
+};
+
+int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory) {
+    // The runner and Explorer may both be elevated. Filter only the test
+    // child: keep its ordinary user/logon SID and existing desktop ACLs.
+    LocalHandle own, filtered, job;
+    const auto failure = [](const char* operation) {
+        const auto error = GetLastError();
+        std::fprintf(stderr, "%s failed (Windows error %lu)\n", operation, static_cast<unsigned long>(error));
+        return 1;
+    };
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE | TOKEN_QUERY, &own.value))
+        return failure("OpenProcessToken");
+    alignas(DWORD) BYTE builtin_admin[SECURITY_MAX_SID_SIZE]{};
+    DWORD admin_size = sizeof(builtin_admin);
+    if (!CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, builtin_admin, &admin_size))
+        return failure("CreateWellKnownSid");
+    SID_AND_ATTRIBUTES admin{builtin_admin, 0};
+    if (!CreateRestrictedToken(own.value, DISABLE_MAX_PRIVILEGE | LUA_TOKEN, 1, &admin,
+                               0, nullptr, 0, nullptr, &filtered.value))
+        return failure("CreateRestrictedToken");
+
+    alignas(DWORD) BYTE medium[SECURITY_MAX_SID_SIZE]{};
+    DWORD medium_size = sizeof(medium);
+    if (!CreateWellKnownSid(WinMediumLabelSid, nullptr, medium, &medium_size))
+        return failure("CreateWellKnownSid for medium integrity");
+    TOKEN_MANDATORY_LABEL label{{medium, SE_GROUP_INTEGRITY}};
+    if (!SetTokenInformation(filtered.value, TokenIntegrityLevel, &label, sizeof(label) + GetLengthSid(medium)))
+        return failure("SetTokenInformation medium integrity");
+    TOKEN_ELEVATION elevation{};
+    DWORD received = 0;
+    if (!GetTokenInformation(filtered.value, TokenElevation, &elevation, sizeof(elevation), &received))
+        return failure("GetTokenInformation TokenElevation");
+    if (elevation.TokenIsElevated) {
+        std::fputs("Windows still reports the filtered test token as elevated.\n", stderr);
+        return 1;
     }
-    for (auto* iface : {static_cast<IUnknown*>(shell), static_cast<IUnknown*>(application),
-                        static_cast<IUnknown*>(folder), static_cast<IUnknown*>(automation),
-                        static_cast<IUnknown*>(view), static_cast<IUnknown*>(browser),
-                        static_cast<IUnknown*>(provider), static_cast<IUnknown*>(desktop),
-                        static_cast<IUnknown*>(windows)}) {
-        if (iface) iface->Release();
+    GetTokenInformation(filtered.value, TokenIntegrityLevel, nullptr, 0, &received);
+    if (!received || received > 4096) return failure("GetTokenInformation TokenIntegrityLevel size");
+    std::vector<BYTE> actual_label(received);
+    if (!GetTokenInformation(filtered.value, TokenIntegrityLevel, actual_label.data(), received, &received))
+        return failure("GetTokenInformation TokenIntegrityLevel");
+    auto sid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(actual_label.data())->Label.Sid;
+    if (!IsValidSid(sid) || !EqualSid(sid, medium)) {
+        std::fputs("Windows did not confirm the medium integrity label of the filtered token.\n", stderr);
+        return 1;
     }
-    CoUninitialize();
-    if (FAILED(result)) std::fprintf(stderr, "Explorer ordinary launch HRESULT=0x%08lx\n",
-                                     static_cast<unsigned long>(result));
-    return FAILED(result) ? 1 : 0;
+    received = 0;
+    GetTokenInformation(filtered.value, TokenGroups, nullptr, 0, &received);
+    if (!received || received > 65536) return failure("GetTokenInformation TokenGroups size");
+    std::vector<BYTE> groups_data(received);
+    if (!GetTokenInformation(filtered.value, TokenGroups, groups_data.data(), received, &received))
+        return failure("GetTokenInformation TokenGroups");
+    const auto* groups = reinterpret_cast<const TOKEN_GROUPS*>(groups_data.data());
+    for (DWORD i = 0; i < groups->GroupCount; ++i) {
+        const auto group = groups->Groups[i];
+        if (EqualSid(group.Sid, builtin_admin) &&
+            ((group.Attributes & SE_GROUP_ENABLED) || !(group.Attributes & SE_GROUP_USE_FOR_DENY_ONLY))) {
+            std::fputs("Administrators remains enabled in the filtered test token.\n", stderr);
+            return 1;
+        }
+    }
+    std::fputs("Windows confirmed filtered test token: integrity=0x2000 elevated=0 administrators_disabled=1\n", stderr);
+
+    job.value = CreateJobObjectW(nullptr, nullptr);
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!job.value || !SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
+        return failure("SetInformationJobObject");
+    wchar_t desktop[] = L"winsta0\\default";
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    startup.lpDesktop = desktop;
+    startup.dwFlags = STARTF_USESHOWWINDOW;
+    startup.wShowWindow = SW_HIDE;
+    PROCESS_INFORMATION child{};
+    std::wstring command = L"\"" + std::wstring(executable) + L"\" " + arguments;
+    // CreateProcessAsUser does not require AssignPrimaryToken privilege for a
+    // restricted version of the caller's primary token (Microsoft contract).
+    if (!CreateProcessAsUserW(filtered.value, executable, command.data(), nullptr, nullptr, FALSE,
+                             CREATE_SUSPENDED | CREATE_NO_WINDOW, nullptr, directory, &startup, &child))
+        return failure("CreateProcessAsUser for filtered token");
+    LocalHandle child_process{child.hProcess}, child_thread{child.hThread};
+    if (!AssignProcessToJobObject(job.value, child_process.value)) {
+        const auto code = failure("AssignProcessToJobObject");
+        TerminateProcess(child_process.value, 1);
+        return code;
+    }
+    AllowSetForegroundWindow(child.dwProcessId);
+    if (ResumeThread(child_thread.value) == static_cast<DWORD>(-1)) return failure("ResumeThread");
+    if (WaitForSingleObject(child_process.value, 95000) != WAIT_OBJECT_0) {
+        std::fputs("Ordinary Windows test process did not exit before its deadline.\n", stderr);
+        return 1;
+    }
+    DWORD elapsed_code = 1;
+    if (!GetExitCodeProcess(child_process.value, &elapsed_code)) return failure("GetExitCodeProcess");
+    return elapsed_code == 0 ? 0 : 1;
 }
+
 std::wstring text(HWND edit) {
     // Reading the synthetic fixture, never a third-party document.
     wchar_t value[256]{};
@@ -390,8 +428,8 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-probe") == 0)
             return edge_probe(static_cast<DWORD>(std::stoul(argv[2])));
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
-        if (argc == 5 && std::wcscmp(argv[1], L"--launch-from-desktop") == 0)
-            return launch_desktop(argv[2], argv[3], argv[4]);
+        if (argc == 5 && std::wcscmp(argv[1], L"--launch-restricted") == 0)
+            return launch_restricted(argv[2], argv[3], argv[4]);
         if (argc == 1) return run(false);
         if (argc == 2 && std::wcscmp(argv[1], L"--clipboard") == 0) return run(true);
         return 2;

@@ -26,12 +26,12 @@ if (-not $label.Success) { throw 'The Windows integrity level is not available.'
 $integrity = [int]$label.Groups[1].Value
 
 if ($ResultFile) {
-    # Re-entry via Explorer runs the same script with no elevation requested.
+    # Re-entry runs the same script with no elevation requested.
     # Refuse if this desktop offers no ordinary user token.
     try {
         if ($integrity -lt 8192 -or $integrity -ge 12288) {
             & $ProbeExe --environment
-            throw "Explorer did not provide a standard interactive token (integrity $integrity)."
+            throw "Test process did not receive a standard interactive token (integrity $integrity)."
         }
         Invoke-Recipe *> "$ResultFile.log"
         [IO.File]::WriteAllText($ResultFile, '0')
@@ -43,8 +43,6 @@ if ($ResultFile) {
 }
 if ($integrity -lt 8192) { throw "Windows interactive user integrity is too low ($integrity)." }
 if ($integrity -lt 12288) { Invoke-Recipe; exit }
-# ShellWindows/FindWindowSW(SWC_DESKTOP) asks the desktop Explorer itself to
-# start a child; using Shell.Application.ShellExecute directly can remain elevated.
 & $ProbeExe --environment
 $work = Join-Path ([IO.Path]::GetTempPath()) ("notevive-interactive-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
@@ -57,12 +55,8 @@ try {
     $command = '& ' + (& $quoted $scriptFile) + ' -ProbeExe ' + (& $quoted $ProbeExe) +
                ' -Case ' + $Case + ' -ResultFile ' + (& $quoted $result)
     $encoding = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-    & $ProbeExe --launch-from-desktop $powerShell "-NoProfile -NonInteractive -EncodedCommand $encoding" $PSScriptRoot
-    if ($LASTEXITCODE) { throw 'No interactive Explorer shell accepted the test launch.' }
-    $timer = [Diagnostics.Stopwatch]::StartNew()
-    while (-not (Test-Path -LiteralPath $result) -and $timer.Elapsed.TotalSeconds -lt 115) {
-        Start-Sleep -Milliseconds 150
-    }
+    & $ProbeExe --launch-restricted $powerShell "-NoProfile -NonInteractive -EncodedCommand $encoding" $PSScriptRoot
+    if ($LASTEXITCODE -and -not (Test-Path -LiteralPath $result)) { throw 'Windows did not launch the verified restricted test process.' }
     if (Test-Path -LiteralPath "$result.log") { Get-Content -LiteralPath "$result.log" }
     if (-not (Test-Path -LiteralPath $result) -or (Get-Content -LiteralPath $result -Raw) -ne '0') {
         throw "$Case recipe failed or could not run under the ordinary desktop token."
