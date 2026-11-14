@@ -8,7 +8,7 @@ L’[interface](ui-040.md) conserve les contrôles Windows et leur navigation au
 
 ## Recette logicielle
 
-Sur Mac, les 98 tests du banc passent, dont un cas optionnel PEFT ignoré dans l’environnement Python ordinaire. Les 12 tests du lexique passent également, dont un cas ignoré faute de fixture optionnelle. La compilation croisée stricte des nouveaux composants complète ces vérifications. Une compilation croisée ne prouve ni l’apparence native ni la saisie dans Word.
+Sur Mac, le banc exécute 98 tests : 97 réussis et un cas optionnel PEFT ignoré dans l’environnement Python ordinaire. Le lexique exécute 12 tests : 11 réussis et un cas ignoré faute de fixture optionnelle. La compilation croisée stricte des nouveaux composants complète ces vérifications. Une compilation croisée ne prouve ni l’apparence native ni la saisie dans Word.
 
 Le [run Windows initial de cette refonte](https://github.com/sarbhakan/DocTranscript/actions/runs/43640910690) passe le stockage chiffré, les migrations, les dossiers imbriqués, la récupération, le protocole, le superviseur, la construction du ZIP et les contrôles audio des doses et fractions. Le parcours de bibliothèque passe également la recherche, les tris, le classement et la réouverture. Il échoue ensuite sur le bouton Copier resté désactivé après chargement d’une note. Ce défaut produit est corrigé : l’état de la copie est recalculé après chaque chargement, modification ou changement de visibilité. La recette exige aussi que la copie soit désactivée pour une note vide.
 
@@ -18,7 +18,13 @@ Les sondes de dictée externe sont exécutées dans un job indépendant. Les pre
 
 Le [run `625d94e`](https://github.com/sarbhakan/DocTranscript/actions/runs/43643536468/job/132596101512) crée un véritable compte standard et réussit la recette des champs `EDIT` natifs. Les insertions Unicode au curseur, les deux segments, l’absence d’écriture dans l’autre champ, le refus des mots de passe, de la lecture seule, des contrôles ANSI et des sélections, ainsi que l’invalidation après changement de champ ou de fenêtre sont vérifiés. Le même run échoue ensuite au démarrage du profil Edge de test, avant toute assertion de saisie dans le navigateur. La compatibilité navigateur n’est donc pas encore déclarée réussie sur cette preuve.
 
-Les preuves finales, l’empreinte du paquet et les éventuels écarts sont consignés ici après la recette du candidat exact.
+Le [job Windows `bd8f7ee`](https://github.com/sarbhakan/DocTranscript/actions/runs/43645646862/job/132602688270) réussit ensuite toutes les étapes obligatoires de construction, de stockage, d’audio et d’interface. La recette utilise le ZIP extrait ; elle vérifie aussi la copie après réouverture et son indisponibilité pour une note vide. La [capture réelle](../assets/notevive-windows-040.png) issue du parcours fictif a été inspectée : bibliothèque, éditeur, boutons, polices, version 0.4.0 et état de copie sont visibles. Le binaire destiné aux captures reste séparé du paquet distribué.
+
+Les [mesures agrégées du candidat](../p0/windows_040.json) proviennent d’une VM AMD EPYC 9V74, avec deux cœurs, quatre processeurs logiques et 17,17 Go de mémoire. Les trois paroles de 6,44 / 16,8 / 15,2 s prennent 14,399 / 53,951 / 39,872 s, démarrage compris. Les contrôles numériques et les fractions passent ; le nom exact « Imovane » manque toujours sur une fixture. La mémoire privée maximale échantillonnée, parent et moteur réunis, atteint 1 955 463 168 octets ; un échantillon partiel est signalé sur cette fixture. Ces durées ne sont pas le délai après une pause au microphone et les hôtes diffèrent entre les runs. Aucun gain de vitesse ni qualification d’un PC physique à 8 Go n’est déduit de cette mesure.
+
+La relecture indépendante de `main.cpp`, `external_target.cpp`, `dictation_overlay.cpp` et `ui_theme.cpp` n’identifie pas de nouveau défaut bloquant ou P1. Elle vérifie notamment la sauvegarde avant envoi, l’invalidation permanente de la destination, le blocage des changements de note et le maintien de l’alerte lorsque l’arrêt du microphone n’est pas confirmé. Cette lecture statique ne remplace pas la recette réelle des applications de destination.
+
+Les preuves finales, l’empreinte du paquet et les éventuels écarts sont consignés ici après la recette du candidat exact. Les échecs du lanceur Edge sous le compte standard de la VM de CI restent visibles dans l’historique : ils ne sont pas comptés comme des tests réussis du navigateur.
 
 ## Entraînement réellement exécuté, modèle distribué conservé
 

@@ -1,0 +1,215 @@
+{
+  "schema_version": 1,
+  "date_utc": "2026-11-14",
+  "purpose": "Windows 0.4.0 fictional trial validation; not clinical qualification",
+  "candidate": {
+    "source_head": "bd8f7ee1c81cf663652b956e81d64d8101c27503",
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43645646862",
+    "windows_job_id": 132602688270,
+    "windows_job_conclusion": "success",
+    "metrics_artifact_sha256": "5ceae8364af04efcbe4c8a9602a2d0802fa9363dea2bd6f2cef9de337466486e",
+    "environment": {
+      "schema_version": 1,
+      "cpu": [
+        {
+          "Name": "AMD EPYC 9V74 80-Core Processor                ",
+          "NumberOfCores": 2,
+          "NumberOfLogicalProcessors": 4
+        }
+      ],
+      "memory_total_bytes": 17174360064,
+      "os_version": "Microsoft Windows NT 10.0.20348.0"
+    },
+    "timings": [
+      {
+        "test": "silence",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 1.248,
+        "audio_seconds": 8.0,
+        "elapsed_audio_ratio": 0.156,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 999878656,
+          "observed_cpu_seconds": 0.875,
+          "observed_mean_cpu_core_equivalents": 0.7360140507184947,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        }
+      },
+      {
+        "test": "px-826",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 14.399,
+        "audio_seconds": 6.44,
+        "elapsed_audio_ratio": 2.236,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954766848,
+          "observed_cpu_seconds": 52.5625,
+          "observed_mean_cpu_core_equivalents": 3.6635753513688583,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "actual_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-23",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 53.951,
+        "audio_seconds": 16.8,
+        "elapsed_audio_ratio": 3.211,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1955463168,
+          "observed_cpu_seconds": 208.8125,
+          "observed_mean_cpu_core_equivalents": 3.874372278633242,
+          "snapshot_errors": 0,
+          "partial_samples": 1,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "actual_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            0,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-584",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 39.872,
+        "audio_seconds": 15.2,
+        "elapsed_audio_ratio": 2.623,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954582528,
+          "observed_cpu_seconds": 152.1875,
+          "observed_mean_cpu_core_equivalents": 3.822028751520984,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              2,
+              2
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "actual_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      }
+    ],
+    "ui_preview_sha256": "c55a8327653f3bcf0d51ad3cdce4a0af2c4e9f745fb73d3db9eaa7aafbc31592",
+    "independent_visual_review": {
+      "passed": true,
+      "image_width": 1010,
+      "image_height": 680,
+      "dpi": 96,
+      "scope": "Fictional UI screenshot only; no high-DPI or physical Windows 11 qualification."
+    }
+  },
+  "scope": {
+    "microphone_on_physical_windows_pc": false,
+    "physical_8gb_pc": false,
+    "word": false,
+    "medical_qualification": false,
+    "adapted_weights_shipped": false
+  },
+  "limitations": [
+    "Fixture timing includes process startup and is not latency after a live pause.",
+    "The exact term Imovane remains missing from px-23.",
+    "Finite numerical fixtures do not establish clinical negation or drug accuracy.",
+    "VMs differ across runs; no causal performance gain is claimed."
+  ]
+}

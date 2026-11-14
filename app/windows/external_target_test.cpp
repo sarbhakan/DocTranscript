@@ -13,6 +13,7 @@
 #include <lm.h>
 #include <objbase.h>
 #include <sddl.h>
+#include <securityappcontainer.h>
 #include <userenv.h>
 #include <winternl.h>
 #include <wtsapi32.h>
@@ -205,6 +206,7 @@ struct NamespaceObservation {
 };
 NamespaceObservation observe_namespace(DWORD session);
 void observe_renderer_objects(DWORD session);
+void observe_lowbox_creation(DWORD session);
 
 void observe_self_token_access() {
     // Request handles to this ephemeral account's own token. No privilege is
@@ -287,6 +289,7 @@ int edge_startup_preflight() {
                 in_job != FALSE, static_cast<unsigned long>(result));
     if (!in_job && result != ERROR_SUCCESS) return 1;
     observe_renderer_objects(session);
+    observe_lowbox_creation(session);
     return observe_namespace(session).local_mutex == ERROR_SUCCESS ? 0 : 1;
 }
 
@@ -522,13 +525,15 @@ NamespaceObservation observe_namespace(DWORD session) {
 }
 
 void observe_renderer_objects(DWORD session) {
-    // Diagnostics only: no rights are added and no AppContainer is created.
+    // Diagnostics only: no rights are added.
     // This synthetic restricting SID is not a copy of Edge's renderer token.
     if (const auto call = RecipeNamespace::api(); call && session && session != UINT32_MAX) {
-        LocalHandle directory;
-        const auto status = RecipeNamespace::open(call, session, 0x3, directory.value, L"AppContainerNamedObjects");
-        std::printf("AppContainerNamedObjects query/traverse: ntstatus=0x%08lx\n",
-                    static_cast<unsigned long>(static_cast<DWORD>(status)));
+        for (const ACCESS_MASK access : {0x3u, 0x7u, 0xfu}) {
+            LocalHandle directory;
+            const auto status = RecipeNamespace::open(call, session, access, directory.value, L"AppContainerNamedObjects");
+            std::printf("AppContainerNamedObjects requested=0x%lx ntstatus=0x%08lx\n",
+                        static_cast<unsigned long>(access), static_cast<unsigned long>(static_cast<DWORD>(status)));
+        }
     }
     wchar_t desktop_name[256]{};
     DWORD length = 0;
@@ -565,6 +570,108 @@ void observe_renderer_objects(DWORD session) {
     std::printf("Desktop query (synthetic restricting SID): normal station=%lu desktop=%lu; restricted station=%lu desktop=%lu\n",
                 static_cast<unsigned long>(normal.first), static_cast<unsigned long>(normal.second),
                 static_cast<unsigned long>(limited.first), static_cast<unsigned long>(limited.second));
+}
+
+void observe_lowbox_creation(DWORD session) {
+    // Use Chromium's kernelbase entry point, but no Edge package identifier,
+    // capability, registration, impersonation or child is created here.
+    wchar_t user[64]{};
+    DWORD length = 64;
+    if (!GetUserNameW(user, &length) || length != 20 || std::wcsncmp(user, L"nvrecipe-", 9) != 0)
+        return;
+    using CreateLowbox = BOOL (WINAPI*)(HANDLE, PSECURITY_CAPABILITIES, PHANDLE);
+    const auto module = GetModuleHandleW(L"kernelbase.dll");
+    const auto call = module ? GetProcAddress(module, "CreateAppContainerToken") : nullptr;
+    if (!call) {
+        std::puts("Synthetic LowBox: kernelbase entry not available.");
+        return;
+    }
+    static_assert(sizeof(call) == sizeof(CreateLowbox));
+    CreateLowbox create = nullptr;
+    std::memcpy(&create, &call, sizeof(create));
+    LocalHandle standard, restricted;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &standard.value)) {
+        std::printf("Synthetic LowBox: open self token win32=%lu\n", static_cast<unsigned long>(GetLastError()));
+        return;
+    }
+    const auto has_logon_sid = [](HANDLE token) {
+        DWORD size = 0;
+        GetTokenInformation(token, TokenLogonSid, nullptr, 0, &size);
+        std::vector<BYTE> groups(size && size <= 4096 ? size : 0);
+        if (groups.size() < sizeof(TOKEN_GROUPS) ||
+            !GetTokenInformation(token, TokenLogonSid, groups.data(), size, &size)) return false;
+        const auto* info = reinterpret_cast<const TOKEN_GROUPS*>(groups.data());
+        return info->GroupCount == 1 && IsValidSid(info->Groups[0].Sid) &&
+            (info->Groups[0].Attributes & SE_GROUP_LOGON_ID) == SE_GROUP_LOGON_ID;
+    };
+    const auto probe = [&](const char* arm, HANDLE base) {
+        GUID id{};
+        wchar_t guid[40]{};
+        if (FAILED(CoCreateGuid(&id)) || StringFromGUID2(id, guid, 40) != 39) return;
+        const std::wstring moniker = L"NoteVive.Recipe." + std::wstring(guid + 1, 36);
+        PSID package = nullptr;
+        const HRESULT derive = DeriveAppContainerSidFromAppContainerName(moniker.c_str(), &package);
+        if (FAILED(derive) || !package) {
+            if (package) FreeSid(package);
+            std::printf("Synthetic LowBox %s: derive=0x%08lx\n", arm,
+                        static_cast<unsigned long>(static_cast<DWORD>(derive)));
+            return;
+        }
+        SECURITY_CAPABILITIES capabilities{};
+        capabilities.AppContainerSid = package;
+        LocalHandle lowbox, escalated_copy;
+        SetLastError(ERROR_SUCCESS);
+        const bool made = create(base, &capabilities, &lowbox.value) && lowbox.value;
+        const DWORD create_error = made ? ERROR_SUCCESS : GetLastError();
+        DWORD copy_error = UINT32_MAX, path_error = UINT32_MAX, in_app = 0, selected_session = UINT32_MAX;
+        bool attached_package = false, session_path = false;
+        if (made) {
+            const auto self = GetCurrentProcess();
+            copy_error = DuplicateHandle(self, lowbox.value, self, &escalated_copy.value, TOKEN_ALL_ACCESS, FALSE, 0) ?
+                ERROR_SUCCESS : GetLastError();
+            DWORD used = 0;
+            GetTokenInformation(lowbox.value, TokenIsAppContainer, &in_app, sizeof(in_app), &used);
+            GetTokenInformation(lowbox.value, TokenSessionId, &selected_session, sizeof(selected_session), &used);
+            GetTokenInformation(lowbox.value, TokenAppContainerSid, nullptr, 0, &used);
+            std::vector<BYTE> sid(used && used <= 4096 ? used : 0);
+            if (sid.size() >= sizeof(TOKEN_APPCONTAINER_INFORMATION) &&
+                GetTokenInformation(lowbox.value, TokenAppContainerSid, sid.data(), used, &used)) {
+                const auto actual = reinterpret_cast<const TOKEN_APPCONTAINER_INFORMATION*>(sid.data())->TokenAppContainer;
+                attached_package = actual && IsValidSid(actual) && EqualSid(actual, package);
+            }
+        }
+        wchar_t path[512]{};
+        ULONG path_size = 0;
+        const auto prefix = L"\\Sessions\\" + std::to_wstring(session) + L"\\AppContainerNamedObjects\\";
+        if (GetAppContainerNamedObjectPath(made ? lowbox.value : nullptr, made ? nullptr : package,
+                                          512, path, &path_size)) {
+            path_error = ERROR_SUCCESS;
+            session_path = CompareStringOrdinal(path, static_cast<int>(prefix.size()), prefix.c_str(),
+                                                static_cast<int>(prefix.size()), TRUE) == CSTR_EQUAL;
+        } else path_error = GetLastError();
+        FreeSid(package);
+        std::printf("Synthetic LowBox %s: logon_sid=%d create_ok=%d create_win32=%lu duplicate_all_win32=%lu "
+            "appcontainer=%lu package_match=%d token_session_match=%d path_win32=%lu session_namespace_match=%d\n",
+            arm, has_logon_sid(base), made, static_cast<unsigned long>(create_error),
+            static_cast<unsigned long>(copy_error), static_cast<unsigned long>(in_app), attached_package,
+            selected_session == session, static_cast<unsigned long>(path_error), session_path);
+    };
+    probe("standard", standard.value);
+    alignas(DWORD) BYTE null_sid[SECURITY_MAX_SID_SIZE]{}, low_label[SECURITY_MAX_SID_SIZE]{};
+    DWORD null_size = sizeof(null_sid), low_size = sizeof(low_label);
+    SID_AND_ATTRIBUTES limit{null_sid, 0};
+    TOKEN_MANDATORY_LABEL label{{low_label, SE_GROUP_INTEGRITY}};
+    if (!CreateWellKnownSid(WinNullSid, nullptr, null_sid, &null_size) ||
+        !CreateWellKnownSid(WinLowLabelSid, nullptr, low_label, &low_size) ||
+        !CreateRestrictedToken(standard.value, DISABLE_MAX_PRIVILEGE, 0, nullptr, 0, nullptr, 1,
+                               &limit, &restricted.value) ||
+        !SetTokenInformation(restricted.value, TokenIntegrityLevel, &label,
+                             static_cast<DWORD>(sizeof(label) + low_size))) {
+        std::printf("Synthetic LowBox restricted-low preparation: win32=%lu\n",
+                    static_cast<unsigned long>(GetLastError()));
+        return;
+    }
+    probe("restricted-low", restricted.value);
 }
 
 int edge_namespace_control() {

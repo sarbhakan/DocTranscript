@@ -51,6 +51,10 @@ Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez u
 
 La version 0.4.0 revoit la fenêtre autour de la bibliothèque et de l’éditeur, ajoute la copie explicite et propose une dictée vers un champ externe compatible. Le [guide Windows](docs/guide-essai-windows.md) explique les gestes et leur dépannage. Le [rapport de validation 0.4.0](docs/validation-040.md) distingue les contrôles effectués des essais encore nécessaires.
 
+![Interface Windows de NoteVive 0.4.0 : bibliothèque à gauche, note et copie à droite](assets/notevive-windows-040.png)
+
+*Capture réelle de la recette Windows, avec des notes fictives de test. Le contour de la fenêtre peut varier selon votre version de Windows.*
+
 Un [entraînement local du modèle](docs/entrainement-local.md) a aussi été réalisé. Il réduit les erreurs de mots sur un petit lot de développement, mais dégrade encore certains noms de médicaments. Les poids entraînés restent expérimentaux et ne sont pas inclus dans le ZIP ; le moteur distribué est conservé. Les [mesures du paquet 0.3.1](docs/audit-consolidation-031.md) restent consultables pour comparaison.
 
 ## Besoin d’aide ou envie de transmettre un résultat ?
