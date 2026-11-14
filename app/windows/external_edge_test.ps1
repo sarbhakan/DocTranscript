@@ -245,7 +245,7 @@ try {
     $browserStart.EnvironmentVariables['TMP'] = $work
     if ($HostedRecipe) {
         & $ProbeExe --edge-startup-preflight
-        Require ($LASTEXITCODE -eq 0) 'The ordinary-user browser process still cannot create a local mutex.'
+        Require ($LASTEXITCODE -eq 0) 'The ordinary-user browser preflight could not create a local mutex and both synthetic AppContainer tokens.'
     }
     $edge = [Diagnostics.Process]::Start($browserStart)
     Wait-Until {

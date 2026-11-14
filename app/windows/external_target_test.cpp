@@ -206,7 +206,7 @@ struct NamespaceObservation {
 };
 NamespaceObservation observe_namespace(DWORD session);
 void observe_renderer_objects(DWORD session);
-void observe_lowbox_creation(DWORD session);
+bool observe_lowbox_creation(DWORD session);
 
 void observe_self_token_access() {
     // Request handles to this ephemeral account's own token. No privilege is
@@ -289,8 +289,10 @@ int edge_startup_preflight() {
                 in_job != FALSE, static_cast<unsigned long>(result));
     if (!in_job && result != ERROR_SUCCESS) return 1;
     observe_renderer_objects(session);
-    observe_lowbox_creation(session);
-    return observe_namespace(session).local_mutex == ERROR_SUCCESS ? 0 : 1;
+    const bool lowbox = observe_lowbox_creation(session);
+    const bool mutex = observe_namespace(session).local_mutex == ERROR_SUCCESS;
+    std::printf("Edge broker preflight: local_mutex=%d synthetic_lowbox=%d\n", mutex, lowbox);
+    return lowbox && mutex ? 0 : 1;
 }
 
 bool hosted_recipe() {
@@ -314,13 +316,18 @@ struct RecipeNamespace {
     static constexpr ACCESS_MASK with_subdirectory = recipe_access | 0x0008;
     static constexpr NTSTATUS denied = static_cast<NTSTATUS>(0xc0000022u);
     using OpenDirectory = NTSTATUS (NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
+    enum class Kind { base, app_container };
+    const Kind kind;
     LocalHandle directory;
     std::vector<BYTE> original;
     bool changed = false;
 
+    explicit RecipeNamespace(Kind selected = Kind::base) : kind(selected) {}
     ~RecipeNamespace() {
-        if (!restore()) std::fputs("Unable to restore the session named-object ACL.\n", stderr);
+        if (!restore()) std::fprintf(stderr, "Unable to restore the session %s ACL.\n", label());
     }
+    const char* label() const { return kind == Kind::base ? "BaseNamedObjects" : "AppContainerNamedObjects"; }
+    const wchar_t* leaf() const { return kind == Kind::base ? L"BaseNamedObjects" : L"AppContainerNamedObjects"; }
 
     bool read_dacl(std::vector<BYTE>& output) const {
         DWORD needed = 0;
@@ -334,7 +341,6 @@ struct RecipeNamespace {
     bool restore() {
         if (changed) {
             if (!SetKernelObjectSecurity(directory.value, DACL_SECURITY_INFORMATION, original.data())) return false;
-            changed = false;
             std::vector<BYTE> restored;
             if (!read_dacl(restored)) return false;
             SECURITY_DESCRIPTOR_CONTROL old_flags{}, new_flags{};
@@ -350,10 +356,11 @@ struct RecipeNamespace {
                 !GetSecurityDescriptorDacl(original.data(), &present, &old, &defaulted) || !present || !old ||
                 !GetSecurityDescriptorDacl(restored.data(), &present, &actual, &defaulted) || !present || !actual ||
                 old->AclSize != actual->AclSize || std::memcmp(old, actual, old->AclSize) != 0) {
-                std::fputs("Restored session DACL differs from the saved ACL or flags.\n", stderr);
+                std::fprintf(stderr, "Restored session %s DACL differs from the saved ACL or flags.\n", label());
                 return false;
             }
-            std::fputs("Original session named-object DACL restored and verified.\n", stderr);
+            changed = false;
+            std::fprintf(stderr, "Original session named-object DACL restored and verified (%s).\n", label());
         }
         return true;
     }
@@ -387,6 +394,13 @@ struct RecipeNamespace {
         TOKEN_ELEVATION elevation{};
         if (!GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size)) return false;
         if (elevation.TokenIsElevated) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+        GetTokenInformation(token, TokenIntegrityLevel, nullptr, 0, &size);
+        std::vector<BYTE> level(size && size <= 4096 ? size : 0);
+        if (level.empty() || !GetTokenInformation(token, TokenIntegrityLevel, level.data(), size, &size)) return false;
+        if (!IsWellKnownSid(reinterpret_cast<TOKEN_MANDATORY_LABEL*>(level.data())->Label.Sid, WinMediumLabelSid)) {
+            SetLastError(ERROR_ACCESS_DENIED);
+            return false;
+        }
         GetTokenInformation(token, TokenUser, nullptr, 0, &size);
         std::vector<BYTE> identity(size && size <= 4096 ? size : 0);
         if (identity.empty() || !GetTokenInformation(token, TokenUser, identity.data(), size, &size)) return false;
@@ -397,19 +411,19 @@ struct RecipeNamespace {
         return true;
     }
 
-    static bool preparation_failed(const char* phase) {
+    bool preparation_failed(const char* phase) const {
         const auto error = GetLastError();
-        std::fprintf(stderr, "Session namespace preparation: %s failed (Windows error %lu)\n",
-                     phase, static_cast<unsigned long>(error));
+        std::fprintf(stderr, "Session %s preparation: %s failed (Windows error %lu)\n",
+                     label(), phase, static_cast<unsigned long>(error));
         SetLastError(error);
         return false;
     }
 
-    static bool supported_access(OpenDirectory call, DWORD session, HANDLE thread_token,
-                                 ACCESS_MASK access, NTSTATUS& status) {
+    bool supported_access(OpenDirectory call, DWORD session, HANDLE thread_token,
+                          ACCESS_MASK access, NTSTATUS& status) const {
         if (!ImpersonateLoggedOnUser(thread_token)) return false;
         LocalHandle check;
-        status = open(call, session, access, check.value);
+        status = open(call, session, access, check.value, leaf());
         if (!RevertToSelf()) {
             TerminateProcess(GetCurrentProcess(), 2);
             return false;
@@ -419,6 +433,11 @@ struct RecipeNamespace {
 
     bool start(DWORD pid, HANDLE process, HANDLE logon_token, PSID account, ACCESS_MASK access) {
         if (!hosted_recipe()) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+        if ((kind == Kind::app_container && access != with_subdirectory) ||
+            (access != recipe_access && access != with_subdirectory)) {
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return false;
+        }
         DWORD parent_session = 0, session = 0;
         if (!ProcessIdToSessionId(GetCurrentProcessId(), &parent_session) || !ProcessIdToSessionId(pid, &session))
             return false;
@@ -437,25 +456,26 @@ struct RecipeNamespace {
             return preparation_failed("query the local logon token's session");
         std::fprintf(stderr, "Recipe namespace access check: local logon token session=%lu; target session=%lu.\n",
                      static_cast<unsigned long>(logon_session), static_cast<unsigned long>(session));
+        if (!verify_token(logon_token, session, account))
+            return preparation_failed("verify the local logon token's account and session");
         if (!DuplicateTokenEx(logon_token, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
                               TokenImpersonation, &identity.value))
             return preparation_failed("prepare the verified local account's access check");
-        if (access != recipe_access && access != with_subdirectory) { SetLastError(ERROR_INVALID_PARAMETER); return false; }
         const auto call = api();
         if (!call) return preparation_failed("resolve NtOpenDirectoryObject");
 
         NTSTATUS before = 0;
         if (!supported_access(call, session, identity.value, access, before))
             return preparation_failed("check session directory access as the local account");
-        std::fprintf(stderr, "Recipe account session namespace before grant: mask=0x%lx result=0x%08lx\n",
-                     static_cast<unsigned long>(access), static_cast<unsigned long>(static_cast<DWORD>(before)));
+        std::fprintf(stderr, "Recipe account session %s before grant: mask=0x%lx result=0x%08lx\n",
+                     label(), static_cast<unsigned long>(access), static_cast<unsigned long>(static_cast<DWORD>(before)));
         if (before >= 0) return true;
         if (before != denied) { SetLastError(ERROR_INVALID_HANDLE); return false; }
 
-        const auto opened = open(call, session, READ_CONTROL | WRITE_DAC, directory.value);
+        const auto opened = open(call, session, READ_CONTROL | WRITE_DAC, directory.value, leaf());
         if (opened < 0) {
-            std::fprintf(stderr, "Opening this runner's session DACL for administration: 0x%08lx\n",
-                         static_cast<unsigned long>(static_cast<DWORD>(opened)));
+            std::fprintf(stderr, "Opening this runner's session %s DACL for administration: 0x%08lx\n",
+                         label(), static_cast<unsigned long>(static_cast<DWORD>(opened)));
             SetLastError(ERROR_ACCESS_DENIED);
             return false;
         }
@@ -482,8 +502,8 @@ struct RecipeNamespace {
         NTSTATUS after = 0;
         if (!supported_access(call, session, identity.value, access, after))
             return preparation_failed("recheck session directory access as the local account");
-        std::fprintf(stderr, "Recipe account session namespace after grant: mask=0x%lx result=0x%08lx\n",
-                     static_cast<unsigned long>(access), static_cast<unsigned long>(static_cast<DWORD>(after)));
+        std::fprintf(stderr, "Recipe account session %s after grant: mask=0x%lx result=0x%08lx\n",
+                     label(), static_cast<unsigned long>(access), static_cast<unsigned long>(static_cast<DWORD>(after)));
         if (after < 0) { SetLastError(ERROR_ACCESS_DENIED); return false; }
         return true;
     }
@@ -572,19 +592,19 @@ void observe_renderer_objects(DWORD session) {
                 static_cast<unsigned long>(limited.first), static_cast<unsigned long>(limited.second));
 }
 
-void observe_lowbox_creation(DWORD session) {
+bool observe_lowbox_creation(DWORD session) {
     // Use Chromium's kernelbase entry point, but no Edge package identifier,
     // capability, registration, impersonation or child is created here.
     wchar_t user[64]{};
     DWORD length = 64;
     if (!GetUserNameW(user, &length) || length != 20 || std::wcsncmp(user, L"nvrecipe-", 9) != 0)
-        return;
+        return false;
     using CreateLowbox = BOOL (WINAPI*)(HANDLE, PSECURITY_CAPABILITIES, PHANDLE);
     const auto module = GetModuleHandleW(L"kernelbase.dll");
     const auto call = module ? GetProcAddress(module, "CreateAppContainerToken") : nullptr;
     if (!call) {
         std::puts("Synthetic LowBox: kernelbase entry not available.");
-        return;
+        return false;
     }
     static_assert(sizeof(call) == sizeof(CreateLowbox));
     CreateLowbox create = nullptr;
@@ -592,7 +612,7 @@ void observe_lowbox_creation(DWORD session) {
     LocalHandle standard, restricted;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &standard.value)) {
         std::printf("Synthetic LowBox: open self token win32=%lu\n", static_cast<unsigned long>(GetLastError()));
-        return;
+        return false;
     }
     const auto has_logon_sid = [](HANDLE token) {
         DWORD size = 0;
@@ -604,10 +624,10 @@ void observe_lowbox_creation(DWORD session) {
         return info->GroupCount == 1 && IsValidSid(info->Groups[0].Sid) &&
             (info->Groups[0].Attributes & SE_GROUP_LOGON_ID) == SE_GROUP_LOGON_ID;
     };
-    const auto probe = [&](const char* arm, HANDLE base) {
+    const auto probe = [&](const char* arm, HANDLE base) -> bool {
         GUID id{};
         wchar_t guid[40]{};
-        if (FAILED(CoCreateGuid(&id)) || StringFromGUID2(id, guid, 40) != 39) return;
+        if (FAILED(CoCreateGuid(&id)) || StringFromGUID2(id, guid, 40) != 39) return false;
         const std::wstring moniker = L"NoteVive.Recipe." + std::wstring(guid + 1, 36);
         PSID package = nullptr;
         const HRESULT derive = DeriveAppContainerSidFromAppContainerName(moniker.c_str(), &package);
@@ -615,19 +635,19 @@ void observe_lowbox_creation(DWORD session) {
             if (package) FreeSid(package);
             std::printf("Synthetic LowBox %s: derive=0x%08lx\n", arm,
                         static_cast<unsigned long>(static_cast<DWORD>(derive)));
-            return;
+            return false;
         }
         SECURITY_CAPABILITIES capabilities{};
         capabilities.AppContainerSid = package;
-        LocalHandle lowbox, escalated_copy;
+        LocalHandle lowbox, full_access_copy;
         SetLastError(ERROR_SUCCESS);
         const bool made = create(base, &capabilities, &lowbox.value) && lowbox.value;
         const DWORD create_error = made ? ERROR_SUCCESS : GetLastError();
         DWORD copy_error = UINT32_MAX, path_error = UINT32_MAX, in_app = 0, selected_session = UINT32_MAX;
-        bool attached_package = false, session_path = false;
+        bool attached_package = false;
         if (made) {
             const auto self = GetCurrentProcess();
-            copy_error = DuplicateHandle(self, lowbox.value, self, &escalated_copy.value, TOKEN_ALL_ACCESS, FALSE, 0) ?
+            copy_error = DuplicateHandle(self, lowbox.value, self, &full_access_copy.value, TOKEN_ALL_ACCESS, FALSE, 0) ?
                 ERROR_SUCCESS : GetLastError();
             DWORD used = 0;
             GetTokenInformation(lowbox.value, TokenIsAppContainer, &in_app, sizeof(in_app), &used);
@@ -642,21 +662,31 @@ void observe_lowbox_creation(DWORD session) {
         }
         wchar_t path[512]{};
         ULONG path_size = 0;
-        const auto prefix = L"\\Sessions\\" + std::to_wstring(session) + L"\\AppContainerNamedObjects\\";
+        const char* path_form = "unavailable";
+        const auto starts_with = [&](const std::wstring& prefix) {
+            return CompareStringOrdinal(path, static_cast<int>(prefix.size()), prefix.c_str(),
+                                        static_cast<int>(prefix.size()), TRUE) == CSTR_EQUAL;
+        };
         if (GetAppContainerNamedObjectPath(made ? lowbox.value : nullptr, made ? nullptr : package,
                                           512, path, &path_size)) {
             path_error = ERROR_SUCCESS;
-            session_path = CompareStringOrdinal(path, static_cast<int>(prefix.size()), prefix.c_str(),
-                                                static_cast<int>(prefix.size()), TRUE) == CSTR_EQUAL;
+            const auto expected = L"\\Sessions\\" + std::to_wstring(session) + L"\\AppContainerNamedObjects\\";
+            path_form = starts_with(expected) ? "nt-session" :
+                starts_with(L"\\AppContainerNamedObjects\\") ? "root-appcontainer" :
+                starts_with(L"AppContainerNamedObjects\\") ? "relative-appcontainer" : "other";
         } else path_error = GetLastError();
         FreeSid(package);
         std::printf("Synthetic LowBox %s: logon_sid=%d create_ok=%d create_win32=%lu duplicate_all_win32=%lu "
-            "appcontainer=%lu package_match=%d token_session_match=%d path_win32=%lu session_namespace_match=%d\n",
+            "appcontainer=%lu package_match=%d token_session_match=%d path_win32=%lu path_form=%s\n",
             arm, has_logon_sid(base), made, static_cast<unsigned long>(create_error),
             static_cast<unsigned long>(copy_error), static_cast<unsigned long>(in_app), attached_package,
-            selected_session == session, static_cast<unsigned long>(path_error), session_path);
+            selected_session == session, static_cast<unsigned long>(path_error), path_form);
+        // The Win32 path API may return a relative name. The actual token
+        // session, not the format of its path string, is the identity check.
+        return made && copy_error == ERROR_SUCCESS && in_app == 1 &&
+            attached_package && selected_session == session;
     };
-    probe("standard", standard.value);
+    const bool standard_passed = probe("standard", standard.value);
     alignas(DWORD) BYTE null_sid[SECURITY_MAX_SID_SIZE]{}, low_label[SECURITY_MAX_SID_SIZE]{};
     DWORD null_size = sizeof(null_sid), low_size = sizeof(low_label);
     SID_AND_ATTRIBUTES limit{null_sid, 0};
@@ -669,9 +699,10 @@ void observe_lowbox_creation(DWORD session) {
                              static_cast<DWORD>(sizeof(label) + low_size))) {
         std::printf("Synthetic LowBox restricted-low preparation: win32=%lu\n",
                     static_cast<unsigned long>(GetLastError()));
-        return;
+        return false;
     }
-    probe("restricted-low", restricted.value);
+    const bool restricted_passed = probe("restricted-low", restricted.value);
+    return standard_passed && restricted_passed;
 }
 
 int edge_namespace_control() {
@@ -679,6 +710,8 @@ int edge_namespace_control() {
     require(ordinary_token(), "Edge namespace control is not a standard account");
     const auto session = report_session("edge_namespace_control", GetCurrentProcessId(), GetCurrentProcess());
     observe_renderer_objects(session);
+    const bool lowbox_before = observe_lowbox_creation(session);
+    std::printf("Edge preflight control (without AppContainer ACL): synthetic_lowbox=%d\n", lowbox_before);
     BOOL in_job = FALSE;
     require(IsProcessInJob(GetCurrentProcess(), nullptr, &in_job) && in_job, "missing outer recipe job in control");
     const DWORD plain = launch_in_test_job(false), ui_limited = launch_in_test_job(true);
@@ -1236,6 +1269,7 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     RecipeAccount account;
     RecipeDesktop desktop;
     RecipeNamespace named_objects;
+    RecipeNamespace app_objects(RecipeNamespace::Kind::app_container);
     LocalHandle job;
     LocalHandle child_process, child_thread;
     RecipeProcessCleanup browser_processes{account};
@@ -1299,6 +1333,9 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     if (edge_access && !named_objects.start(child.dwProcessId, child_process.value,
                                             account.token.value, account.sid(), edge_access))
         return failure("Prepare the session namespace for the Edge recipe");
+    if (edge_broker && !app_objects.start(child.dwProcessId, child_process.value, account.token.value,
+                                          account.sid(), RecipeNamespace::with_subdirectory))
+        return failure("Prepare the AppContainer session namespace for the Edge recipe");
     AllowSetForegroundWindow(child.dwProcessId);
     if (ResumeThread(child_thread.value) == static_cast<DWORD>(-1)) return failure("ResumeThread");
     if (WaitForSingleObject(child_process.value, 95000) != WAIT_OBJECT_0) {
@@ -1309,9 +1346,26 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     if (!GetExitCodeProcess(child_process.value, &elapsed_code)) return failure("GetExitCodeProcess");
     std::fprintf(stderr, "Standard test process exit: 0x%08lx (%lu)\n",
                  static_cast<unsigned long>(elapsed_code), static_cast<unsigned long>(elapsed_code));
-    if (job.value) TerminateJobObject(job.value, 1);
+    if (job.value) {
+        if (!TerminateJobObject(job.value, 1)) return failure("Stop the recipe process job");
+        const auto cutoff = GetTickCount64() + 3000;
+        while (true) {
+            JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting{};
+            if (!QueryInformationJobObject(job.value, JobObjectBasicAccountingInformation,
+                                           &accounting, sizeof(accounting), nullptr))
+                return failure("Verify the recipe process job is empty");
+            if (!accounting.ActiveProcesses) break;
+            if (GetTickCount64() >= cutoff) {
+                std::fputs("Recipe process job is not empty at cleanup deadline.\n", stderr);
+                return 1;
+            }
+            Sleep(20);
+        }
+    }
     if (!browser_processes.stop()) return 1;
-    if (!named_objects.restore()) {
+    const bool restored_app = app_objects.restore();
+    const bool restored_base = named_objects.restore();
+    if (!restored_app || !restored_base) {
         std::fputs("Restoring the session named-object DACL failed.\n", stderr);
         return 1;
     }
