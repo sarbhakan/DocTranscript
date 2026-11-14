@@ -56,6 +56,13 @@ void require_request(HANDLE input, Kind kind, std::uint64_t generation) {
     if (!receive(input, header, text) || header.kind != kind || header.generation != generation ||
         header.bytes || header.flags) throw std::runtime_error("Unexpected fixture request");
 }
+
+void send_incomplete_final(HANDLE output, std::uint64_t generation) {
+    auto header = encode({final, generation, 14, 0});
+    unsigned char incomplete[]{'x', 0, 'y'};
+    if (!transfer(output, header.data(), static_cast<DWORD>(header.size()), true) ||
+        !transfer(output, incomplete, sizeof(incomplete), true)) ExitProcess(8);
+}
 }
 
 int wmain() {
@@ -74,18 +81,21 @@ int wmain() {
             }
             // The supervisor releases this branch after observing an empty
             // pipe, proving that it drains complete frames written before exit.
-            if (test == L"truncated") require_request(input, stop, h.generation);
+            const bool test_deadline = test == L"deadline-pending" || test == L"deadline-truncated";
+            if (test == L"truncated" || test_deadline) require_request(input, stop, h.generation);
             send(output, started, h.generation);
             if (test == L"wrong-generation") {
                 send(output, final, h.generation + 1, std::wstring(kText));
                 Sleep(INFINITE);
             }
+            if (test == L"invalid-text") {
+                send(output, final, h.generation, std::wstring(kText));
+                send(output, final, h.generation, std::wstring{0xd83d}); // Lone UTF-16 high surrogate.
+                Sleep(INFINITE);
+            }
             if (test == L"truncated") {
                 send(output, final, h.generation, std::wstring(kText));
-                auto header = encode({final, h.generation, 14, 0});
-                unsigned char incomplete[]{'x', 0, 'y'};
-                if (!transfer(output, header.data(), static_cast<DWORD>(header.size()), true) ||
-                    !transfer(output, incomplete, sizeof(incomplete), true)) return 8;
+                send_incomplete_final(output, h.generation);
                 ExitProcess(7);
             }
             if (test == L"crash") {
@@ -93,6 +103,14 @@ int wmain() {
                 // No quit logic, terminal frame or C++ cleanup.
                 TerminateProcess(GetCurrentProcess(), 7);
                 return 7;
+            }
+            if (test_deadline) {
+                send(output, final, h.generation, std::wstring(kText));
+                send(output, progress, h.generation);
+                if (test == L"deadline-truncated") send_incomplete_final(output, h.generation);
+                // The complete result is in the pipe by the supervisor's
+                // deadline, but no terminal frame ever follows.
+                Sleep(INFINITE);
             }
             if (test == L"watchdog") {
                 // Stay active longer than the injected live deadline; then stop
@@ -104,8 +122,9 @@ int wmain() {
                 send(output, final, h.generation, std::wstring(kText));
                 Sleep(INFINITE);
             }
-            if (test == L"ignore-stop") {
-                require_request(input, stop, h.generation);
+            if (test == L"ignore-stop" || test == L"auto-stop") {
+                if (test == L"ignore-stop") require_request(input, stop, h.generation);
+                send(output, capture_stopped, h.generation);
                 send(output, final, h.generation, std::wstring(kText));
                 for (;;) {
                     send(output, progress, h.generation);
@@ -114,6 +133,7 @@ int wmain() {
             }
             if (test == L"ignore-cancel") {
                 require_request(input, cancel, h.generation);
+                send(output, capture_stopped, h.generation);
                 send(output, final, h.generation, std::wstring(kText));
                 Sleep(INFINITE);
             }

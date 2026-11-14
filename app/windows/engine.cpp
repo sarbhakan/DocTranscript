@@ -295,6 +295,9 @@ struct Engine::Impl {
             if (!reading_header || received) fail(L"Le moteur a transmis un passage incomplet. Le texte déjà confirmé est conservé.");
             fail(L"Le moteur s’est interrompu. Le texte déjà confirmé est conservé ; vous pouvez relancer la dictée.");
         };
+        bool deadline_reached = false;
+        DWORD buffered_at_deadline = 0;
+        bool microphone_closed = false;
 #ifdef NOTEVIVE_SUPERVISOR_TEST
         bool fixture_released = false;
 #endif
@@ -308,22 +311,32 @@ struct Engine::Impl {
                 deadline = GetTickCount64() +
                     (!delivered || requested == 2 ? kCancelTimeoutMs : kFinishTimeoutMs);
             }
-            if (deadline && GetTickCount64() > deadline) {
+            if (!deadline_reached && GetTickCount64() >= deadline) {
+                // The supervisor may wake after the deadline with complete
+                // output already in the pipe. Drain only the snapshot we can
+                // see now; later writes and heartbeats cannot extend the wait.
+                deadline_reached = true;
+                if (requested != 2 && !PeekNamedPipe(child->output.h, nullptr, 0, nullptr, &buffered_at_deadline, nullptr))
+                    buffered_at_deadline = 0;
+            }
+            if (deadline_reached && (!buffered_at_deadline || requested == 2)) {
                 remove_child();
                 if (requested == 2) return;
                 fail(L"Le moteur n’a pas terminé à temps. Le texte déjà confirmé est conservé ; vous pouvez relancer la dictée.");
             }
-            DWORD available = 0;
-            if (!PeekNamedPipe(child->output.h, nullptr, 0, nullptr, &available, nullptr)) pipe_ended();
+            DWORD available = buffered_at_deadline;
+            if (!deadline_reached && !PeekNamedPipe(child->output.h, nullptr, 0, nullptr, &available, nullptr)) pipe_ended();
             if (!available) {
                 DWORD poll_ms = 25;
 #ifdef NOTEVIVE_SUPERVISOR_TEST
-                if (!fixture_released && s.wave == L"truncated") {
+                const bool test_deadline = s.wave == L"deadline-pending" || s.wave == L"deadline-truncated";
+                if (!fixture_released && (s.wave == L"truncated" || test_deadline)) {
                     // Reproduce the exit race with the fixture: release the child
-                    // only after the first empty peek, then wait for its exit.
+                    // only after the first empty peek, then wait for its exit
+                    // or simulate the supervisor being scheduled late.
                     fixture_released = true;
                     if (!child->send(wire::stop, s.generation)) fail(L"Le test du canal n’a pas pu démarrer.");
-                    poll_ms = static_cast<DWORD>(kLiveTimeoutMs);
+                    poll_ms = static_cast<DWORD>(kLiveTimeoutMs + (test_deadline ? 100 : 0));
                 }
 #endif
                 const DWORD wait = WaitForSingleObject(child->process.h, poll_ms);
@@ -338,6 +351,7 @@ struct Engine::Impl {
             DWORD done = 0;
             if (!ReadFile(child->output.h, frame.data() + received, count, &done, nullptr) || !done)
                 fail(L"Le moteur a fermé son canal de dictée.");
+            if (deadline_reached) buffered_at_deadline -= done;
             received += done;
             if (received != frame.size()) continue;
             if (reading_header) {
@@ -347,16 +361,22 @@ struct Engine::Impl {
                     fail(L"Réponse inattendue du moteur de dictée.");
                 if (((header.kind == wire::started || header.kind == wire::capture_stopped ||
                       header.kind == wire::progress) && (header.bytes || header.flags)) ||
-                    (header.kind == wire::stopped && header.bytes))
+                    (header.kind == wire::stopped && header.bytes) || (header.flags && !wire::terminal(header.kind)))
                     fail(L"État du moteur de dictée invalide.");
                 reading_header = false; received = 0; frame.resize(header.bytes);
                 if (header.bytes) continue;
             }
             std::wstring text(frame.size() / 2, L'\0');
             if (!frame.empty()) std::memcpy(text.data(), frame.data(), frame.size());
-            if (text.find(L'\0') != std::wstring::npos) fail(L"Réponse illisible du moteur de dictée.");
+            if (!wire::valid_text(text)) fail(L"Réponse illisible du moteur de dictée. Le texte déjà confirmé est conservé.");
             const auto kind = static_cast<EngineEventKind>(header.kind - wire::started);
-            if ((header.kind == wire::started || header.kind == wire::progress) && !sent_stop)
+            if (header.kind == wire::capture_stopped && !microphone_closed) {
+                // Automatic stop (e.g. a detached device or a full audio
+                // queue) must get the same bounded drain as an explicit Stop.
+                microphone_closed = true;
+                if (!deadline_reached && !sent_stop) deadline = GetTickCount64() + kFinishTimeoutMs;
+            }
+            if (!deadline_reached && !microphone_closed && (header.kind == wire::started || header.kind == wire::progress) && !sent_stop)
                 deadline = GetTickCount64() + kLiveTimeoutMs;
             if (wire::terminal(header.kind)) {
                 if (header.flags) remove_child();
@@ -366,7 +386,9 @@ struct Engine::Impl {
                 }
                 return;
             }
-            if (s.stop.load() != 2 && header.kind != wire::progress) emit(s, kind, std::move(text), header.flags != 0);
+            // Cancel suppresses text, not confirmation that WinMM has closed.
+            if (header.kind == wire::capture_stopped || (s.stop.load() != 2 && header.kind != wire::progress))
+                emit(s, kind, std::move(text), header.flags != 0);
             frame.resize(wire::header_size); reading_header = true; received = 0;
         }
     }

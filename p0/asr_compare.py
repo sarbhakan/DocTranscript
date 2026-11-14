@@ -277,7 +277,8 @@ def score(args):
         cohorts = {}
         for cohort in ("p0", "stress", "corti"):
             report = {"records": [], "critical": {}, "terms": [0, 0], "word_changes": [0, 0],
-                      "control_nonempty": [0, 0], "drug": [0, 0], "strength": [0, 0], "drug_strength": [0, 0], "px_posology": {}}
+                      "control_nonempty": [0, 0], "drug": [0, 0], "strength": [0, 0], "drug_strength": [0, 0],
+                      "strength_unqualified": [0, 0], "drug_strength_association_strict": [0, 0], "px_posology": {}}
             timings, ratios, segment_timings, pause_estimates, queued_pause_estimates = [], [], [], [], []
             pauses_expected = pauses_missing = 0
             for res in results:
@@ -339,7 +340,9 @@ def score(args):
                 if cohort == "p0" and ref["id"] in px:
                     check = evaluate_row(*px[ref["id"]], text)
                     for label, metric in (("drug", "drug_exact"), ("strength", "strength_exact"),
-                                          ("drug_strength", "ordered_pair_nearby")):
+                                          ("drug_strength", "ordered_pair_nearby"),
+                                          ("strength_unqualified", "strength_unqualified_exact"),
+                                          ("drug_strength_association_strict", "strength_association_strict")):
                         if metric in check:
                             report[label][0] += check[metric]
                             report[label][1] += 1
@@ -365,7 +368,7 @@ def score(args):
         if args.aggregate:
             for report in cohorts.values():
                 del report["records"]
-        summary[path.name] = {"meta": meta, "cohorts": cohorts}
+        summary[path.name] = {"meta": meta, "scoring_revision": 2, "cohorts": cohorts}
     args.output.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 

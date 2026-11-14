@@ -26,6 +26,8 @@ constexpr UINT_PTR SaveTimer = 1;
 constexpr UINT SaveDelayMs = 550;
 constexpr UINT_PTR SearchTimer = 2;
 constexpr UINT SearchDelayMs = 250;
+constexpr UINT_PTR EngineTimer = 3;
+constexpr UINT EnginePollMs = 250;
 constexpr std::size_t TitleLimit = notes::kMaxTitle;
 constexpr std::size_t TextLimit = notes::kMaxText;
 constexpr wchar_t OriginalEditProc[] = L"NoteVive.OriginalEditProc";
@@ -290,9 +292,11 @@ struct App {
     bool search_pending = false;
     std::mutex event_mutex;
     std::deque<doct::EngineEvent> pending_events;
+    bool engine_notice_pending = false; // Guarded by event_mutex.
     std::unique_ptr<doct::Engine> engine;
     const bool dictation_cpu_supported = doct::Engine::cpu_supported();
     std::wstring runtime;
+    std::wstring rejected_segment;
     std::wstring idle_status{L"Micro coupé · Prêt à dicter."};
     std::wstring interrupt_status;
     Phase phase{Phase::idle};
@@ -306,6 +310,7 @@ struct App {
     bool masked{};
     bool loading{};
     bool dirty{};
+    bool editor_needs_review{};
     bool store_ready{};
     bool shutting_down{};
     bool close_requested{};
@@ -318,7 +323,7 @@ struct App {
     bool create() {
         dpi = GetDpiForWindow(window);
         if (!dpi) dpi = 96;
-        banner = control(L"STATIC", L"NoteVive 0.3.0 · Essai hors ligne — données fictives uniquement", SS_LEFT);
+        banner = control(L"STATIC", L"NoteVive 0.3.1 · Essai hors ligne — données fictives uniquement", SS_LEFT);
         new_note = control(L"BUTTON", L"+ &Transcription", WS_TABSTOP | BS_PUSHBUTTON, New);
         new_folder = control(L"BUTTON", L"+ &Dossier", WS_TABSTOP | BS_PUSHBUTTON, NewFolder);
         folder_actions = control(L"BUTTON", L"Dossier…", WS_TABSTOP | BS_PUSHBUTTON, FolderActions);
@@ -366,17 +371,17 @@ struct App {
         if (!wts_registered) idle_status = L"Micro coupé · Dictée indisponible : verrouillage de session non surveillé.";
         if (runtime.empty()) idle_status = L"Micro coupé · Dossier du moteur introuvable.";
         if (dictation_cpu_supported) engine = std::make_unique<doct::Engine>([this, target = window](doct::EngineEvent value) {
-            {
-                std::lock_guard<std::mutex> lock(event_mutex);
-                if (value.kind == doct::EngineEventKind::partial && !pending_events.empty()
-                        && pending_events.back().kind == doct::EngineEventKind::partial
-                        && pending_events.back().generation == value.generation) {
-                    pending_events.back() = std::move(value);
-                } else {
-                    pending_events.push_back(std::move(value));
-                }
+            std::lock_guard<std::mutex> lock(event_mutex);
+            if (value.kind == doct::EngineEventKind::partial && !pending_events.empty()
+                    && pending_events.back().kind == doct::EngineEventKind::partial
+                    && pending_events.back().generation == value.generation) {
+                pending_events.back() = std::move(value);
+            } else {
+                pending_events.push_back(std::move(value));
             }
-            PostMessageW(target, EngineMessage, 0, 0);
+            // One wake-up per batch. A full Windows message queue must not
+            // strand a final segment or leave the editor stuck in dictation.
+            if (!engine_notice_pending) engine_notice_pending = PostMessageW(target, EngineMessage, 0, 0) != FALSE;
         });
         std::wstring error;
         store_ready = store.Open(error);
@@ -501,7 +506,7 @@ struct App {
         }
         EnableWindow(search_all, idle && store_ready && !all_notes);
         EnableWindow(folder_actions, idle && store_ready && !all_notes && !selected_folder.empty());
-        EnableWindow(move_note, idle && store_ready);
+        EnableWindow(move_note, idle && store_ready && !editor_needs_review);
         EnableWindow(save_button, store_ready);
         EnableWindow(vocab, idle && !runtime.empty());
         EnableWindow(title, store_ready);
@@ -824,7 +829,7 @@ struct App {
     }
 
     void move_current_note() {
-        if (!can_organize()) return;
+        if (!can_organize() || editor_needs_review) return;
         auto destination = current.folder_id;
         if (!choose_destination(L"Classer la transcription", L"Choisissez un dossier de destination.", destination) ||
             destination == current.folder_id) return;
@@ -859,10 +864,12 @@ struct App {
         const std::wstring normalized = editor_text(current.text);
         SetWindowTextW(title, current.title.c_str());
         SetWindowTextW(body, normalized.c_str());
+        rejected_segment.clear();
         SetWindowTextW(draft, L"");
         SendMessageW(body, EM_EMPTYUNDOBUFFER, 0, 0);
         loading = false;
         dirty = false;
+        editor_needs_review = false;
         set_storage(current.id.empty() ? L"Nouvelle transcription · La sauvegarde commence après la première modification."
                                       : L"Note chargée · Modifications sauvegardées localement.");
         choose_current();
@@ -887,15 +894,20 @@ struct App {
         if (index < 0 || static_cast<std::size_t>(index) >= entries.size()) return;
         // Saving refreshes the list; capture the opaque ID before doing it.
         const auto id = entries[static_cast<std::size_t>(index)].id;
-        if (!can_organize() || id == current.id || !save_note()) {
+        if (!can_organize() || id == current.id || !save_note() || !confirm_rejected_segment_discard() || !can_organize()) {
             choose_current();
             return;
         }
         load_note(id);
     }
 
-    void mark_dirty() {
+    void mark_dirty(bool body_edited = false) {
         if (loading || !store_ready) return;
+        if (body_edited && editor_needs_review) {
+            editor_needs_review = false;
+            update_controls();
+        }
+        if (editor_needs_review) return; // A title edit cannot resolve a truncated body.
         dirty = true;
         set_storage(L"Modifications en attente de sauvegarde…");
         SetTimer(window, SaveTimer, SaveDelayMs, nullptr);
@@ -905,6 +917,10 @@ struct App {
         KillTimer(window, SaveTimer);
         if (!dirty) return true;
         if (!store_ready) return false;
+        if (editor_needs_review) {
+            set_storage(L"Sauvegarde suspendue · Vérifiez et corrigez la fin du texte avant d’enregistrer.");
+            return false;
+        }
         notes::Note pending = current;
         pending.title = get_text(title);
         pending.text = get_text(body);
@@ -955,7 +971,7 @@ struct App {
     }
 
     void new_blank() {
-        if (!can_organize() || !save_note()) return;
+        if (!can_organize() || !save_note() || !confirm_rejected_segment_discard() || !can_organize()) return;
         notes::Note blank;
         blank.folder_id = selected_folder;
         place_note(std::move(blank));
@@ -977,17 +993,36 @@ struct App {
         } else if (phase == Phase::preparing) {
             cancel_capture(L"Micro coupé · Démarrage annulé.");
         } else if (phase == Phase::idle) {
-            if (get_text(body).size() >= TextLimit) {
+            if (editor_needs_review) {
+                idle_status = L"Micro coupé · Vérifiez et corrigez la fin du texte avant de reprendre la dictée.";
+            } else if (get_text(body).size() >= TextLimit) {
                 idle_status = L"Micro coupé · Note pleine. Créez une nouvelle note.";
             } else {
+                if (!confirm_rejected_segment_discard() || !can_organize()) return;
                 blocked_generation = cancel_requested = captured = false;
                 interrupt_status.clear();
-                SetWindowTextW(draft, L"");
-                if (engine->start(++generation, runtime)) phase = Phase::preparing;
-                else idle_status = L"Micro coupé · Moteur indisponible. Réessayez après quelques instants.";
+                if (!SetTimer(window, EngineTimer, EnginePollMs, nullptr)) {
+                    idle_status = L"Micro coupé · Impossible de surveiller le moteur. Réessayez.";
+                } else if (engine->start(++generation, runtime)) {
+                    rejected_segment.clear();
+                    SetWindowTextW(draft, L"");
+                    phase = Phase::preparing;
+                } else {
+                    KillTimer(window, EngineTimer);
+                    idle_status = L"Micro coupé · Moteur indisponible. Réessayez après quelques instants.";
+                }
             }
         }
         update_controls();
+    }
+
+    void keep_rejected_segment(const std::wstring& segment, const wchar_t* status) {
+        // Do not let a previously requested close destroy the only readable
+        // copy. It remains transient in the current window for review.
+        close_requested = false;
+        cancel_capture(status);
+        rejected_segment = editor_text(segment);
+        SetWindowTextW(draft, rejected_segment.c_str());
     }
 
     void cancel_capture(const wchar_t* next_status) {
@@ -1010,10 +1045,17 @@ struct App {
         if (!session_locked) SetFocus(privacy);
     }
 
+    bool confirm_rejected_segment_discard() const {
+        return rejected_segment.empty() || MessageBoxW(window,
+            L"Le dernier passage n’a pas été enregistré. Continuer et l’effacer ?",
+            L"NoteVive", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING) == IDYES;
+    }
+
     void toggle_privacy() {
         if (session_locked) return;
         if (masked) {
             masked = false;
+            SetWindowTextW(draft, rejected_segment.c_str());
             if (store_ready) reload_library();
             update_controls();
             if (store_ready) SetFocus(body);
@@ -1028,17 +1070,30 @@ struct App {
         const std::wstring prior = get_text(body);
         if (!prior.empty() && prior.back() != L'\r' && prior.back() != L'\n') text.insert(0, L"\r\n");
         if (prior.size() > TextLimit || text.size() > TextLimit - prior.size()) {
-            cancel_capture(L"Micro coupé · Note pleine. Le dernier passage doit être redicté.");
+            keep_rejected_segment(segment, L"Micro coupé · Note pleine. Le dernier passage est affiché à part et n’est pas enregistré.");
             return;
         }
         DWORD selection_start = 0, selection_end = 0;
         SendMessageW(body, EM_GETSEL, reinterpret_cast<WPARAM>(&selection_start), reinterpret_cast<LPARAM>(&selection_end));
         const LRESULT top = SendMessageW(body, EM_GETFIRSTVISIBLELINE, 0, 0);
         const bool follow_tail = GetFocus() != body && selection_start == prior.size() && selection_end == prior.size();
+        loading = true; // EN_CHANGE during replacement/rollback is not a manual edit.
         SendMessageW(body, WM_SETREDRAW, FALSE, 0);
         SendMessageW(body, EM_SETSEL, prior.size(), static_cast<LPARAM>(prior.size()));
         SendMessageW(body, EM_REPLACESEL, TRUE, reinterpret_cast<LPARAM>(text.c_str()));
-        if (follow_tail) {
+        const std::wstring after = get_text(body);
+        const bool inserted = after.size() == prior.size() + text.size() &&
+            after.compare(0, prior.size(), prior) == 0 && after.compare(prior.size(), text.size(), text) == 0;
+        if (!inserted && after != prior) {
+            // EDIT may truncate without an EM_REPLACESEL result. Restore the
+            // editor before any autosave can commit an incomplete passage.
+            SendMessageW(body, EM_UNDO, 0, 0);
+            if (get_text(body) != prior) SetWindowTextW(body, prior.c_str());
+            editor_needs_review = get_text(body) != prior;
+            // EDIT can undo an undo and reinsert the truncated passage.
+            SendMessageW(body, EM_EMPTYUNDOBUFFER, 0, 0);
+        }
+        if (inserted && follow_tail) {
             const auto end = prior.size() + text.size();
             SendMessageW(body, EM_SETSEL, end, static_cast<LPARAM>(end));
             SendMessageW(body, EM_SCROLLCARET, 0, 0);
@@ -1048,7 +1103,18 @@ struct App {
             SendMessageW(body, EM_LINESCROLL, 0, top - now);
         }
         SendMessageW(body, WM_SETREDRAW, TRUE, 0);
+        loading = false;
         InvalidateRect(body, nullptr, TRUE);
+        if (!inserted) {
+            if (editor_needs_review) {
+                dirty = true;
+                set_storage(L"Sauvegarde suspendue · Vérifiez et corrigez la fin du texte avant d’enregistrer.");
+            }
+            keep_rejected_segment(segment, editor_needs_review
+                ? L"Micro coupé · Le dernier passage a été tronqué. Vérifiez et corrigez la fin de la note."
+                : L"Micro coupé · Dernier passage affiché à part, non enregistré. Le texte précédent est conservé.");
+            return;
+        }
         mark_dirty();
         save_note();
     }
@@ -1077,11 +1143,13 @@ struct App {
             phase = Phase::finalizing;
             break;
         case doct::EngineEventKind::stopped:
+            KillTimer(window, EngineTimer);
             phase = Phase::idle;
             captured = false;
             idle_status = interrupt_status.empty() ? L"Micro coupé · Dictée terminée. Relisez le texte." : interrupt_status;
             break;
         case doct::EngineEventKind::error:
+            KillTimer(window, EngineTimer);
             phase = Phase::idle;
             captured = false;
             microphone_unconfirmed = event.capture_unconfirmed;
@@ -1089,7 +1157,7 @@ struct App {
                 ? (event.text.empty() ? L"Micro coupé · Dictée interrompue. Le texte stable est conservé."
                                       : L"Micro coupé · " + event.text)
                 : interrupt_status;
-            SetWindowTextW(draft, L"");
+            if (rejected_segment.empty()) SetWindowTextW(draft, L"");
             break;
         }
         update_controls();
@@ -1097,10 +1165,13 @@ struct App {
         else if (search_pending && can_organize()) reload_library();
     }
 
-    void drain_engine() {
+    void drain_engine(bool notified) {
         std::deque<doct::EngineEvent> batch;
         {
             std::lock_guard<std::mutex> lock(event_mutex);
+            // A timer may run before a posted wake-up. Leave this flag set
+            // until the corresponding message really is dispatched.
+            if (notified) engine_notice_pending = false;
             batch.swap(pending_events);
         }
         for (auto& event : batch) on_engine(event);
@@ -1118,6 +1189,7 @@ struct App {
             update_controls();
             return;
         }
+        if (!confirm_rejected_segment_discard()) return;
         close_requested = false;
         if (!save_note(true)) {
             update_controls();
@@ -1134,6 +1206,7 @@ struct App {
         shutting_down = true;
         KillTimer(window, SaveTimer);
         KillTimer(window, SearchTimer);
+        KillTimer(window, EngineTimer);
         if (engine) engine->shutdown();
         // The worker cannot post after shutdown; release messages not consumed by the window.
         pending_events.clear();
@@ -1214,7 +1287,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
             return 0;
         case Title:
         case Body:
-            if (HIWORD(wparam) == EN_CHANGE) app->mark_dirty();
+            if (HIWORD(wparam) == EN_CHANGE) app->mark_dirty(LOWORD(wparam) == Body);
             return 0;
         }
         break;
@@ -1228,6 +1301,10 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         break;
     }
     case WM_TIMER:
+        if (wparam == EngineTimer) {
+            app->drain_engine(false);
+            return 0;
+        }
         if (wparam == SaveTimer) {
             app->save_note();
             return 0;
@@ -1240,7 +1317,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         }
         break;
     case EngineMessage:
-        app->drain_engine();
+        app->drain_engine(true);
         return 0;
     case WM_WTSSESSION_CHANGE:
         if (wparam == WTS_SESSION_LOCK || wparam == WTS_SESSION_LOGOFF || wparam == WTS_CONSOLE_DISCONNECT

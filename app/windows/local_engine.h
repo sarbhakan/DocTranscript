@@ -12,9 +12,10 @@ namespace doct {
 
 class LocalEngine {
 public:
-    // Events arrive in order on one worker. Post them to the UI and return.
-    // A partial replaces the provisional text; a final appends one segment.
-    // stopped/error is terminal. Do not call shutdown from the callback.
+    // The capture thread reports device open/close independently of the
+    // decoder; the callback must serialize writes. No audio is accepted
+    // before started is sent, and stopped/error comes after capture joins.
+    // Do not call shutdown from a callback.
     using Callback = std::function<void(EngineEvent)>;
 
     explicit LocalEngine(Callback callback, std::function<void()> progress = {});

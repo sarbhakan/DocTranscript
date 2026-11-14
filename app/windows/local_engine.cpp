@@ -115,7 +115,7 @@ struct Session {
     Stop stop = Stop::no;
     std::array<Packet, kQueuePackets> queue{};
     std::size_t head = 0, used = 0;
-    bool started = false, capture_done = false, close_unconfirmed = false;
+    bool capture_done = false, close_unconfirmed = false;
     std::wstring capture_error;
 
     void request(Stop mode) {
@@ -182,10 +182,12 @@ struct Capture {
         }
     }
     void collect(Session& session, bool requeue) {
-        if (requeue && std::all_of(buffers.begin(), buffers.end(), [](const Buffer& b) {
-                return (b.header.dwFlags & WHDR_DONE) != 0;
-            }))
-            fail(L"Le microphone n’a pas pu être lu à temps. Dictée interrompue pour éviter une perte silencieuse.");
+        const bool starved = requeue && std::all_of(buffers.begin(), buffers.end(), [](const Buffer& b) {
+            return (b.header.dwFlags & WHDR_DONE) != 0;
+        });
+        // If the driver exhausted its buffers, preserve the last contiguous
+        // packets without accepting new audio across a possible gap.
+        if (starved) requeue = false;
         for (std::size_t i = 0; i < buffers.size(); ++i) {
             if (requeue && session.mode() != Stop::no) break;
             auto& buffer = buffers[head];
@@ -202,6 +204,8 @@ struct Capture {
                          L"Le microphone a été déconnecté ou n’est plus disponible");
             }
         }
+        if (starved)
+            fail(L"Le microphone n’a pas pu être lu à temps. Dictée interrompue pour éviter une perte silencieuse.");
     }
     bool close() noexcept {
         if (!device) return true;
@@ -221,21 +225,19 @@ struct Capture {
     }
 };
 
-void capture_audio(Session& session) {
+template <class Started, class Stopped>
+void capture_audio(Session& session, Started started, Stopped stopped) {
     std::unique_ptr<Capture> mic;
     std::wstring error;
-    bool close_unconfirmed = false;
+    bool opened = false, close_unconfirmed = false;
     try {
         if (session.mode() == Stop::no) {
             mic = std::make_unique<Capture>();
             mic->open();
             if (session.mode() == Stop::no) {
                 check_mm(waveInStart(mic->device), L"Impossible de démarrer le microphone");
-                {
-                    std::lock_guard<std::mutex> lock(session.mutex);
-                    session.started = true;
-                }
-                session.changed.notify_one();
+                opened = true;
+                started(); // Report the actual device state before queuing any audio.
                 const HANDLE waits[]{session.stop_event.get(), mic->ready.get()};
                 while (session.mode() == Stop::no) {
                     const DWORD outcome = WaitForMultipleObjects(2, waits, FALSE, kNoAudioTimeoutMs);
@@ -264,6 +266,9 @@ void capture_audio(Session& session) {
         close_unconfirmed = true;
         error = L"Arrêt du microphone non confirmé. Fermez l’application.";
     }
+    // The recognizer may still be busy with an earlier segment. Tell the UI
+    // that the device is closed without waiting for it, before any terminal event.
+    if (opened && !close_unconfirmed) stopped();
     {
         std::lock_guard<std::mutex> lock(session.mutex);
         session.capture_done = true;
@@ -423,31 +428,18 @@ struct LocalEngine::Impl {
     };
 
     void run_capture(Session& session, Decoder& decoder) {
-        std::thread capture(capture_audio, std::ref(session));
-        bool reported_start = false;
-        bool reported_close = false;
-        auto report_status = [&](bool started, bool done, bool unconfirmed) {
-            if (started && !reported_start && session.mode() != Stop::discard) {
-                reported_start = true;
-                emit(session, Event::started);
-            }
-            if (done && reported_start && !reported_close && !unconfirmed) {
-                reported_close = true;
-                emit(session, Event::capture_stopped);
-            }
-        };
+        std::thread capture([&] {
+            capture_audio(session, [&] { emit(session, Event::started); },
+                          [&] { emit(session, Event::capture_stopped); });
+        });
         try {
             for (;;) {
                 Packet packet;
-                bool started, done, unconfirmed;
+                bool done, unconfirmed;
                 std::wstring error;
                 {
                     std::unique_lock<std::mutex> lock(session.mutex);
-                    session.changed.wait(lock, [&] {
-                        return (session.started && !reported_start && session.stop != Stop::discard) ||
-                            session.capture_done || session.used;
-                    });
-                    started = session.started;
+                    session.changed.wait(lock, [&] { return session.capture_done || session.used; });
                     done = session.capture_done;
                     unconfirmed = session.close_unconfirmed;
                     if (session.used && !unconfirmed && session.stop != Stop::discard) {
@@ -458,7 +450,6 @@ struct LocalEngine::Impl {
                         error = std::move(session.capture_error);
                     }
                 }
-                report_status(started, done, unconfirmed);
                 if (packet.count) { decoder.feed(packet); pulse(); }
                 else if (done) {
                     if (!error.empty()) {
@@ -477,7 +468,6 @@ struct LocalEngine::Impl {
         } catch (...) {
             session.request(Stop::discard);
             capture.join();
-            report_status(session.started, session.capture_done, session.close_unconfirmed);
             if (session.close_unconfirmed) {
                 {
                     std::lock_guard<std::mutex> lock(mutex);

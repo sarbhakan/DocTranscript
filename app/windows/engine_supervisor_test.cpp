@@ -33,6 +33,7 @@ const char* error_code(std::wstring_view text) {
     if (text.find(L"incomplet") != text.npos) return "truncated";
     if (text.find(L"interrompu") != text.npos) return "child_exit";
     if (text.find(L"inattendue") != text.npos) return "unexpected_response";
+    if (text.find(L"illisible") != text.npos) return "invalid_unicode";
     if (text.find(L"à temps") != text.npos) return "watchdog";
     if (text.find(L"non confirmé") != text.npos) return "unconfirmed_capture_stop";
     return text.empty() ? "blank" : "other";
@@ -79,6 +80,12 @@ int wmain(int argc, wchar_t** argv) {
             }
             if (cancel) engine.cancel();
             else engine.stop();
+            wait([](const auto& e) { return e.size() >= 2; });
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                if (events[1].kind != Kind::capture_stopped)
+                    throw std::runtime_error("Expected microphone acknowledgement before finalization");
+            }
         }
         wait([](const auto& e) { return !e.empty() && terminal(e.back()); });
         {
@@ -112,13 +119,21 @@ int wmain(int argc, wchar_t** argv) {
         valid();
         run("wrong generation", L"wrong-generation", {Kind::started, Kind::error}, L"inattendue");
         valid();
+        run("invalid Unicode after a valid passage", L"invalid-text", {Kind::started, Kind::final, Kind::error}, L"illisible");
+        valid();
         run("truncated payload after complete frames", L"truncated", {Kind::started, Kind::final, Kind::error}, L"incomplet");
         valid();
         run("live watchdog", L"watchdog", {Kind::started, Kind::final, Kind::error}, L"à temps");
         valid();
-        run("ignored stop", L"ignore-stop", {Kind::started, Kind::final, Kind::error}, L"à temps");
+        run("preserve a complete final already queued at watchdog", L"deadline-pending", {Kind::started, Kind::final, Kind::error}, L"à temps");
         valid();
-        run("ignored cancel", L"ignore-cancel", {Kind::started, Kind::stopped});
+        run("drop an incomplete final already queued at watchdog", L"deadline-truncated", {Kind::started, Kind::final, Kind::error}, L"à temps");
+        valid();
+        run("microphone closed while decoder ignores stop", L"ignore-stop", {Kind::started, Kind::capture_stopped, Kind::final, Kind::error}, L"à temps");
+        valid();
+        run("automatic microphone close also bounds finalization", L"auto-stop", {Kind::started, Kind::capture_stopped, Kind::final, Kind::error}, L"à temps");
+        valid();
+        run("microphone closed while decoder ignores cancel", L"ignore-cancel", {Kind::started, Kind::capture_stopped, Kind::stopped});
         valid();
         engine.shutdown();
     } catch (const std::exception& error) {

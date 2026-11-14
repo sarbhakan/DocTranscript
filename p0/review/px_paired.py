@@ -1,9 +1,9 @@
 """Score two PxSLU transcripts without editing them or printing their content.
 
-The input IDs px-N are zero-based rows in the v4 archive. A correct medicine
-spelling and strength near it is an automatic screening result, not an
-assessment of the full prescription; review quantities, competing names and
-the remaining posology separately. WAVs and optional verbatim output stay local.
+The input IDs px-N are zero-based rows in the v4 archive. Historical spelling,
+strength and proximity counters remain separate from the stricter screening
+for an unqualified strength and a unique same-clause association. Neither
+validates the prescription. WAVs and optional verbatim output stay local.
 """
 from __future__ import annotations
 
@@ -20,6 +20,12 @@ from zipfile import ZipFile
 
 PX = "PxCorpus/PxSLU/"
 WORD = re.compile(r"-?\d+(?:[.,]\d+)?|[^\W\d_]+|[%/]", re.UNICODE)
+STRICT_WORD = re.compile(r"-?\d+(?:[.,]\d+)?|[^\W\d_]+|[%/–¼½¾]", re.UNICODE)
+SLASH_OR_SIGN = str.maketrans({"⁄": "/", "∕": "/", "／": "/", "−": "-", "﹣": "-", "－": "-"})
+CLAUSE = re.compile(r"[;!?\n]+|(?<!\d)\.|\.(?!\d)")
+NEGATION = re.compile(r"\b(?:ne|pas|sans|ni|non|aucun|aucune|jamais|absence)\b|\bn[’'](?=[^\W\d_])",
+                      re.IGNORECASE)
+LOCAL_LINKS = {(), ("à",), ("de",), ("dosé", "à"), ("dosée", "à"), ("dosage", "de")}
 BASIC = ("zéro un deux trois quatre cinq six sept huit neuf dix onze douze treize "
          "quatorze quinze seize").split()
 TENS = {20: "vingt", 30: "trente", 40: "quarante", 50: "cinquante",
@@ -47,12 +53,17 @@ def french(value):
         " " + french(rest) if rest else "")
 
 
-def tokens(value):
+def tokens(value, *, strict=False):
     value = unicodedata.normalize("NFC", value).casefold().replace("μ", "µ")
     # Preserve decimal separators within digits. Hyphens/apostrophes are word boundaries.
     # Treat a spaced group of three digits as a French thousands separator.
     value = re.sub(r"(?<=\d)[ \u00a0\u202f](?=\d{3}(?!\d))", "", value)
-    return tuple(WORD.findall(value))
+    if strict:
+        value = value.translate(SLASH_OR_SIGN)
+        # Preserve a range dash between figures, including when spaced.
+        value = re.sub(r"(?<=\d)\s*[-–—]\s*(?=\d)", " – ", value)
+        value = re.sub(r"-\s+(?=\d)", "-", value)
+    return tuple((STRICT_WORD if strict else WORD).findall(value))
 
 
 def no_accents(value):
@@ -108,7 +119,7 @@ def scalar(parts):
     return None
 
 
-def quantities(parts):
+def quantities(parts, *, strict=False):
     found = []
     for end in range(len(parts)):
         for alias, unit in UNITS.items():
@@ -120,16 +131,31 @@ def quantities(parts):
             # mass/volume. Do not drop the denominator to force a match.
             if (suffix[:1] == ("/",) or
                     (len(suffix) >= 2 and suffix[0] == "par" and
-                     suffix[1] in {"ml", "millilitre", "millilitres", "litre", "litres",
-                                   "dose", "doses", "comprimé", "comprimés", "gélule", "gélules"})):
+                     (suffix[1] in {"ml", "millilitre", "millilitres", "litre", "litres",
+                                    "dose", "doses", "comprimé", "comprimés", "gélule", "gélules"}
+                      or (strict and suffix[1] == "l")))):
                 continue
             # Longest valid suffix before the unit; "de" and punctuation are not numeric.
             for start in range(max(0, j - MAX_NUM_TOKENS * 2 - 1), j):
                 amount = scalar(parts[start:j])
-                if amount is not None:
+                if amount is None:
+                    continue
+                # A denominator or upper end of a range is not a standalone
+                # quantity. Also reject the trailing literal from "moins 20".
+                if not strict or (amount > 0 and not follows_compound(parts, start)):
                     found.append((amount, unit, start, end + 1))
-                    break
+                break
     return found
+
+
+def quantity_before(parts, end):
+    return any(scalar(parts[start:end]) is not None for start in range(max(0, end - MAX_NUM_TOKENS), end))
+
+
+def follows_compound(parts, start):
+    return start and (
+        parts[start - 1] in {"/", "–", "moins"} or
+        (parts[start - 1] in {"à", "et", "ou"} and quantity_before(parts, start - 1)))
 
 
 def spans(reference, bio):
@@ -148,6 +174,25 @@ def spans(reference, bio):
 
 def positions(parts, target):
     return [i for i in range(len(parts) - len(target) + 1) if target and parts[i:i + len(target)] == target]
+
+
+def strict_local_association(output, drug, expected_value, expected_unit):
+    """Conservative screening for a unique same-clause name and strength."""
+    name = tokens(drug)
+    for clause in CLAUSE.split(output):
+        if NEGATION.search(clause):
+            continue
+        parts = tokens(clause, strict=True)
+        places = positions(parts, name)
+        values = quantities(parts, strict=True)
+        if len(places) != 1 or len(values) != 1:
+            continue
+        i = places[0]
+        amount, unit, start, _ = values[0]
+        if ((amount, unit) == (expected_value, expected_unit) and
+                i + len(name) <= start and parts[i + len(name):start] in LOCAL_LINKS):
+            return True
+    return False
 
 
 def evaluate_row(ref, bio, output):
@@ -185,12 +230,15 @@ def evaluate_row(ref, bio, output):
         strengths_output=[f"{amount} {kind}" for amount, kind, _, _ in decoded],
         strength_exact=bool(matched),
         strength_equivalent=bool(matched) or physical_equivalence,
+        strength_unqualified_exact=any((v, u) == (expected_val, expected_unit)
+                                      for v, u, _, _ in quantities(tokens(output, strict=True), strict=True)),
         extra_quantity_review=len(decoded) > 1,
     )
     if len(drugs) == 1:
-        # Exact co-occurrence and ordering is only a screening proxy for association.
+        # Keep the proximity measure separate from stronger local evidence.
         measures["ordered_pair_nearby"] = any(
             0 <= start - (i + len(tokens(drug))) <= 6 for i in places for start, _ in matched)
+        measures["strength_association_strict"] = strict_local_association(output, drug, expected_val, expected_unit)
     return measures
 
 
@@ -260,10 +308,12 @@ def report(archive, files, out, bdpm):
                 score["n_strength"] += 1
                 score["strength_exact"] += measures["strength_exact"]
                 score["strength_equivalent"] += measures["strength_equivalent"]
+                score["strength_unqualified_exact"] += measures["strength_unqualified_exact"]
                 score["extra_quantity_review"] += measures["extra_quantity_review"]
             if "ordered_pair_nearby" in measures:
                 score["n_pair"] += 1
                 score["ordered_pair_nearby"] += measures["ordered_pair_nearby"]
+                score["strength_association_strict"] += measures["strength_association_strict"]
             score["decode_failures"] += row.get("status") != "ok"
             records.append({"case": case, "model": name, "reference": refs[ix], "output": output, **measures})
     if out:
@@ -271,12 +321,13 @@ def report(archive, files, out, bdpm):
             for record in records:
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
     voice_count = len({voices[int(case[3:])] for case in keys})
-    result = {"case_count": len(keys), "voice_count": voice_count, "automatic_screening": scores}
+    result = {"scoring_revision": 2, "case_count": len(keys), "voice_count": voice_count, "automatic_screening": scores}
     if len(tables) == 2:
         a, b = tables
         record_map = {(record["case"], record["model"]): record for record in records}
         paired = {}
-        for measure in ("drug_exact", "strength_equivalent", "ordered_pair_nearby"):
+        for measure in ("drug_exact", "strength_equivalent", "strength_unqualified_exact",
+                        "ordered_pair_nearby", "strength_association_strict"):
             buckets = Counter()
             for case in keys:
                 x, y = (record_map[case, name].get(measure) for name in (a, b))
