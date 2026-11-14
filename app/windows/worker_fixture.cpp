@@ -72,12 +72,16 @@ int wmain() {
                 if (!transfer(output, bytes.data(), static_cast<DWORD>(bytes.size()), true)) return 8;
                 Sleep(INFINITE);
             }
+            // The supervisor releases this branch after observing an empty
+            // pipe, proving that it drains complete frames written before exit.
+            if (test == L"truncated") require_request(input, stop, h.generation);
             send(output, started, h.generation);
             if (test == L"wrong-generation") {
                 send(output, final, h.generation + 1, std::wstring(kText));
                 Sleep(INFINITE);
             }
             if (test == L"truncated") {
+                send(output, final, h.generation, std::wstring(kText));
                 auto header = encode({final, h.generation, 14, 0});
                 unsigned char incomplete[]{'x', 0, 'y'};
                 if (!transfer(output, header.data(), static_cast<DWORD>(header.size()), true) ||

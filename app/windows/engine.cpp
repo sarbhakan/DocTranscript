@@ -245,6 +245,13 @@ struct Engine::Impl {
         std::size_t received = 0;
         wire::Header header{};
         bool reading_header = true;
+        const auto pipe_ended = [&] {
+            if (!reading_header || received) fail(L"Le moteur a transmis un passage incomplet. Le texte déjà confirmé est conservé.");
+            fail(L"Le moteur s’est interrompu. Le texte déjà confirmé est conservé ; vous pouvez relancer la dictée.");
+        };
+#ifdef NOTEVIVE_SUPERVISOR_TEST
+        bool fixture_released = false;
+#endif
         for (;;) {
             const int requested = s.stop.load();
             if (requested > sent_stop) {
@@ -261,12 +268,25 @@ struct Engine::Impl {
                 fail(L"Le moteur n’a pas terminé à temps. Le texte déjà confirmé est conservé ; vous pouvez relancer la dictée.");
             }
             DWORD available = 0;
-            if (!PeekNamedPipe(child->output.h, nullptr, 0, nullptr, &available, nullptr))
-                fail(L"Le moteur s’est interrompu. Le texte déjà confirmé est conservé ; vous pouvez relancer la dictée.");
+            if (!PeekNamedPipe(child->output.h, nullptr, 0, nullptr, &available, nullptr)) pipe_ended();
             if (!available) {
-                if (WaitForSingleObject(child->process.h, 25) != WAIT_TIMEOUT)
-                    fail(L"Le moteur s’est interrompu. Le texte déjà confirmé est conservé ; vous pouvez relancer la dictée.");
-                continue;
+                DWORD poll_ms = 25;
+#ifdef NOTEVIVE_SUPERVISOR_TEST
+                if (!fixture_released && s.wave == L"truncated") {
+                    // Reproduce the exit race with the fixture: release the child
+                    // only after the first empty peek, then wait for its exit.
+                    fixture_released = true;
+                    if (!child->send(wire::stop, s.generation)) fail(L"Le test du canal n’a pas pu démarrer.");
+                    poll_ms = static_cast<DWORD>(kLiveTimeoutMs);
+                }
+#endif
+                const DWORD wait = WaitForSingleObject(child->process.h, poll_ms);
+                if (wait == WAIT_TIMEOUT) continue;
+                // Data can arrive after the empty peek and before the process
+                // exits. Read complete frames before reporting the failure.
+                if (wait != WAIT_OBJECT_0 ||
+                    !PeekNamedPipe(child->output.h, nullptr, 0, nullptr, &available, nullptr) || !available)
+                    pipe_ended();
             }
             const auto count = static_cast<DWORD>(std::min<std::size_t>(available, frame.size() - received));
             DWORD done = 0;

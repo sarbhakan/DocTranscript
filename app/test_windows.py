@@ -111,9 +111,12 @@ def main():
     parser.add_argument('--cmake', default='cmake')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--package', type=Path)
+    parser.add_argument('--engine-only', action='store_true', help='Test only the real decoder from --package.')
     parser.add_argument('--build-cache', type=Path)
     parser.add_argument('--compile-only', action='store_true')
     args = parser.parse_args()
+    if args.engine_only and not args.package:
+        parser.error('--engine-only requiert --package.')
     native_windows = platform.system() == 'Windows'
     if args.compiler == 'zig' and not args.zig:
         parser.error('--zig est requis avec --compiler zig.')
@@ -141,26 +144,29 @@ def main():
                 raise FileNotFoundError(f'Source de test absente du checkout : {source}')
         return out / name, sources, defines, includes, libraries, wide_main
 
-    fixture = out / 'fixture'
-    fixture.mkdir()
-    child_target = target('fixture/NoteVive-ASR.exe', [WIN / 'worker_fixture.cpp'], wide_main=True)
-    build('fixture', [child_target])
-    child = child_target[0]
-    headers(fixture, child)
-    (fixture / 'runtime_integrity.h').write_text(
-        'constexpr Expected kEngine[] = {{L"NoteVive-ASR.exe", ' + str(child.stat().st_size) + ', "' +
-        hashlib.sha256(child.read_bytes()).hexdigest() + '"}};\n')
-    targets = [
-        target('notes-model-test.exe', [WIN / 'notes_model_test.cpp']),
-        target('worker-protocol-test.exe', [WIN / 'worker_protocol_test.cpp']),
-        target('pause-state-test.exe', [ROOT / 'app/native/PauseStateTest.cpp']),
-        target('notes-test.exe', [WIN / 'notes.cpp', WIN / 'notes_test.cpp'],
-               defines=['NOTEVIVE_NOTES_TEST'], libraries=['crypt32', 'ole32', 'shell32', 'uuid']),
-        target('supervisor-test.exe', [WIN / 'engine.cpp', WIN / 'integrity.cpp', WIN / 'engine_supervisor_test.cpp'],
-               defines=['NOTEVIVE_SUPERVISOR_TEST'], includes=[fixture], libraries=['bcrypt'], wide_main=True),
-    ]
-    supervisor = targets[-1][0]
-    commands = [[test[0]] for test in targets[:-1]] + [[supervisor, fixture]]
+    targets, commands = [], []
+    supervisor = None
+    if not args.engine_only:
+        fixture = out / 'fixture'
+        fixture.mkdir()
+        child_target = target('fixture/NoteVive-ASR.exe', [WIN / 'worker_fixture.cpp'], wide_main=True)
+        build('fixture', [child_target])
+        child = child_target[0]
+        headers(fixture, child)
+        (fixture / 'runtime_integrity.h').write_text(
+            'constexpr Expected kEngine[] = {{L"NoteVive-ASR.exe", ' + str(child.stat().st_size) + ', "' +
+            hashlib.sha256(child.read_bytes()).hexdigest() + '"}};\n')
+        targets = [
+            target('notes-model-test.exe', [WIN / 'notes_model_test.cpp']),
+            target('worker-protocol-test.exe', [WIN / 'worker_protocol_test.cpp']),
+            target('pause-state-test.exe', [ROOT / 'app/native/PauseStateTest.cpp']),
+            target('notes-test.exe', [WIN / 'notes.cpp', WIN / 'notes_test.cpp'],
+                   defines=['NOTEVIVE_NOTES_TEST'], libraries=['crypt32', 'ole32', 'shell32', 'uuid']),
+            target('supervisor-test.exe', [WIN / 'engine.cpp', WIN / 'integrity.cpp', WIN / 'engine_supervisor_test.cpp'],
+                   defines=['NOTEVIVE_SUPERVISOR_TEST'], includes=[fixture], libraries=['bcrypt'], wide_main=True),
+        ]
+        supervisor = targets[-1][0]
+        commands = [[test[0]] for test in targets[:-1]] + [[supervisor, fixture]]
     if args.package:
         runtime = args.package.resolve() / 'runtime'
         real = out / 'production'
