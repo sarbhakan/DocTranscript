@@ -149,9 +149,24 @@ function Trace-SyntheticLowBox {
     }
     $symbols = Join-Path $work 'local-symbols-only'
     $null = [IO.Directory]::CreateDirectory($symbols)
+    $rawLog = Join-Path $work 'private-lowbox-debugger.log'
+    # CDB is x64. Print only arguments for NtOpenDirectoryObject: RCX is the
+    # output handle pointer, EDX is ACCESS_MASK, R8 is OBJECT_ATTRIBUTES.
+    # The debugger keeps all object names in the disposable profile.
+    @'
+.printf "NV_DIR_WANT=%08x\n", @edx
+.if (@r8 != 0) { .printf "NV_DIR_ROOT=%p flags=%08x\n", poi(@r8+8), dwo(@r8+0x18); .if (poi(@r8+0x10) != 0) { .printf "NV_DIR_NAME=%msu\n", poi(@r8+0x10) } }
+.if (@r8 != 0) { .if (poi(@r8+8) != 0) { r @$t2=poi(@r8+8); !handle @$t2 4 } }
+bp /1 poi(@rsp) "$$><nv-directory-return.txt"
+gc
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-entry.txt') -Encoding Ascii
+    @'
+.printf "NV_DIR_STATUS=%08x\n", @eax
+gc
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-return.txt') -Encoding Ascii
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $kits
-    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -c "bu kernelbase!CreateAppContainerToken;g" "{1}" --edge-lowbox-trace' -f $symbols, $ProbeExe
+    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -logo "{1}" -c "bu kernelbase!CreateAppContainerToken;g" "{2}" --edge-lowbox-trace' -f $symbols, $rawLog, $ProbeExe
     $start.WorkingDirectory = $work
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -163,10 +178,12 @@ function Trace-SyntheticLowBox {
         $debugger = [Diagnostics.Process]::Start($start)
         $stdout = $debugger.StandardOutput.ReadToEndAsync()
         $stderr = $debugger.StandardError.ReadToEndAsync()
-        # The initial command stops at the exported factory. These commands
-        # are consumed at its prompt and after the traced return.
-        $debugger.StandardInput.WriteLine('wt -l 14 -ns -nw -or')
-        $debugger.StandardInput.WriteLine('q')
+        # Install the NT breakpoint only after stopping at the exported
+        # factory and quit as soon as that one factory call returns.
+        $debugger.StandardInput.WriteLine('bc *')
+        $debugger.StandardInput.WriteLine('bp /1 poi(@rsp) ".echo NV_FACTORY_RETURN; q"')
+        $debugger.StandardInput.WriteLine('bu ntdll!NtOpenDirectoryObject "$$><nv-directory-entry.txt"')
+        $debugger.StandardInput.WriteLine('g')
         $debugger.StandardInput.Flush()
         if (-not $debugger.WaitForExit(18000)) {
             Write-Output 'Synthetic LowBox trace: debugger deadline reached.'
@@ -177,23 +194,46 @@ function Trace-SyntheticLowBox {
             Write-Output 'Synthetic LowBox trace: debugger stream did not close.'
             return
         }
-        # wt prints symbol names and return registers. Exclude command lines,
-        # process paths, registers other than reported returns, and all raw SIDs.
-        $kept = @()
-        foreach ($line in ($stdout.Result -split "`r?`n")) {
-            if ($line -match '^\s*(?:\d+\s+){2}\[\s*\d+\]\s+(?<symbol>(?:ntdll|kernelbase)!(?:Nt[A-Za-z0-9_]{2,64}|Zw[A-Za-z0-9_]{2,64}|CreateAppContainerToken|Basep[A-Za-z0-9_]{2,64}))\b(?<tail>.*)$') {
-                $symbol = $Matches.symbol
-                $tail = $Matches.tail
-                $codes = @([regex]::Matches($tail, '(?i)\b(?:0x)?[0-9a-f]{8}(?:`[0-9a-f]{8})?\b') |
-                    ForEach-Object Value | Select-Object -First 3)
-                $kept += "Synthetic LowBox trace call $symbol returns=$($codes -join ',')"
+        function Classify-ObjectName([string]$Name) {
+            switch -Regex ($Name.Trim()) {
+                '^\\Sessions\\\d+\\BaseNamedObjects\\AppContainerNamedObjects\\?$' { return 'session-base-alias' }
+                '^\\Sessions\\\d+\\AppContainerNamedObjects\\?$' { return 'session-app-root' }
+                '^\\Sessions\\\d+\\AppContainerNamedObjects\\.+' { return 'session-app-child' }
+                '^\\Sessions\\\d+\\BaseNamedObjects\\?$' { return 'session-base-root' }
+                '^\\?AppContainerNamedObjects\\?$' { return 'root-or-relative-app' }
+                '^\\?AppContainerNamedObjects\\.+' { return 'root-or-relative-app-child' }
+                '(?:^|\\)S-1-5-5-\d+-\d+(?:\\|$)' { return 'logon-component' }
+                '^$|^<none>$' { return 'absent' }
+                '^\\' { return 'other-absolute' }
+                default { return 'other-relative' }
             }
         }
-        $kept | Select-Object -First 50 | Write-Output
-        Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); debugger_exited=$($debugger.HasExited)."
-        if (-not $kept.Count) {
-            $raw = $stdout.Result + $stderr.Result
-            Write-Output "Synthetic LowBox trace state: factory_symbol=$($raw -match 'kernelbase!CreateAppContainerToken'); trace_command=$($raw -match 'wt -l 14'); command_error=$($raw -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
+        $raw = if (Test-Path -LiteralPath $rawLog -PathType Leaf) { Get-Content -LiteralPath $rawLog -Raw } else { $stdout.Result }
+        $pending = $null
+        $kept = 0
+        foreach ($line in ($raw -split "`r?`n")) {
+            if ($line -match '^\s*NV_DIR_WANT=(?<mask>[0-9a-f]{8})\s*$') {
+                $pending = @{mask=$Matches.mask; root='unknown'; root_name='unknown'; flags='unknown'; name='absent'}
+            } elseif ($pending -and $line -match '^\s*NV_DIR_ROOT=(?<root>[0-9a-f`]+) flags=(?<flags>[0-9a-f]{8})\s*$') {
+                $pending.root = if ($Matches.root -match '^0+`?0*$') { 'null' } else { 'handle' }
+                $pending.flags = $Matches.flags
+            } elseif ($pending -and $line -match '^\s*NV_DIR_NAME=(?<name>.*)$') {
+                $pending.name = Classify-ObjectName $Matches.name
+            } elseif ($pending -and $line -match '^\s+Name\s+(?<name>.*)$') {
+                $pending.root_name = Classify-ObjectName $Matches.name
+            } elseif ($pending -and $line -match '^\s*NV_DIR_STATUS=(?<status>[0-9a-f]{8})\s*$') {
+                $status = $Matches.status
+                $kept++
+                if ($kept -le 32) {
+                    Write-Output "Synthetic LowBox NtOpenDirectoryObject: mask=0x$($pending.mask) root=$($pending.root) root_kind=$($pending.root_name) flags=$($pending.flags) name_kind=$($pending.name) ntstatus=0x$status"
+                }
+                $pending = $null
+            }
+        }
+        Write-Output "Synthetic LowBox trace: captured_calls=$kept; factory_return=$($raw -match '(?m)^\s*NV_FACTORY_RETURN\s*$'); debugger_exited=$($debugger.HasExited)."
+        if (-not $kept) {
+            $diagnosis = $raw + $stderr.Result
+            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-directory-entry'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
         }
     } catch {
         # Do not print raw debugger command lines/paths.
