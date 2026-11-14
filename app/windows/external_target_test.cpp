@@ -545,6 +545,7 @@ int edge_namespace_control() {
     if (!_wfreopen(L"out\\edge-namespace-control.log", L"wb", stdout)) return 3;
     require(ordinary_token(), "Edge namespace control is not a standard account");
     const auto session = report_session("edge_namespace_control", GetCurrentProcessId(), GetCurrentProcess());
+    observe_renderer_objects(session);
     BOOL in_job = FALSE;
     require(IsProcessInJob(GetCurrentProcess(), nullptr, &in_job) && in_job, "missing outer recipe job in control");
     const DWORD plain = launch_in_test_job(false), ui_limited = launch_in_test_job(true);
@@ -592,7 +593,7 @@ struct RecipeDesktop {
         }
         return !switched && !station_changed;
     }
-    static void log_label(HANDLE object, const char* name) {
+    static std::pair<DWORD, DWORD> log_label(HANDLE object, const char* name) {
         SECURITY_INFORMATION security = LABEL_SECURITY_INFORMATION;
         DWORD needed = 0;
         GetUserObjectSecurity(object, &security, nullptr, 0, &needed);
@@ -601,7 +602,7 @@ struct RecipeDesktop {
             !GetUserObjectSecurity(object, &security, descriptor.data(), needed, &needed)) {
             std::fprintf(stderr, "%s integrity label unreadable (%lu)\n", name,
                          static_cast<unsigned long>(GetLastError()));
-            return;
+            return {UINT32_MAX, 0};
         }
         BOOL present = FALSE, defaulted = FALSE;
         PACL sacl = nullptr;
@@ -613,14 +614,81 @@ struct RecipeDesktop {
                 auto* label = static_cast<SYSTEM_MANDATORY_LABEL_ACE*>(ace);
                 PSID sid = &label->SidStart;
                 if (IsValidSid(sid) && *GetSidSubAuthorityCount(sid)) {
+                    const DWORD level = *GetSidSubAuthority(sid, *GetSidSubAuthorityCount(sid) - 1);
                     std::fprintf(stderr, "%s integrity=0x%04lx mandatory_policy=0x%lx\n", name,
-                        static_cast<unsigned long>(*GetSidSubAuthority(sid, *GetSidSubAuthorityCount(sid) - 1)),
+                        static_cast<unsigned long>(level),
                         static_cast<unsigned long>(label->Mask));
-                    return;
+                    return {level, label->Mask};
                 }
             }
         }
         std::fprintf(stderr, "%s has no explicit integrity label\n", name);
+        return {UINT32_MAX, 0};
+    }
+    static bool sandbox_desktop_aces(HDESK source, std::wstring& additions) {
+        SECURITY_INFORMATION request = DACL_SECURITY_INFORMATION;
+        DWORD length = 0;
+        GetUserObjectSecurity(source, &request, nullptr, 0, &length);
+        std::vector<BYTE> bytes(length && length <= 65536 ? length : 0);
+        if (bytes.empty() || !GetUserObjectSecurity(source, &request, bytes.data(), length, &length)) return false;
+        BOOL present = FALSE, defaulted = FALSE;
+        PACL dacl = nullptr;
+        if (!GetSecurityDescriptorDacl(bytes.data(), &present, &dacl, &defaulted) || !present || !dacl) {
+            SetLastError(ERROR_INVALID_ACL);
+            return false;
+        }
+        struct Entry { const wchar_t* sid; const char* label; DWORD allow = 0, deny = 0; };
+        Entry entries[] = {{L"S-1-5-12", "RestrictedCode"},
+                           {L"S-1-15-2-1", "AllApplicationPackages"},
+                           {L"S-1-15-2-2", "AllRestrictedApplicationPackages"},
+                           {nullptr, "LogonSid"}};
+        GENERIC_MAPPING desktop_generic{
+            READ_CONTROL | DESKTOP_READOBJECTS | DESKTOP_ENUMERATE,
+            READ_CONTROL | DESKTOP_CREATEMENU | DESKTOP_CREATEWINDOW | DESKTOP_HOOKCONTROL |
+                DESKTOP_JOURNALPLAYBACK | DESKTOP_JOURNALRECORD | DESKTOP_WRITEOBJECTS,
+            READ_CONTROL | DESKTOP_SWITCHDESKTOP, desktop_access};
+        for (DWORD n = 0; n < dacl->AceCount; ++n) {
+            void* raw = nullptr;
+            if (!GetAce(dacl, n, &raw)) return false;
+            const auto* head = static_cast<const ACE_HEADER*>(raw);
+            if (head->AceFlags & INHERIT_ONLY_ACE ||
+                (head->AceType != ACCESS_ALLOWED_ACE_TYPE && head->AceType != ACCESS_DENIED_ACE_TYPE)) continue;
+            auto* ace = static_cast<ACCESS_ALLOWED_ACE*>(raw); // simple allow/deny ACEs share this layout
+            LPWSTR text = nullptr;
+            if (!ConvertSidToStringSidW(&ace->SidStart, &text)) return false;
+            DWORD mask = ace->Mask;
+            MapGenericMask(&mask, &desktop_generic);
+            for (auto& entry : entries) {
+                const bool matches = entry.sid ? std::wcscmp(text, entry.sid) == 0 :
+                    std::wcsncmp(text, L"S-1-5-5-", 8) == 0;
+                if (matches) {
+                    if (head->AceType == ACCESS_ALLOWED_ACE_TYPE) entry.allow |= mask;
+                    else entry.deny |= mask;
+                    break;
+                }
+            }
+            LocalFree(text);
+        }
+        // The alternate desktop in Chromium uses the current desktop's DACL.
+        // Keep only rights observed on Default; never copy logon identities or
+        // ownership, hooks, journaling, creating windows/menus or switching it.
+        constexpr DWORD inspect = READ_CONTROL | DESKTOP_READOBJECTS | DESKTOP_ENUMERATE | DESKTOP_WRITEOBJECTS;
+        for (const auto& entry : entries) {
+            const DWORD copy = entry.sid ? (entry.allow & ~entry.deny & inspect) : 0;
+            std::fprintf(stderr, "Original Default ACE %s: allow=0x%lx deny=0x%lx recipe=0x%lx\n",
+                        entry.label, static_cast<unsigned long>(entry.allow),
+                        static_cast<unsigned long>(entry.deny), static_cast<unsigned long>(copy));
+            if (copy) {
+                wchar_t rights[16]{};
+                if (std::swprintf(rights, 16, L"0x%lx", static_cast<unsigned long>(copy)) <= 0) return false;
+                additions += L"(A;;";
+                additions += rights;
+                additions += L";;;";
+                additions += entry.sid;
+                additions += L")";
+            }
+        }
+        return true;
     }
     static DWORD access_with(HANDLE thread_token, const wchar_t* station_name, const wchar_t* desktop_name = nullptr) {
         if (!ImpersonateLoggedOnUser(thread_token)) return GetLastError();
@@ -640,7 +708,7 @@ struct RecipeDesktop {
         }
         return error;
     }
-    bool start(HANDLE token, PSID account) {
+    bool start(HANDLE token, PSID account, bool edge_broker) {
         if (!hosted_recipe()) {
             std::fputs("Run the recipe from an ordinary Windows account; desktop setup is limited to hosted CI.\n", stderr);
             SetLastError(ERROR_ACCESS_DENIED);
@@ -663,13 +731,23 @@ struct RecipeDesktop {
             SetLastError(ERROR_ACCESS_DENIED);
             return false;
         }
-        const auto default_label = OpenDesktopW(desktop_name, 0, FALSE, READ_CONTROL);
-        if (default_label) {
-            log_label(default_label, "Original Default desktop");
-            CloseDesktop(default_label);
+        std::wstring sandbox_aces;
+        const auto default_security = OpenDesktopW(desktop_name, 0, FALSE,
+            READ_CONTROL | DESKTOP_READOBJECTS | DESKTOP_WRITEOBJECTS);
+        if (default_security) {
+            const auto label = log_label(default_security, "Original Default desktop");
+            const bool compatible = !edge_broker ||
+                (label.first == SECURITY_MANDATORY_LOW_RID && label.second == SYSTEM_MANDATORY_LABEL_NO_WRITE_UP &&
+                 sandbox_desktop_aces(default_security, sandbox_aces));
+            CloseDesktop(default_security);
+            if (!compatible) {
+                SetLastError(ERROR_INVALID_SECURITY_DESCR);
+                return false;
+            }
         } else {
-            std::fprintf(stderr, "Default desktop label handle unavailable (%lu)\n",
+            std::fprintf(stderr, "Default desktop security handle unavailable (%lu)\n",
                          static_cast<unsigned long>(GetLastError()));
+            if (edge_broker) return false;
         }
 
         // The logon launcher needs the account on this station and desktop.
@@ -732,7 +810,7 @@ struct RecipeDesktop {
         LPWSTR sid_text = nullptr;
         if (!ConvertSidToStringSidW(account, &sid_text)) return false;
         const std::wstring sddl = std::wstring(L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;") +
-            sid_text + L")S:(ML;;NW;;;ME)";
+            sid_text + L")" + sandbox_aces + (edge_broker ? L"S:(ML;;NW;;;LW)" : L"S:(ML;;NW;;;ME)");
         LocalFree(sid_text);
         PSECURITY_DESCRIPTOR descriptor = nullptr;
         if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &descriptor, nullptr))
@@ -744,14 +822,20 @@ struct RecipeDesktop {
         const auto create_error = temporary ? ERROR_SUCCESS : GetLastError();
         LocalFree(descriptor);
         if (!temporary) { SetLastError(create_error); return false; }
-        log_label(temporary, "Recipe desktop");
+        const auto actual_label = log_label(temporary, "Recipe desktop");
+        if (edge_broker && (actual_label.first != SECURITY_MANDATORY_LOW_RID ||
+                            actual_label.second != SYSTEM_MANDATORY_LABEL_NO_WRITE_UP)) {
+            SetLastError(ERROR_INVALID_SECURITY_DESCR);
+            return false;
+        }
         const DWORD desktop_check = access_with(thread_token.value, station_name, name.c_str());
         std::fprintf(stderr, "Recipe account desktop full access: %lu\n", static_cast<unsigned long>(desktop_check));
         if (desktop_check) { SetLastError(desktop_check); return false; }
         path = std::wstring(station_name) + L"\\" + name;
         if (!SwitchDesktop(temporary)) return false;
         switched = true;
-        std::fputs("Using temporary medium-integrity input desktop. Default was not modified.\n", stderr);
+        std::fputs(edge_broker ? "Using temporary Low input desktop matching Default's mandatory label.\n" :
+            "Using temporary Medium input desktop.\n", stderr);
         return true;
     }
 };
@@ -1039,7 +1123,9 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
         if (!job.value || !SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
             return failure("SetInformationJobObject");
     }
-    if (!desktop.start(account.token.value, account.sid())) return failure("Prepare temporary Windows input desktop");
+    const bool edge_broker = edge_access && std::wcscmp(arguments, L"--edge-namespace-control") != 0;
+    if (!desktop.start(account.token.value, account.sid(), edge_broker))
+        return failure("Prepare temporary Windows input desktop");
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
     startup.lpDesktop = desktop.path.data();
