@@ -1,6 +1,6 @@
 # Registre de suivi · NoteVive
 
-Dernière mise à jour : 13 novembre 2026. Ce registre suit les décisions, les preuves et les suites. Un lot peut être **À faire**, **En cours**, **En revue**, **Vérifié**, **Bloqué** ou **Rouvert**. « Vérifié » porte sur le livrable cité : une étude documentaire ne vaut pas essai Windows.
+Dernière mise à jour : 14 novembre 2026. Ce registre suit les décisions, les preuves et les suites. Un lot peut être **À faire**, **En cours**, **En revue**, **Vérifié**, **Bloqué** ou **Rouvert**. « Vérifié » porte sur le livrable cité : une étude documentaire ne vaut pas essai Windows.
 
 | ID | Statut | Responsable proposé | Résultat ou prochaine preuve |
 | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ Dernière mise à jour : 13 novembre 2026. Ce registre suit les décisions, les 
 | C4 | Vérifié | Coordination | [Flux, risques et revue du pilote](donnees-et-usage.md) et [réemploi GitHub](reemploi.md) documentés. |
 | P0.1 | En cours | Coordination + Windows | [Procédure et inventaire](p0-windows.md) prêts. Relever les configurations de deux postes physiques, dont W1 à 8 Go sans GPU dédié. |
 | P0.2 | En cours | Qualité + praticiens | [Lot dev](../p0/corpus/README.md) : 26 scénarios, 105 attributs et quatre contrôles sans parole générables. Enregistrer et annoter les voix, puis préparer et geler la confirmation privée avec des voix distinctes. |
-| P0.3 | En cours | Moteurs + Windows | [Banc et packs](../p0/README.md) prêts, simulés sur macOS. Préparer le lot de poids/wheels vérifiés, puis exécuter les quatre adaptateurs sur W1/W2. |
+| P0.3 | En cours | Moteurs + Windows | [Comparatif réel sur Mac](p0-choix-moteur.md) terminé. Préparer le lot de poids et wheels vérifiés, mesurer le candidat UltiMed sur W1/W2. |
 | P0.4 | En cours | QA indépendant + suivi | Revue des interfaces et des cas d’échec lancée. Reste la contre-vérification physique, le rapport chiffré et le choix de l’unique configuration distribuée. |
 | P1 | En revue | Développement + QA | [Prototype EXE portable](../app/README.md) compilé pour Windows x64. Vérifier sur Windows l’ouverture hors ligne, la capture, l’éditeur, les notes chiffrées et les interruptions avant qualification. |
 | P2 | À faire | Windows + QA | Matrice de destinations, transfert confirmé, tests de refus et reprise. |
@@ -21,7 +21,7 @@ Dernière mise à jour : 13 novembre 2026. Ce registre suit les décisions, les 
 
 | Décision | État | Condition de clôture |
 | --- | --- | --- |
-| D01 · Poste minimal et moteur unique | Ouverte | Rapport P0 reproductible sur matériel représentatif, configuration retenue et conditions d’indisponibilité justifiées. |
+| D01 · Poste minimal et moteur unique | Candidat retenu, qualification ouverte | [UltiMed INT8 + Silero](p0-choix-moteur.md). Mesurer les ressources et l’affichage sur les deux postes Windows, puis confirmer la fidélité avant distribution. |
 | D02 · Stack WPF et .NET, modèle embarqué | Proposition | Exécutable et moteur validés sur machine neuve hors ligne. |
 | D03 · Niveau de transfert externe | Ouverte | Validation d’un champ et de sa destination ; privilégier l’intégration éditeur en clinique. |
 | D04 · Conservation de l’audio | Proposition : aucune par défaut | Confirmer le besoin de réécoute persistante et le cadre avec le cabinet avant tout ajout. |

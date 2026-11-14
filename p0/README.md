@@ -5,6 +5,7 @@ Ce lot compare le délai de réponse des **moteurs**, leur consommation et leur 
 - [Procédure sur deux PC Windows](../docs/p0-windows.md) : inventaire, conditions de mesure, essais, traces réseau et recette indépendante.
 - [Contrat et métriques du banc](bench/README.md) : protocole du worker, options, fichiers et règles de calcul.
 - [Essai du micro sur Mac](bench/macos-smoke.md) : affichage en direct, fidélité médicale et sauvegarde après relance. Voir aussi [les résultats Mac et le comparatif local](../docs/p0-macos-dictee.md).
+- [Comparatif Whisper–UltiMed et choix du candidat](../docs/p0-choix-moteur.md) : lot PxCorpus, résultats et préparation du rejeu Windows.
 - [Corpus fictif](corpus/README.md) : scripts, attributs à relire, génération des contrôles, constitution du jeu inédit.
 - [Portes de validation des lots suivants](../docs/recette-iterative.md) : interface, interaction, intégrité de la base et transfert.
 
@@ -52,7 +53,7 @@ foreach ($Name in $Names) {
 
 `seal` crée `pack.sha256.json` et refuse de le remplacer ; une variante de test doit partir d’un nouveau dossier de pack. Chaque PC rejoue `verify` **avant** la campagne et conserve le SHA-256 du manifeste. Le worker vérifie la configuration et la taille des poids au lancement, puis reporte l’empreinte du manifeste sans rehacher les modèles dans le chronomètre. Ne plus modifier le dossier après `verify` ; après tout changement, invalider les résultats concernés. Ces contrôles servent à la reproductibilité du banc ; la signature et la protection du pack en production sont à qualifier séparément.
 
-UltiMed reste dans la veille médicale. Son export ONNX n’est pas interchangeable avec celui de sherpa-onnx. Le comparer à son parent par un adaptateur dédié après le premier criblage, sans retarder le banc des quatre packs.
+UltiMed utilise un [adaptateur dédié](adapters/ultimed.md) : son export ONNX n’est pas interchangeable avec celui de sherpa-onnx. Les quatre packs historiques restent disponibles pour le banc ; le [comparatif direct](../docs/p0-choix-moteur.md) documente les configurations Whisper Turbo et UltiMed et le choix du candidat d’intégration.
 
 ## 3. Préparer et exécuter sur chaque PC hors ligne
 

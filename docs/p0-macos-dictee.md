@@ -1,5 +1,7 @@
 # P0 · Dictée médicale sur Mac
 
+Voir aussi le [comparatif direct Whisper–UltiMed et la décision d’intégration](p0-choix-moteur.md). Cette page conserve les résultats du premier essai Mac.
+
 ## Essai au microphone
 
 Sur NoteVive 0.1.3, une dictée fictive a été lue dans le microphone du Mac. Des mots provisoires sont apparus pendant la parole. Après « Arrêter », le brouillon a été enregistré. Après avoir quitté complètement l’application, l’avoir rouverte et avoir rouvert la note, le texte était identique au brouillon final, erreurs comprises.
