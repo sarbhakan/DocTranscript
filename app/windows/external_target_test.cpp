@@ -514,8 +514,7 @@ bool grant_stage_access(const wchar_t* path, PSID account, bool write) {
     if (error == ERROR_SUCCESS && current) {
         EXPLICIT_ACCESSW permission{};
         permission.grfAccessPermissions = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
-        // Browsers need to atomically rename and delete their own cache files.
-        if (write) permission.grfAccessPermissions |= FILE_GENERIC_WRITE | DELETE | FILE_DELETE_CHILD;
+        if (write) permission.grfAccessPermissions |= FILE_GENERIC_WRITE;
         permission.grfAccessMode = GRANT_ACCESS;
         permission.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
         BuildTrusteeWithSidW(&permission.Trustee, account);

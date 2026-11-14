@@ -4,7 +4,7 @@
 param(
     [Parameter(Mandatory)][string]$ProbeExe,
     [string]$EdgeExe,
-    [string]$ScratchRoot
+    [switch]$HostedRecipe
 )
 $ErrorActionPreference = 'Stop'
 if (-not [Environment]::UserInteractive) { throw 'An interactive desktop is required for the Edge smoke test.' }
@@ -99,7 +99,20 @@ function Log-EdgeFailure {
     }
 }
 
-$scratch = if ($ScratchRoot) { (Resolve-Path -LiteralPath $ScratchRoot).Path } else { [IO.Path]::GetTempPath() }
+$scratch = [IO.Path]::GetTempPath()
+if ($HostedRecipe) {
+    # Use the account's loaded Windows profile and its inherited NTFS ACL.
+    # The shared stage is only for scripts and logs, not the browser profile.
+    $homeDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+    $account = [Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[-1]
+    $scratch = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData,
+        [Environment+SpecialFolderOption]::Create)
+    if (-not $homeDirectory -or -not $scratch -or $account -notmatch '^nvrecipe-[0-9a-f]{10}$' -or
+        (Split-Path -Leaf $homeDirectory) -ine $account -or
+        -not $scratch.StartsWith($homeDirectory.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Windows did not provide LocalAppData for the disposable Edge account.'
+    }
+}
 $work = Join-Path $scratch ("notevive-edge-" + [guid]::NewGuid().ToString('N'))
 $profile = Join-Path $work 'profile'
 $portFile = Join-Path $profile 'DevToolsActivePort'
@@ -107,6 +120,15 @@ $edge = $null; $probe = $null; $ws = $null
 $script:sequence = 0
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
+    # Chromium's ProcessSingleton opens a profile lock with DeleteOnClose.
+    # Prove that exact file operation under the browser's identity beforehand.
+    [void][IO.Directory]::CreateDirectory($profile)
+    $lockProbe = Join-Path $profile '.notevive-lock-test'
+    $test = [IO.FileStream]::new($lockProbe, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write,
+        [IO.FileShare]::Read, 4096, [IO.FileOptions]::DeleteOnClose)
+    $test.Dispose()
+    Require (-not (Test-Path -LiteralPath $lockProbe)) 'The temporary profile cannot delete a lock after closing it.'
+    Write-Output 'Edge profile lock preflight passed.'
     $html = Join-Path $work 'note-test.html'
     @'
 <!doctype html>
@@ -131,7 +153,7 @@ try {
         '--new-window', $url)
     # The hosted desktop has no GPU requirement. Leave the rendering path
     # unchanged for a local smoke test from a normal Windows account.
-    if ($ScratchRoot) { $flags += '--disable-gpu' }
+    if ($HostedRecipe) { $flags += '--disable-gpu' }
     $browserStart = [Diagnostics.ProcessStartInfo]::new()
     $browserStart.FileName = $EdgeExe
     $browserStart.Arguments = $flags -join ' '

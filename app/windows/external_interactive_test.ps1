@@ -14,7 +14,7 @@ function Invoke-Recipe {
         & $ProbeExe
         if ($LASTEXITCODE) { throw "Native external target probe exited with code $LASTEXITCODE." }
     } elseif ($ResultFile) {
-        & (Join-Path $PSScriptRoot 'external_edge_test.ps1') -ProbeExe $ProbeExe -ScratchRoot (Split-Path -Parent $ResultFile)
+        & (Join-Path $PSScriptRoot 'external_edge_test.ps1') -ProbeExe $ProbeExe -HostedRecipe
     } else {
         & (Join-Path $PSScriptRoot 'external_edge_test.ps1') -ProbeExe $ProbeExe
     }

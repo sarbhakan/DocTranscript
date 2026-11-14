@@ -41,6 +41,39 @@ void rounded(HDC dc, const RECT& rc, int corner, COLORREF fill, COLORREF edge) {
     RestoreDC(dc, restore);
 }
 
+HFONT make_ui_font(HDC dc, int height, int weight) {
+    LOGFONTW font{};
+    font.lfHeight = height;
+    font.lfWeight = weight;
+    font.lfCharSet = DEFAULT_CHARSET;
+    font.lfPitchAndFamily = VARIABLE_PITCH | FF_SWISS;
+    font.lfQuality = DEFAULT_QUALITY; // Respect the display's text smoothing.
+    const auto try_face = [&](const wchar_t* face) -> HFONT {
+        std::wmemset(font.lfFaceName, 0, LF_FACESIZE);
+        std::wmemcpy(font.lfFaceName, face, std::wcslen(face));
+        const auto candidate = CreateFontIndirectW(&font);
+        if (!candidate || !dc) return candidate;
+        const auto previous = SelectObject(dc, candidate);
+        wchar_t mapped[LF_FACESIZE]{};
+        const bool selected = previous && previous != HGDI_ERROR;
+        const bool known = selected && GetTextFaceW(dc, LF_FACESIZE, mapped);
+        if (selected) SelectObject(dc, previous);
+        if (known && CompareStringOrdinal(mapped, -1, face, -1, TRUE) == CSTR_EQUAL)
+            return candidate;
+        DeleteObject(candidate);
+        return nullptr;
+    };
+    if (weight == FW_SEMIBOLD) {
+        // Segoe UI exposes a named Semibold face on Windows. Ask for it
+        // directly before falling back to weight matching in the family.
+        if (const auto semibold = try_face(L"Segoe UI Semibold")) return semibold;
+    }
+    if (const auto segoe = try_face(L"Segoe UI")) return segoe;
+    if (const auto arial = try_face(L"Arial")) return arial;
+    font.lfFaceName[0] = L'\0'; // Let GDI match the requested sans-serif family.
+    return CreateFontIndirectW(&font);
+}
+
 } // namespace
 
 Layout layout(int width, int height, UINT dpi, bool copy_button, bool external_button) {
@@ -147,19 +180,14 @@ void Theme::refresh(UINT dpi) {
         (contrast.dwFlags & HCF_HIGHCONTRASTON) != 0;
     constexpr std::array<int, at(Font::count)> sizes{15, 29, 15, 21, 13, 14};
     constexpr std::array<int, at(Font::count)> weights{FW_NORMAL, FW_SEMIBOLD, FW_SEMIBOLD, FW_SEMIBOLD, FW_NORMAL, FW_SEMIBOLD};
+    const HDC dc = GetDC(nullptr);
     for (std::size_t i = 0; i != fonts_.size(); ++i) {
-        LOGFONTW font{};
-        font.lfHeight = -scale(sizes[i], dpi_);
-        font.lfWeight = weights[i];
-        font.lfCharSet = DEFAULT_CHARSET;
-        font.lfQuality = CLEARTYPE_QUALITY;
-        constexpr wchar_t face[] = L"Segoe UI";
-        std::copy(std::begin(face), std::end(face), std::begin(font.lfFaceName));
-        if (const auto next = CreateFontIndirectW(&font)) {
+        if (const auto next = make_ui_font(dc, -scale(sizes[i], dpi_), weights[i])) {
             previous_fonts_[i] = fonts_[i];
             fonts_[i] = next;
         }
     }
+    if (dc) ReleaseDC(nullptr, dc);
     constexpr std::array<COLORREF, at(Surface::count)> fills{canvas, card, card, hint};
     for (std::size_t i = 0; i != brushes_.size(); ++i) {
         if (!brushes_[i]) brushes_[i] = CreateSolidBrush(fills[i]);
@@ -322,6 +350,9 @@ void Theme::style_collections(HWND folders, HWND notes) const {
     if (folders) {
         TreeView_SetBkColor(folders, contrast_ ? static_cast<COLORREF>(-1) : card);
         TreeView_SetTextColor(folders, contrast_ ? static_cast<COLORREF>(-1) : text);
+        // Keep HASLINES/LINESATROOT for the native root expander. Hide the
+        // dotted connectors, without changing hierarchy, indentation or keys.
+        TreeView_SetLineColor(folders, contrast_ ? CLR_DEFAULT : card);
         TreeView_SetItemHeight(folders, static_cast<SHORT>(scale(22, dpi_)));
     }
     if (notes) SendMessageW(notes, LB_SETITEMHEIGHT, 0, scale(40, dpi_));
