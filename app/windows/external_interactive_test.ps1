@@ -48,7 +48,7 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hoste
     throw 'Run the external dictation recipe as a standard Windows user. The temporary-account path is hosted CI only.'
 }
 $work = Join-Path $env:PUBLIC ("notevive-interactive-" + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $work | Out-Null
+$created = $false
 try {
     # Keep only program and script copies in this stage. The launcher grants
     # the single recipe account read/execute here and write in out only.
@@ -61,7 +61,15 @@ try {
         )
         $acl.AddAccessRule($rule)
     }
-    Set-Acl -LiteralPath $work -AclObject $acl
+    if (Test-Path -LiteralPath $work) { throw 'The isolated recipe directory already exists.' }
+    # Apply the restricted ACL at creation. Calling .NET directly avoids
+    # loading the Security module into a different PowerShell edition.
+    if ($PSVersionTable.PSEdition -eq 'Desktop') {
+        $null = [IO.Directory]::CreateDirectory($work, $acl)
+    } else {
+        $null = [IO.FileSystemAclExtensions]::CreateDirectory($acl, $work)
+    }
+    $created = $true
     $out = Join-Path $work 'out'
     New-Item -ItemType Directory -Path $out | Out-Null
     $stagedProbe = Join-Path $work 'external-target-test.exe'
@@ -111,5 +119,5 @@ try {
         throw "$Case recipe failed or could not run under the ordinary desktop token."
     }
 } finally {
-    Remove-Item -LiteralPath $work -Recurse -Force
+    if ($created) { Remove-Item -LiteralPath $work -Recurse -Force }
 }
