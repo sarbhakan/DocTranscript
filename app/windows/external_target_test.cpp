@@ -24,6 +24,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -203,6 +204,7 @@ struct NamespaceObservation {
     bool have_directory_api = false;
 };
 NamespaceObservation observe_namespace(DWORD session);
+void observe_renderer_objects(DWORD session);
 
 DWORD launch_in_test_job(bool ui_limits) {
     // Chromium passes its renderer job in this process startup attribute.
@@ -258,6 +260,7 @@ int edge_startup_preflight() {
     std::printf("Edge startup job: inherited=%d ui_limited_job_launch=%lu\n",
                 in_job != FALSE, static_cast<unsigned long>(result));
     if (!in_job && result != ERROR_SUCCESS) return 1;
+    observe_renderer_objects(session);
     return observe_namespace(session).local_mutex == ERROR_SUCCESS ? 0 : 1;
 }
 
@@ -326,8 +329,9 @@ struct RecipeNamespace {
         return true;
     }
 
-    static NTSTATUS open(OpenDirectory call, DWORD session, ACCESS_MASK access, HANDLE& handle) {
-        std::wstring path = L"\\Sessions\\" + std::to_wstring(session) + L"\\BaseNamedObjects";
+    static NTSTATUS open(OpenDirectory call, DWORD session, ACCESS_MASK access, HANDLE& handle,
+                         const wchar_t* name_leaf = L"BaseNamedObjects") {
+        std::wstring path = L"\\Sessions\\" + std::to_wstring(session) + L"\\" + name_leaf;
         UNICODE_STRING name{};
         name.Length = static_cast<USHORT>(path.size() * sizeof(wchar_t));
         name.MaximumLength = static_cast<USHORT>(name.Length + sizeof(wchar_t));
@@ -491,6 +495,52 @@ NamespaceObservation observe_namespace(DWORD session) {
     return result;
 }
 
+void observe_renderer_objects(DWORD session) {
+    // Diagnostics only: no rights are added and no AppContainer is created.
+    // This synthetic restricting SID is not a copy of Edge's renderer token.
+    if (const auto call = RecipeNamespace::api(); call && session && session != UINT32_MAX) {
+        LocalHandle directory;
+        const auto status = RecipeNamespace::open(call, session, 0x3, directory.value, L"AppContainerNamedObjects");
+        std::printf("AppContainerNamedObjects query/traverse: ntstatus=0x%08lx\n",
+                    static_cast<unsigned long>(static_cast<DWORD>(status)));
+    }
+    wchar_t desktop_name[256]{};
+    DWORD length = 0;
+    LocalHandle token, restricted;
+    alignas(DWORD) BYTE sid[SECURITY_MAX_SID_SIZE]{};
+    DWORD size = sizeof(sid);
+    SID_AND_ATTRIBUTES restriction{sid, 0};
+    const auto desk = GetThreadDesktop(GetCurrentThreadId());
+    if (!desk || !GetUserObjectInformationW(desk, UOI_NAME, desktop_name, sizeof(desktop_name), &length) ||
+        !CreateWellKnownSid(WinRestrictedCodeSid, nullptr, sid, &size) ||
+        !OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &token.value) ||
+        !CreateRestrictedToken(token.value, 0, 0, nullptr, 0, nullptr, 1, &restriction, &restricted.value)) {
+        std::printf("Renderer desktop read-only observation unavailable: win32=%lu\n",
+                    static_cast<unsigned long>(GetLastError()));
+        return;
+    }
+    const auto observe = [&] {
+        const auto station = OpenWindowStationW(L"WinSta0", FALSE, WINSTA_READATTRIBUTES);
+        const DWORD station_error = station ? ERROR_SUCCESS : GetLastError();
+        if (station) CloseWindowStation(station);
+        const auto input = OpenDesktopW(desktop_name, 0, FALSE, DESKTOP_READOBJECTS);
+        const DWORD desktop_error = input ? ERROR_SUCCESS : GetLastError();
+        if (input) CloseDesktop(input);
+        return std::pair<DWORD, DWORD>{station_error, desktop_error};
+    };
+    const auto normal = observe();
+    if (!ImpersonateLoggedOnUser(restricted.value)) {
+        std::printf("Synthetic restricted desktop probe unavailable: win32=%lu\n",
+                    static_cast<unsigned long>(GetLastError()));
+        return;
+    }
+    const auto limited = observe();
+    if (!RevertToSelf()) std::terminate();
+    std::printf("Desktop query (synthetic restricting SID): normal station=%lu desktop=%lu; restricted station=%lu desktop=%lu\n",
+                static_cast<unsigned long>(normal.first), static_cast<unsigned long>(normal.second),
+                static_cast<unsigned long>(limited.first), static_cast<unsigned long>(limited.second));
+}
+
 int edge_namespace_control() {
     if (!_wfreopen(L"out\\edge-namespace-control.log", L"wb", stdout)) return 3;
     require(ordinary_token(), "Edge namespace control is not a standard account");
@@ -612,6 +662,14 @@ struct RecipeDesktop {
             // Never replace an active UAC, lock or other test desktop.
             SetLastError(ERROR_ACCESS_DENIED);
             return false;
+        }
+        const auto default_label = OpenDesktopW(desktop_name, 0, FALSE, READ_CONTROL);
+        if (default_label) {
+            log_label(default_label, "Original Default desktop");
+            CloseDesktop(default_label);
+        } else {
+            std::fprintf(stderr, "Default desktop label handle unavailable (%lu)\n",
+                         static_cast<unsigned long>(GetLastError()));
         }
 
         // The logon launcher needs the account on this station and desktop.

@@ -118,6 +118,25 @@ function Select-Editable {
     Require (Eval '(() => { rich.focus(); const r=document.createRange(); r.setStart(rich.firstChild,1); r.collapse(true); const s=getSelection(); s.removeAllRanges(); s.addRange(r); return document.hasFocus() && document.activeElement===rich; })()') 'Edge contenteditable did not receive focus.'
 }
 
+function Log-LaunchHistograms {
+    # Browser-side CDP remains available even without a working renderer.
+    # Log only names and numeric buckets from the fresh synthetic profile.
+    foreach ($query in @('ChildProcess.LaunchFailed', 'Process.Sandbox.Launch.Error')) {
+        try {
+            $snapshot = CDP 'Browser.getHistograms' @{query = $query} -Timeout 2000 -Phase 'child startup telemetry'
+            $histograms = @($snapshot.histograms | Where-Object {
+                $_.name -match '^(ChildProcess\.LaunchFailed\.[A-Za-z0-9_.]{1,80}|Process\.Sandbox\.Launch\.Error)$'
+            } | Select-Object -First 8)
+            Write-Output "Edge startup histogram query $query : $($histograms.Count) matches."
+            foreach ($histogram in $histograms) {
+                $buckets = @($histogram.buckets | Where-Object { $_.count -gt 0 } | Select-Object -First 8 |
+                    ForEach-Object { '[{0},{1})x{2}' -f [long]$_.low, [long]$_.high, [long]$_.count })
+                Write-Output "Edge startup histogram $($histogram.name) count=$([long]$histogram.count) buckets=$($buckets -join ',')."
+            }
+        } catch { Write-Output $_.Exception.Message }
+    }
+}
+
 function Log-EdgeFailure {
     if ($edge) {
         $state = if ($edge.HasExited) { 'exited 0x{0:X8}' -f $edge.ExitCode } else { 'still running' }
@@ -132,10 +151,16 @@ function Log-EdgeFailure {
     }
     # Only logs from the new synthetic profile. Bound the amount printed and
     # never inspect any existing profile or browsing data.
-    foreach ($debug in @((Join-Path $profile 'chrome_debug.log'), (Join-Path $profile 'msedge_debug.log'))) {
+    foreach ($debug in @($launchLog, (Join-Path $profile 'chrome_debug.log'), (Join-Path $profile 'msedge_debug.log'))) {
         if (Test-Path -LiteralPath $debug -PathType Leaf) {
-            Get-Content -LiteralPath $debug -Tail 6 -ErrorAction SilentlyContinue |
-                ForEach-Object { Write-Output ("Edge startup log: " + $_.Substring(0, [Math]::Min($_.Length, 300))) }
+            $tail = @(Get-Content -LiteralPath $debug -Tail 160 -ErrorAction SilentlyContinue)
+            $relevant = @($tail | Where-Object {
+                $_ -match '\b(sandbox|broker|renderer|create_process|child_process_launcher|win32k|access.+denied)\b'
+            } | Select-Object -Last 12)
+            if (-not $relevant.Count) { $relevant = @($tail | Select-Object -Last 4) }
+            foreach ($line in $relevant) {
+                Write-Output ('Edge startup log: ' + $line.Substring(0, [Math]::Min($line.Length, 400)))
+            }
         }
     }
     if ($browserConnection -and $browserConnection.State -eq [Net.WebSockets.WebSocketState]::Open) {
@@ -148,6 +173,7 @@ function Log-EdgeFailure {
                 if ($_.Name -match '^[A-Za-z0-9 _-]{1,32}$') { Write-Output "Edge profile process role $($_.Name): $($_.Count)" }
             }
         } catch { Write-Output $_.Exception.Message }
+        if ($browserConnection.State -eq [Net.WebSockets.WebSocketState]::Open) { Log-LaunchHistograms }
     }
 }
 
@@ -168,6 +194,7 @@ if ($HostedRecipe) {
 $work = Join-Path $scratch ("notevive-edge-" + [guid]::NewGuid().ToString('N'))
 $profile = Join-Path $work 'profile'
 $portFile = Join-Path $profile 'DevToolsActivePort'
+$launchLog = Join-Path $work 'edge-startup.log'
 $edge = $null; $probe = $null; $ws = $null; $browserConnection = $null
 $script:cdpSequence = 0
 New-Item -ItemType Directory -Path $work | Out-Null
@@ -198,7 +225,8 @@ try {
     # of 0 is assigned by Edge; DevToolsActivePort identifies that listener.
     $flags = @("--user-data-dir=`"$profile`"", '--remote-debugging-port=0',
         '--remote-debugging-address=127.0.0.1', '--no-first-run', '--no-default-browser-check',
-        '--enable-logging',
+        '--enable-logging', "--log-file=`"$launchLog`"",
+        '--vmodule=child_process_launcher_helper*=1,sandbox_win=1,broker_services=1,render_process_host_impl=1',
         '--disable-background-networking', '--disable-sync', '--disable-component-update',
         '--disable-default-apps', '--disable-extensions', '--no-proxy-server',
         '--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost"',
