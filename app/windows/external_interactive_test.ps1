@@ -118,6 +118,10 @@ try {
     } elseif ($control -ccontains 'Edge namespace control: test 0x8 addition.') {
         $namespaceOption = '--edge-session-with-subdirectories'
     } else { throw 'The Edge namespace control did not return a supported result.' }
+    $jobOption = @()
+    if ($control -ccontains 'Edge job control: remove recipe container.') {
+        $jobOption = @('--edge-with-own-jobs')
+    }
 
     $result = Join-Path $out 'result'
     $bootstrap = @'
@@ -133,7 +137,7 @@ try {
 '@
     Set-Content -LiteralPath (Join-Path $work 'edge-bootstrap.ps1') -Value $bootstrap
     $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -File .\edge-bootstrap.ps1' $work $namespaceOption
+    & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -File .\edge-bootstrap.ps1' $work $namespaceOption @jobOption
     $status = $LASTEXITCODE
     $bootstrapLog = Join-Path $out 'bootstrap.log'
     if (Test-Path -LiteralPath $bootstrapLog) { Get-Content -LiteralPath $bootstrapLog }

@@ -306,8 +306,9 @@ try {
     if ($ws -and $ws -ne $browserConnection) { $ws.Dispose() }
     if ($browserConnection) { $browserConnection.Dispose() }
     if ($edge) {
-        # Terminate only the instance created with the disposable profile.
-        if (-not $edge.HasExited) { & taskkill.exe /PID $edge.Id /T /F 2>$null | Out-Null }
+        # Keep process cleanup bound to the instance handle. In hosted CI
+        # the launcher separately verifies the disposable SID's process list.
+        if (-not $edge.HasExited) { $edge.Kill() }
         $edge.Dispose()
     }
     Remove-Item -LiteralPath $work -Force -Recurse -ErrorAction SilentlyContinue

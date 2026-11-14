@@ -187,7 +187,7 @@ def main():
                               libraries=['user32']))
         external_probe = target('external-target-test.exe', [WIN / 'external_target.cpp', WIN / 'external_target_test.cpp'],
                                 libraries=['user32', 'advapi32', 'ole32', 'oleaut32', 'uuid',
-                                           'bcrypt', 'netapi32', 'userenv'], wide_main=True)
+                                           'bcrypt', 'netapi32', 'userenv', 'wtsapi32'], wide_main=True)
         targets.append(external_probe)
         commands.append([external_probe[0]])
     if args.package:

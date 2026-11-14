@@ -15,6 +15,7 @@
 #include <sddl.h>
 #include <userenv.h>
 #include <winternl.h>
+#include <wtsapi32.h>
 
 #include <cstdio>
 #include <cstdint>
@@ -203,9 +204,60 @@ struct NamespaceObservation {
 };
 NamespaceObservation observe_namespace(DWORD session);
 
+DWORD launch_in_test_job(bool ui_limits) {
+    // Chromium passes its renderer job in this process startup attribute.
+    // The two arms change only the UI limits; the test executable never runs.
+    LocalHandle job{CreateJobObjectW(nullptr, nullptr)};
+    require(job.value, "job control: create inner job");
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION cleanup{};
+    cleanup.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    require(SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &cleanup, sizeof(cleanup)),
+            "job control: configure inner job cleanup");
+    if (ui_limits) {
+        JOBOBJECT_BASIC_UI_RESTRICTIONS restrictions{JOB_OBJECT_UILIMIT_HANDLES};
+        require(SetInformationJobObject(job.value, JobObjectBasicUIRestrictions, &restrictions, sizeof(restrictions)),
+                "job control: configure inner job UI limits");
+    }
+    wchar_t executable[MAX_PATH]{};
+    const auto length = GetModuleFileNameW(nullptr, executable, MAX_PATH);
+    require(length && length < MAX_PATH, "job control: executable path");
+    SIZE_T size = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
+    require(size && size <= 65536, "job control: attribute size");
+    std::vector<BYTE> storage(size);
+    STARTUPINFOEXW startup{};
+    startup.StartupInfo.cb = sizeof(startup);
+    startup.lpAttributeList = reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(storage.data());
+    require(InitializeProcThreadAttributeList(startup.lpAttributeList, 1, 0, &size),
+            "job control: initialize attributes");
+    if (!UpdateProcThreadAttribute(startup.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST,
+                                   &job.value, sizeof(job.value), nullptr, nullptr)) {
+        DeleteProcThreadAttributeList(startup.lpAttributeList);
+        throw std::runtime_error("job control: set inner job attribute");
+    }
+    PROCESS_INFORMATION child{};
+    const BOOL launched = CreateProcessW(executable, nullptr, nullptr, nullptr, FALSE,
+        CREATE_SUSPENDED | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT,
+        nullptr, nullptr, &startup.StartupInfo, &child);
+    const DWORD error = launched ? ERROR_SUCCESS : GetLastError();
+    DeleteProcThreadAttributeList(startup.lpAttributeList);
+    if (launched) {
+        LocalHandle process{child.hProcess}, thread{child.hThread};
+        require(TerminateProcess(process.value, 0) && WaitForSingleObject(process.value, 1000) == WAIT_OBJECT_0,
+                "job control: stop the suspended process");
+    }
+    return error;
+}
+
 int edge_startup_preflight() {
     if (!ordinary_token()) return 1;
     const auto session = report_session("edge_recipe", GetCurrentProcessId(), GetCurrentProcess());
+    BOOL in_job = FALSE;
+    require(IsProcessInJob(GetCurrentProcess(), nullptr, &in_job), "read Edge recipe job membership");
+    const DWORD result = launch_in_test_job(true);
+    std::printf("Edge startup job: inherited=%d ui_limited_job_launch=%lu\n",
+                in_job != FALSE, static_cast<unsigned long>(result));
+    if (!in_job && result != ERROR_SUCCESS) return 1;
     return observe_namespace(session).local_mutex == ERROR_SUCCESS ? 0 : 1;
 }
 
@@ -443,6 +495,13 @@ int edge_namespace_control() {
     if (!_wfreopen(L"out\\edge-namespace-control.log", L"wb", stdout)) return 3;
     require(ordinary_token(), "Edge namespace control is not a standard account");
     const auto session = report_session("edge_namespace_control", GetCurrentProcessId(), GetCurrentProcess());
+    BOOL in_job = FALSE;
+    require(IsProcessInJob(GetCurrentProcess(), nullptr, &in_job) && in_job, "missing outer recipe job in control");
+    const DWORD plain = launch_in_test_job(false), ui_limited = launch_in_test_job(true);
+    std::printf("Edge job control: inherited=1 plain=%lu ui_limited=%lu\n",
+                static_cast<unsigned long>(plain), static_cast<unsigned long>(ui_limited));
+    if (plain == ERROR_SUCCESS && ui_limited != ERROR_SUCCESS)
+        std::puts("Edge job control: remove recipe container.");
     const auto result = observe_namespace(session);
     if (result.local_mutex == ERROR_SUCCESS) {
         std::puts("Edge namespace control: use 0x7.");
@@ -645,7 +704,7 @@ struct RecipeAccount {
     std::vector<BYTE> sid_storage;
     wchar_t password[41]{};
     LocalHandle token;
-    bool created = false, launch_succeeded = false;
+    bool created = false, launch_succeeded = false, profile_quiet = true;
 
     ~RecipeAccount() {
         if (!cleanup()) std::fputs("Unable to remove test account or profile.\n", stderr);
@@ -684,7 +743,7 @@ struct RecipeAccount {
             CloseHandle(token.value);
             token.value = nullptr;
         }
-        if (launch_succeeded && !sid_string.empty()) {
+        if (launch_succeeded && profile_quiet && !sid_string.empty()) {
             bool deleted = false;
             for (unsigned n = 0; n < 20 && !deleted; ++n) {
                 deleted = DeleteProfileW(sid_string.c_str(), nullptr, nullptr) != FALSE;
@@ -816,8 +875,79 @@ bool stage_directory(const wchar_t* directory) {
     return normal_directory(public_directory) && normal_directory(path) && normal_directory(path + L"\\out");
 }
 
+struct RecipeProcessCleanup {
+    RecipeAccount& account;
+    DWORD session = UINT32_MAX;
+    bool active = false, unconfirmed_stop = false;
+
+    ~RecipeProcessCleanup() {
+        if (active) stop();
+    }
+
+    void terminate(DWORD pid, ULONGLONG cutoff) {
+        // Recheck identity after opening the handle: WTS's PID could have
+        // referred to a process that exited while we were enumerating.
+        constexpr DWORD access = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | SYNCHRONIZE;
+        LocalHandle process, token;
+        const auto open_query_handles = [&] {
+            if (!process.value) process.value = OpenProcess(access, FALSE, pid);
+            return process.value && OpenProcessToken(process.value, TOKEN_QUERY, &token.value);
+        };
+        bool queryable = open_query_handles();
+        if (!queryable && GetLastError() == ERROR_ACCESS_DENIED && ImpersonateLoggedOnUser(account.token.value)) {
+            queryable = open_query_handles();
+            if (!RevertToSelf()) std::terminate();
+        }
+        DWORD length = 0, token_session = UINT32_MAX;
+        if (!queryable || WaitForSingleObject(process.value, 0) == WAIT_OBJECT_0 ||
+            !GetTokenInformation(token.value, TokenSessionId, &token_session, sizeof(token_session), &length) ||
+            token_session != session)
+            return;
+        length = 0;
+        GetTokenInformation(token.value, TokenUser, nullptr, 0, &length);
+        std::vector<BYTE> user(length && length <= 4096 ? length : 0);
+        if (user.empty() || !GetTokenInformation(token.value, TokenUser, user.data(), length, &length)) return;
+        const auto sid = reinterpret_cast<const TOKEN_USER*>(user.data())->User.Sid;
+        if (!IsValidSid(sid) || !EqualSid(account.sid(), sid)) return;
+        // Termination is asynchronous, including a race with normal exit.
+        // Verify the same process handle before closing it.
+        TerminateProcess(process.value, 1);
+        const auto now = GetTickCount64();
+        const DWORD remaining_ms = now < cutoff ? static_cast<DWORD>(cutoff - now) : 0;
+        if (WaitForSingleObject(process.value, remaining_ms) != WAIT_OBJECT_0) unconfirmed_stop = true;
+    }
+
+    bool stop() {
+        if (!active) return true;
+        const auto cutoff = GetTickCount64() + 3000;
+        do {
+            PWTS_PROCESS_INFOW entries = nullptr;
+            DWORD length = 0, remaining = 0;
+            if (!WTSEnumerateProcessesW(WTS_CURRENT_SERVER_HANDLE, 0, 1, &entries, &length)) break;
+            for (DWORD n = 0; n < length; ++n) {
+                const auto& entry = entries[n];
+                if (entry.SessionId == session && entry.pUserSid && EqualSid(account.sid(), entry.pUserSid)) {
+                    ++remaining;
+                    terminate(entry.ProcessId, cutoff);
+                }
+            }
+            WTSFreeMemory(entries);
+            if (!remaining && !unconfirmed_stop) {
+                active = false;
+                account.profile_quiet = true;
+                std::fputs("Edge account process cleanup: verified zero remaining.\n", stderr);
+                return true;
+            }
+            if (unconfirmed_stop) break;
+            Sleep(100);
+        } while (GetTickCount64() < cutoff);
+        std::fputs("Edge account process cleanup could not verify zero remaining; profile deletion skipped.\n", stderr);
+        return false;
+    }
+};
+
 int launch_standard(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory,
-                    ACCESS_MASK edge_access) {
+                    ACCESS_MASK edge_access, bool edge_owns_jobs) {
     if (!hosted_recipe()) {
         std::fputs("Temporary local accounts are only used on hosted GitHub Actions.\n", stderr);
         return 1;
@@ -832,6 +962,8 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     RecipeDesktop desktop;
     RecipeNamespace named_objects;
     LocalHandle job;
+    LocalHandle child_process, child_thread;
+    RecipeProcessCleanup browser_processes{account};
     const auto failure = [](const char* operation) {
         const auto error = GetLastError();
         std::fprintf(stderr, "%s failed (Windows error %lu)\n", operation, static_cast<unsigned long>(error));
@@ -842,11 +974,13 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     if (!grant_stage_access(directory, account.sid(), false) || !grant_stage_access(output.c_str(), account.sid(), true))
         return failure("Grant access to isolated test files");
 
-    job.value = CreateJobObjectW(nullptr, nullptr);
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
-    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    if (!job.value || !SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
-        return failure("SetInformationJobObject");
+    if (!edge_owns_jobs) {
+        job.value = CreateJobObjectW(nullptr, nullptr);
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if (!job.value || !SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
+            return failure("SetInformationJobObject");
+    }
     if (!desktop.start(account.token.value, account.sid())) return failure("Prepare temporary Windows input desktop");
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
@@ -863,10 +997,24 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
         return failure("CreateProcessWithLogonW for the standard account");
     account.launch_succeeded = true;
     SecureZeroMemory(account.password, sizeof(account.password));
-    LocalHandle child_process{child.hProcess}, child_thread{child.hThread};
-    report_session("recipe_launcher", GetCurrentProcessId(), GetCurrentProcess());
-    report_session("recipe_child", child.dwProcessId, child.hProcess);
-    if (!AssignProcessToJobObject(job.value, child_process.value)) {
+    child_process.value = child.hProcess;
+    child_thread.value = child.hThread;
+    const auto launcher_session = report_session("recipe_launcher", GetCurrentProcessId(), GetCurrentProcess());
+    const auto child_session = report_session("recipe_child", child.dwProcessId, child.hProcess);
+    if (edge_owns_jobs) {
+        BOOL inherited = FALSE;
+        if (child_session == UINT32_MAX || child_session != launcher_session ||
+            !IsProcessInJob(child_process.value, nullptr, &inherited) || inherited) {
+            TerminateProcess(child_process.value, 1);
+            account.profile_quiet = WaitForSingleObject(child_process.value, 1000) == WAIT_OBJECT_0;
+            std::fputs("Cannot verify the suspended Edge recipe is in the same session outside any outer job.\n", stderr);
+            return 1;
+        }
+        browser_processes.session = child_session;
+        browser_processes.active = true;
+        account.profile_quiet = false;
+        std::fputs("Edge recipe starts with its own sandbox jobs, without a recipe job.\n", stderr);
+    } else if (!AssignProcessToJobObject(job.value, child_process.value)) {
         const auto code = failure("AssignProcessToJobObject");
         TerminateProcess(child_process.value, 1);
         return code;
@@ -884,7 +1032,8 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     if (!GetExitCodeProcess(child_process.value, &elapsed_code)) return failure("GetExitCodeProcess");
     std::fprintf(stderr, "Standard test process exit: 0x%08lx (%lu)\n",
                  static_cast<unsigned long>(elapsed_code), static_cast<unsigned long>(elapsed_code));
-    TerminateJobObject(job.value, 1); // No browser/fixture descendants on the retired desktop.
+    if (job.value) TerminateJobObject(job.value, 1);
+    if (!browser_processes.stop()) return 1;
     if (!named_objects.restore()) {
         std::fputs("Restoring the session named-object DACL failed.\n", stderr);
         return 1;
@@ -1078,15 +1227,17 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 2 && std::wcscmp(argv[1], L"--edge-namespace-control") == 0)
             return edge_namespace_control();
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
-        if ((argc == 5 || argc == 6) && std::wcscmp(argv[1], L"--launch-standard") == 0) {
+        if ((argc == 5 || argc == 6 || argc == 7) && std::wcscmp(argv[1], L"--launch-standard") == 0) {
             ACCESS_MASK access = 0;
-            if (argc == 6) {
+            if (argc >= 6) {
                 if (std::wcscmp(argv[5], L"--edge-session") == 0) access = RecipeNamespace::recipe_access;
                 else if (std::wcscmp(argv[5], L"--edge-session-with-subdirectories") == 0)
                     access = RecipeNamespace::with_subdirectory;
                 else return 2;
             }
-            return launch_standard(argv[2], argv[3], argv[4], access);
+            const bool edge_owns_jobs = argc == 7 && std::wcscmp(argv[6], L"--edge-with-own-jobs") == 0;
+            if (argc == 7 && !edge_owns_jobs) return 2;
+            return launch_standard(argv[2], argv[3], argv[4], access, edge_owns_jobs);
         }
         if (argc == 2 && std::wcscmp(argv[1], L"--native-standard") == 0) {
             if (!_wfreopen(L"out\\native.log", L"wb", stderr)) return 3;
