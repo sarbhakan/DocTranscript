@@ -121,12 +121,14 @@ function Select-Editable {
 function Log-LaunchHistograms {
     # Browser-side CDP remains available even without a working renderer.
     # Log only names and numeric buckets from the fresh synthetic profile.
-    foreach ($query in @('ChildProcess.LaunchFailed', 'Process.Sandbox.Launch.Error')) {
+    foreach ($query in @('BrowserRenderProcessHost.ChildLaunch', 'ChildProcess.LaunchFailed', 'Process.Sandbox.Launch')) {
         try {
             $snapshot = CDP 'Browser.getHistograms' @{query = $query} -Timeout 2000 -Phase 'child startup telemetry'
             $histograms = @($snapshot.histograms | Where-Object {
-                $_.name -match '^(ChildProcess\.LaunchFailed\.[A-Za-z0-9_.]{1,80}|Process\.Sandbox\.Launch\.Error)$'
-            } | Select-Object -First 8)
+                $_.name -match '^(ChildProcess\.LaunchFailed|Process\.Sandbox\.Launch)(\.[A-Za-z0-9_.]{1,80})?$' -or
+                $_.name -eq 'BrowserRenderProcessHost.ChildLaunchFailureCodes'
+            } | Sort-Object @{Expression={ if ($_.name -match 'Error|Result|Fail') {0} else {1} }} |
+                Select-Object -First 12)
             Write-Output "Edge startup histogram query $query : $($histograms.Count) matches."
             foreach ($histogram in $histograms) {
                 $buckets = @($histogram.buckets | Where-Object { $_.count -gt 0 } | Select-Object -First 8 |

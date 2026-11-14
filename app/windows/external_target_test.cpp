@@ -206,6 +206,31 @@ struct NamespaceObservation {
 NamespaceObservation observe_namespace(DWORD session);
 void observe_renderer_objects(DWORD session);
 
+void observe_self_token_access() {
+    // Request handles to this ephemeral account's own token. No privilege is
+    // enabled and any duplicate is closed without use in a process or thread.
+    struct Check { const char* name; DWORD mask; };
+    constexpr Check checks[] = {{"query_duplicate", TOKEN_QUERY | TOKEN_DUPLICATE},
+        {"assign_primary", TOKEN_ASSIGN_PRIMARY}, {"assignable", TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY},
+        {"all", TOKEN_ALL_ACCESS}};
+    for (const auto& check : checks) {
+        LocalHandle opened;
+        const DWORD result = OpenProcessToken(GetCurrentProcess(), check.mask, &opened.value) ?
+            ERROR_SUCCESS : GetLastError();
+        std::printf("Edge standard self token open %s: win32=%lu\n",
+                    check.name, static_cast<unsigned long>(result));
+    }
+    LocalHandle original;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &original.value)) return;
+    for (const auto& check : checks) {
+        LocalHandle copy;
+        const DWORD result = DuplicateTokenEx(original.value, check.mask, nullptr,
+            SecurityImpersonation, TokenPrimary, &copy.value) ? ERROR_SUCCESS : GetLastError();
+        std::printf("Edge standard self token duplicate %s: win32=%lu\n",
+                    check.name, static_cast<unsigned long>(result));
+    }
+}
+
 DWORD launch_in_test_job(bool ui_limits) {
     // Chromium passes its renderer job in this process startup attribute.
     // The two arms change only the UI limits; the test executable never runs.
@@ -254,6 +279,7 @@ DWORD launch_in_test_job(bool ui_limits) {
 int edge_startup_preflight() {
     if (!ordinary_token()) return 1;
     const auto session = report_session("edge_recipe", GetCurrentProcessId(), GetCurrentProcess());
+    observe_self_token_access();
     BOOL in_job = FALSE;
     require(IsProcessInJob(GetCurrentProcess(), nullptr, &in_job), "read Edge recipe job membership");
     const DWORD result = launch_in_test_job(true);
@@ -1201,16 +1227,104 @@ std::wstring text(HWND edit) {
                                 SMTO_ABORTIFHUNG | SMTO_BLOCK, 100, &ignored), "read isolated fixture");
     return value;
 }
-Result capture(Target& target, HWND owner) {
+const char* result_id(Result result);
+
+struct NativeCaptureProbe {
+    HWND window, edit;
+    DWORD pid;
+    struct Focus {
+        bool desktop = false, foreground = false, active = false, caret_window = false, matching_thread = false;
+        DWORD gui_flags = 0, gui_error = 0, desktop_error = 0;
+    };
+    Focus focus_now() const {
+        Focus result;
+        const auto input = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
+        result.desktop_error = input ? ERROR_SUCCESS : GetLastError();
+        if (input) {
+            wchar_t actual[256]{}, caller[256]{};
+            DWORD length = 0;
+            const auto thread = GetThreadDesktop(GetCurrentThreadId());
+            result.desktop = thread &&
+                GetUserObjectInformationW(input, UOI_NAME, actual, sizeof(actual), &length) &&
+                GetUserObjectInformationW(thread, UOI_NAME, caller, sizeof(caller), &length) &&
+                std::wcscmp(actual, caller) == 0;
+            CloseDesktop(input);
+        }
+        result.foreground = GetForegroundWindow() == window;
+        DWORD owner_pid = 0, edit_pid = 0;
+        const auto tid = GetWindowThreadProcessId(window, &owner_pid);
+        const auto edit_tid = GetWindowThreadProcessId(edit, &edit_pid);
+        result.matching_thread = tid && tid == edit_tid && owner_pid == pid && edit_pid == pid;
+        GUITHREADINFO gui{};
+        gui.cbSize = sizeof(gui);
+        if (tid && GetGUIThreadInfo(tid, &gui)) {
+            result.gui_flags = gui.flags;
+            result.active = gui.hwndActive == window;
+            result.caret_window = gui.hwndFocus == edit && GetAncestor(edit, GA_ROOT) == window;
+        } else result.gui_error = tid ? GetLastError() : ERROR_INVALID_WINDOW_HANDLE;
+        return result;
+    }
+    static void log_focus(const char* phase, const Focus& f) {
+        std::fprintf(stderr, "Native capture %s: input=%d input_error=%lu expected_foreground=%d active=%d "
+            "expected_field=%d target_thread=%d gui_flags=0x%lx gui_error=%lu\n",
+            phase, f.desktop, static_cast<unsigned long>(f.desktop_error), f.foreground, f.active,
+            f.caret_window, f.matching_thread, static_cast<unsigned long>(f.gui_flags),
+            static_cast<unsigned long>(f.gui_error));
+    }
+    void log_control() const {
+        // Messages here only reach the known fictitious editor, never whichever
+        // program happens to have foreground during the failure.
+        DWORD actual = 0;
+        wchar_t name[32]{};
+        if (!edit || !GetWindowThreadProcessId(edit, &actual) || actual != pid ||
+            GetAncestor(edit, GA_ROOT) != window || !RealGetWindowClassW(edit, name, 32) ||
+            CompareStringOrdinal(name, -1, L"EDIT", -1, TRUE) != CSTR_EQUAL) {
+            std::fputs("Native capture fixture is no longer the known EDIT.\n", stderr);
+            return;
+        }
+        const auto timed = [&](const char* label, UINT message, WPARAM w, LPARAM l, DWORD_PTR& value) {
+            SetLastError(ERROR_SUCCESS);
+            const bool ok = SendMessageTimeoutW(edit, message, w, l,
+                SMTO_ABORTIFHUNG | SMTO_BLOCK | SMTO_ERRORONEXIT, 100, &value) != 0;
+            const DWORD error = ok ? ERROR_SUCCESS : GetLastError();
+            std::fprintf(stderr, "Native capture diagnostic %s: ok=%d error=%lu\n",
+                         label, ok, static_cast<unsigned long>(error));
+            return ok;
+        };
+        DWORD first = MAXDWORD, last = MAXDWORD;
+        DWORD_PTR ignored = 0, password = 0, size = 0, limit = 0;
+        const bool pass = timed("password probe", EM_GETPASSWORDCHAR, 0, 0, password);
+        const bool select = timed("caret probe", EM_GETSEL, reinterpret_cast<WPARAM>(&first),
+                                  reinterpret_cast<LPARAM>(&last), ignored);
+        const bool measure = timed("text-length probe", WM_GETTEXTLENGTH, 0, 0, size);
+        const bool capacity = timed("limit probe", EM_GETLIMITTEXT, 0, 0, limit);
+        std::fprintf(stderr, "Native capture fixture: visible=%d enabled=%d unicode=%d password=%d "
+            "collapsed=%d position_valid=%d limit_valid=%d\n",
+            IsWindowVisible(window) && IsWindowVisible(edit), IsWindowEnabled(window) && IsWindowEnabled(edit),
+            IsWindowUnicode(edit) != 0, pass && password != 0, select && first != MAXDWORD && first == last,
+            select && measure && last <= size, measure && capacity && size <= limit);
+    }
+};
+
+Result capture(Target& target, HWND owner, const NativeCaptureProbe* probe = nullptr) {
     target.reset();
     Sleep(30); // Do not race the previous native test's worker shutdown.
     pump();
-    const auto status = target.capture(owner);
-    if (status != Result::pending) return status;
-    require(within([&] { return target.check() != Result::pending; }), "capture deadline");
-    return target.check();
+    const auto before = probe ? probe->focus_now() : NativeCaptureProbe::Focus{};
+    const auto start = GetTickCount64();
+    const auto status = target.capture(owner, probe ? probe->window : nullptr, probe ? probe->pid : 0);
+    const bool completed = status != Result::pending || within([&] { return target.check() != Result::pending; });
+    const auto result = status == Result::pending ? target.check() : status;
+    if (probe && (!completed || result != Result::ready)) {
+        std::fprintf(stderr, "Native capture start=%s final=%s waited_ms=%llu\n",
+            result_id(status), result_id(result), static_cast<unsigned long long>(GetTickCount64() - start));
+        NativeCaptureProbe::log_focus("before", before);
+        NativeCaptureProbe::log_focus("after", probe->focus_now());
+        probe->log_control();
+    }
+    require(completed, "capture deadline");
+    return result;
 }
-const char* result_id(Result result);
 
 int run(bool test_clipboard) {
     const HINSTANCE instance = GetModuleHandleW(nullptr);
@@ -1239,7 +1353,8 @@ int run(bool test_clipboard) {
     }), "probe windows missing");
     require(focus(proc.first, kFirst), "probe desktop not interactive or focus denied");
     Target target;
-    const auto initial = capture(target, owner);
+    const NativeCaptureProbe probe{proc.first, field(proc.first, kFirst), child_process.dwProcessId};
+    const auto initial = capture(target, owner, &probe);
     if (initial != Result::ready) {
         token_environment("probe", GetCurrentProcess());
         token_environment("fixture", proc.process);
