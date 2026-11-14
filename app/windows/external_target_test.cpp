@@ -316,6 +316,9 @@ struct RecipeNamespace {
     // Some Win32-compatible implementations additionally request this right
     // when obtaining the namespace handle, regardless of the object type.
     static constexpr ACCESS_MASK with_subdirectory = recipe_access | 0x0008;
+    // The hosted Windows trace of CreateAppContainerToken independently
+    // showed an open of BaseNamedObjects with exactly this access.
+    static constexpr ACCESS_MASK lowbox_read = READ_CONTROL | 0x0001 | 0x0002;
     static constexpr NTSTATUS denied = static_cast<NTSTATUS>(0xc0000022u);
     using OpenDirectory = NTSTATUS (NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
     enum class Kind { base, app_container };
@@ -433,13 +436,17 @@ struct RecipeNamespace {
         return true;
     }
 
-    bool start(DWORD pid, HANDLE process, HANDLE logon_token, PSID account, ACCESS_MASK access) {
+    bool start(DWORD pid, HANDLE process, HANDLE logon_token, PSID account, ACCESS_MASK access,
+               bool lowbox_broker = false) {
         if (!hosted_recipe()) { SetLastError(ERROR_ACCESS_DENIED); return false; }
-        if ((kind == Kind::app_container && access != with_subdirectory) ||
+        if ((kind == Kind::app_container && (access != with_subdirectory || lowbox_broker)) ||
             (access != recipe_access && access != with_subdirectory)) {
             SetLastError(ERROR_INVALID_PARAMETER);
             return false;
         }
+        // The control retains its original mask; only the actual standard-user
+        // Edge arm gets the extra READ_CONTROL bit on BaseNamedObjects.
+        if (lowbox_broker) access |= lowbox_read;
         DWORD parent_session = 0, session = 0;
         if (!ProcessIdToSessionId(GetCurrentProcessId(), &parent_session) || !ProcessIdToSessionId(pid, &session))
             return false;
@@ -522,9 +529,11 @@ NamespaceObservation observe_namespace(DWORD session) {
         };
         result.minimum = check(RecipeNamespace::recipe_access);
         result.with_subdirectory = check(RecipeNamespace::with_subdirectory);
-        std::printf("Actual child directory: mask_0x7=0x%08lx mask_0xf=0x%08lx\n",
+        const auto lowbox_read = check(RecipeNamespace::lowbox_read);
+        std::printf("Actual child directory: mask_0x7=0x%08lx mask_0xf=0x%08lx mask_0x20003=0x%08lx\n",
                     static_cast<unsigned long>(static_cast<DWORD>(result.minimum)),
-                    static_cast<unsigned long>(static_cast<DWORD>(result.with_subdirectory)));
+                    static_cast<unsigned long>(static_cast<DWORD>(result.with_subdirectory)),
+                    static_cast<unsigned long>(static_cast<DWORD>(lowbox_read)));
     }
     // Fresh unrelated names, no ownership or waiting. Close each handle before
     // doing anything else, so the recipe never touches an existing browser object.
@@ -1403,7 +1412,7 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
         return code;
     }
     if (edge_access && !named_objects.start(child.dwProcessId, child_process.value,
-                                            account.token.value, account.sid(), edge_access))
+                                            account.token.value, account.sid(), edge_access, edge_broker))
         return failure("Prepare the session namespace for the Edge recipe");
     if (edge_broker && !app_objects.start(child.dwProcessId, child_process.value, account.token.value,
                                           account.sid(), RecipeNamespace::with_subdirectory))
