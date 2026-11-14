@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import struct
 import subprocess
@@ -32,7 +33,9 @@ HEADERS = {
 ARTIFACTS = (*[f"bin/{name}" for name in DLL_NAMES], "lib/whisper.lib",
              *[f"include/{name}" for name in HEADERS], "LICENSE")
 GENERATOR = "Visual Studio 17 2022"
-TOOLSET = "v143,host=x64"
+TOOLSETS = {"msvc": ("v143,host=x64", "v143", "MSVC", "cl.exe"),
+            "clangcl": ("ClangCL", "ClangCL", "Clang", "clang-cl.exe")}
+DEFAULT_TOOLSET = "clangcl"
 CONFIG = "Release"
 STATIC_CRT_PROJECTS = ("whisper", "ggml", "ggml-base", "ggml-cpu")
 # Build GGML into each DLL statically. The worker loads one of the two, which
@@ -58,6 +61,9 @@ VARIANT_OPTIONS = {
     # preprocessor definitions. Never pass host-native, AVX512 or AVX-VNNI.
     "avx2": {**BASELINE_OPTIONS, "GGML_AVX": "ON", "GGML_AVX2": "ON"},
 }
+# ClangCL's /arch:AVX2 also selects these features, which the NoteVive
+# supervisor does not test. Keep its existing AVX2 selection contract.
+CLANGCL_AVX2_LIMITS = tuple(f"-clang:-mno-{feature}" for feature in ("fsgsbase", "movbe", "pclmul", "xsaveopt"))
 # Windows 11 system DLL names allowed by the import-table audit. In particular
 # VCRUNTIME*, MSVCP*, VCOMP*, libomp*, and any GGML plugin are not allowed.
 SYSTEM_DLLS = {"kernel32.dll", "psapi.dll", "advapi32.dll", "user32.dll", "bcrypt.dll",
@@ -152,12 +158,51 @@ def verify_runtime(dll_file):
     return imports
 
 
-def verify_projects(build, variant):
+def valid_compilers(compilers, toolset):
+    _, _, expected_id, expected_exe = TOOLSETS[toolset]
+    return (isinstance(compilers, dict) and compilers.keys() == {"C", "CXX"}
+            and compilers["C"] == compilers["CXX"]
+            and all(isinstance(spec, dict) and spec.get("id") == expected_id
+                    and spec.get("executable") == expected_exe and isinstance(spec.get("version"), str)
+                    and re.fullmatch(r"\d+(?:\.\d+)+", spec["version"]) is not None
+                    for spec in compilers.values()))
+
+
+def variant_options(toolset, variant):
+    options = VARIANT_OPTIONS[variant].copy()
+    if toolset == "clangcl" and variant == "avx2":
+        limits = " ".join(CLANGCL_AVX2_LIMITS)
+        options.update(CMAKE_C_FLAGS=limits, CMAKE_CXX_FLAGS=limits)
+    return options
+
+
+def verify_compilers(build, toolset):
+    # The CMake file API reports the compilers actually selected by the VS generator.
+    reply = build / ".cmake/api/v1/reply"
+    index = json.loads(find_unique(reply, "index-*.json").read_text(encoding="utf-8"))
+    reference = index["reply"]["toolchains-v1"]["jsonFile"]
+    data = json.loads((reply / reference).read_text(encoding="utf-8"))
+    compilers = {}
+    for row in data["toolchains"]:
+        if row["language"] in {"C", "CXX"}:
+            selected = row["compiler"]
+            compilers[row["language"]] = {"id": selected["id"], "version": selected["version"],
+                                           "executable": Path(selected["path"]).name.lower()}
+    if not valid_compilers(compilers, toolset):
+        raise ValueError(f"Compilateurs {toolset} attendus, CMake a choisi : {compilers}")
+    return compilers
+
+
+def verify_projects(build, variant, toolset):
+    _, expected_platform, _, _ = TOOLSETS[toolset]
     for name in STATIC_CRT_PROJECTS:
         files = list(build.rglob(f"{name}.vcxproj"))
         if len(files) != 1:
-            raise ValueError(f"Projet MSVC manquant ou dupliqué : {name}")
+            raise ValueError(f"Projet Visual Studio manquant ou dupliqué : {name}")
         tree = ET.parse(files[0])
+        platforms = {node.text for node in tree.findall("{*}PropertyGroup/{*}PlatformToolset")}
+        if platforms != {expected_platform}:
+            raise ValueError(f"Toolset {expected_platform} non confirmé dans le projet {name} : {platforms}")
         release = [cfg for cfg in tree.findall("{*}ItemDefinitionGroup")
                    if "Release|x64" in cfg.attrib.get("Condition", "")]
         if len(release) != 1:
@@ -167,12 +212,16 @@ def verify_projects(build, variant):
             raise ValueError(f"CRT statique /MT non confirmé dans le projet {name} : {values}")
         compiler = release[0].find("{*}ClCompile")
         isa = compiler.findtext("{*}EnableEnhancedInstructionSet")
-        flags = compiler.findtext("{*}AdditionalOptions", "")
-        has_avx2 = isa == "AdvancedVectorExtensions2" or "/arch:AVX2" in flags.split()
+        flags = compiler.findtext("{*}AdditionalOptions", "").lower().split()
+        if {"/md", "/mdd", "/mtd", "-md", "-mdd", "-mtd"}.intersection(flags):
+            raise ValueError(f"Flag CRT incompatible dans le projet {name} : {flags}")
+        if toolset == "clangcl" and variant == "avx2" and not set(CLANGCL_AVX2_LIMITS).issubset(flags):
+            raise ValueError(f"Limites ISA ClangCL absentes du projet {name} : {flags}")
+        has_avx2 = isa == "AdvancedVectorExtensions2" or any(x in flags for x in ("/arch:avx2", "-arch:avx2"))
         if has_avx2 != (variant == "avx2" and name == "ggml-cpu") or (
                 isa not in (None, "", "NotSet", "StreamingSIMDExtensions2", "AdvancedVectorExtensions2") or
-                any(option.lower().startswith("/arch:") and option not in {"/arch:SSE2", "/arch:AVX2"}
-                    for option in flags.split())):
+                any(option.startswith(("/arch:", "-arch:")) and option[1:] not in {"arch:sse2", "arch:avx2"}
+                    for option in flags)):
             raise ValueError(f"Architecture CPU inattendue pour {variant}/{name} : {isa} {flags}")
 
 
@@ -209,17 +258,20 @@ def validate_staged(directory):
     """Verify the Windows-produced directory before bundling on any host."""
     log = json.loads((directory / "attestation.json").read_text(encoding="utf-8"))
     variants = log.get("variants")
-    if (log.get("schema") != 2 or log.get("version") != VERSION
+    toolset = log.get("toolset")
+    if (log.get("schema") != 3 or log.get("version") != VERSION
             or log.get("source_url") != SOURCE_URL or log.get("source_sha256") != SOURCE_SHA256
             or log.get("patch") != CMAKE_PATCH
-            or log.get("generator") != GENERATOR or log.get("toolset") != TOOLSET
+            or log.get("generator") != GENERATOR or not isinstance(toolset, str) or toolset not in TOOLSETS
+            or log.get("cmake_toolset") != TOOLSETS[toolset][0]
+            or not valid_compilers(log.get("compilers"), toolset)
             or log.get("config") != CONFIG or log.get("static_crt_projects") != list(STATIC_CRT_PROJECTS)
             or log.get("artifacts") != artifact_spec(directory)
             or not isinstance(variants, dict) or variants.keys() != VARIANT_DLL.keys()):
         raise ValueError("La construction Whisper ne correspond pas à son attestation.")
     for variant, path in VARIANT_DLL.items():
         spec = variants[variant]
-        if (spec.get("cmake_options") != VARIANT_OPTIONS[variant] or spec.get("dll") != f"bin/{path}" or
+        if (spec.get("cmake_options") != variant_options(toolset, variant) or spec.get("dll") != f"bin/{path}" or
                 spec.get("imports") != verify_runtime(directory / "bin" / path) or
                 not isinstance(spec.get("native_load_checked"), bool) or
                 (variant == "baseline" and not spec["native_load_checked"])):
@@ -237,7 +289,7 @@ def available_avx2():
     return bool(feature(40))  # PF_AVX2_INSTRUCTIONS_AVAILABLE
 
 
-def build_release(source, output, cmake, jobs):
+def build_release(source, output, cmake, jobs, toolset=DEFAULT_TOOLSET):
     if platform.system() != "Windows" or platform.machine().lower() not in {"amd64", "x86_64"}:
         raise ValueError("Compiler sur Windows x64 avec Visual Studio 2022, le SDK Windows et CMake.")
     if digest(source) != SOURCE_SHA256:
@@ -259,13 +311,22 @@ def build_release(source, output, cmake, jobs):
         (staging / "include").mkdir(parents=True)
         (staging / "lib").mkdir()
         variants = {}
+        compilers = None
+        cmake_toolset = TOOLSETS[toolset][0]
         for variant, path in VARIANT_DLL.items():
             build = temp / ("build-" + variant)
-            options = VARIANT_OPTIONS[variant]
+            query = build / ".cmake/api/v1/query/toolchains-v1"
+            query.parent.mkdir(parents=True)
+            query.touch()
+            options = variant_options(toolset, variant)
             flags = [f"-D{k}={v}" for k, v in options.items()]
             subprocess.run([cmake, "-S", tree, "-B", build, "-G", GENERATOR, "-A", "x64",
-                            "-T", TOOLSET, *flags], check=True, env=env)
-            verify_projects(build, variant)
+                            "-T", cmake_toolset, *flags], check=True, env=env)
+            selected = verify_compilers(build, toolset)
+            if compilers is not None and compilers != selected:
+                raise ValueError("Les deux variantes doivent utiliser la même version du compilateur.")
+            compilers = selected
+            verify_projects(build, variant, toolset)
             subprocess.run([cmake, "--build", build, "--config", CONFIG, "--parallel", str(jobs),
                             "--target", "whisper"], check=True, env=env)
             dll = staging / "bin" / path
@@ -282,8 +343,9 @@ def build_release(source, output, cmake, jobs):
         for file, rel in HEADERS.items():
             shutil.copyfile(tree / rel, staging / "include" / file)
         shutil.copyfile(tree / "LICENSE", staging / "LICENSE")
-        log = {"schema": 2, "version": VERSION, "source_url": SOURCE_URL, "source_sha256": SOURCE_SHA256,
-               "patch": changed, "generator": GENERATOR, "toolset": TOOLSET, "config": CONFIG,
+        log = {"schema": 3, "version": VERSION, "source_url": SOURCE_URL, "source_sha256": SOURCE_SHA256,
+               "patch": changed, "generator": GENERATOR, "toolset": toolset, "cmake_toolset": cmake_toolset,
+               "compilers": compilers, "config": CONFIG,
                "cmake_version": subprocess.check_output([cmake, "--version"], text=True).splitlines()[0],
                "variants": variants, "static_crt_projects": list(STATIC_CRT_PROJECTS),
                "artifacts": artifact_spec(staging)}
@@ -299,8 +361,10 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--cmake", default="cmake")
     parser.add_argument("--jobs", type=int, default=2, choices=range(1, 9), metavar="1..8")
+    parser.add_argument("--toolset", choices=TOOLSETS, default=DEFAULT_TOOLSET,
+                        help="Compilateur C/C++ de Whisper (défaut : clangcl ; référence : msvc).")
     args = parser.parse_args()
-    build_release(args.source.resolve(), args.output.resolve(), args.cmake, args.jobs)
+    build_release(args.source.resolve(), args.output.resolve(), args.cmake, args.jobs, args.toolset)
 
 
 if __name__ == "__main__":

@@ -134,6 +134,13 @@ struct Child {
         null_error.reset(CreateFileW(L"NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
             &security, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
         if (null_error.h == INVALID_HANDLE_VALUE) fail(L"Impossible de préparer la dictée locale.");
+#ifdef NOTEVIVE_ENGINE_DIAGNOSTICS
+        // Diagnostic harness only; the distributed UI always discards stderr.
+        HANDLE diagnostic_error = nullptr;
+        if (!DuplicateHandle(GetCurrentProcess(), GetStdHandle(STD_ERROR_HANDLE), GetCurrentProcess(),
+            &diagnostic_error, 0, TRUE, DUPLICATE_SAME_ACCESS)) fail(L"Impossible de préparer le diagnostic du moteur.");
+        null_error.reset(diagnostic_error);
+#endif
         job.reset(CreateJobObjectW(nullptr, nullptr));
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
         limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;

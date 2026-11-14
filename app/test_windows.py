@@ -10,7 +10,9 @@ import subprocess
 import time
 import wave
 from app.build_windows import WIN, ROOT, CXX_FLAGS, LOCK, run
-from app.build_whisper_windows import GENERATOR, TOOLSET
+from app.build_whisper_windows import GENERATOR
+
+TOOLSET = 'v143,host=x64'  # Test compiler is independent from the decoder compiler.
 
 
 def headers(directory, worker):
@@ -224,6 +226,7 @@ def main():
             env['NOTEVIVE_CPU'] = 'baseline'
         elif is_smoke:
             env.pop('NOTEVIVE_CPU', None)
+            env['NOTEVIVE_ASR_BENCH_METRICS'] = '1'
         execute(cmd, env, is_smoke)
         if is_smoke:
             env['NOTEVIVE_CPU'] = 'baseline'

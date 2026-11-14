@@ -51,6 +51,12 @@ Avec UltiMed seul, le contexte étendu améliore le stress de 46/64 à 54/64, do
 
 [Chiffres agrégés et mesure des ressources](asr_benchmark_macos.json). Les valeurs RSS absentes n’ont pas été mesurées ; aucune n’est une mesure de mémoire privée Windows.
 
+## Contrôle du paquet sur Windows
+
+Le [run Windows 43606814807](https://github.com/sarbhakan/DocTranscript/actions/runs/43606814807) du commit `cb48cc4` a exécuté le véritable worker du ZIP sur une [prescription simulée française de 6,44 s](fixtures/README.md). Machine virtuelle GitHub Actions Windows Server 2022, AMD EPYC 7763, deux cœurs / quatre processeurs logiques, 17 174 360 064 octets de RAM. Avec la construction MSVC 19.44 et quatre fils ASR, la sélection **AVX2 est confirmée**, un passage est reçu et le traitement complet prend **35,435 s**, démarrage inclus (rapport temps/audio 5,502). La variante SSE2 dépasse le délai global de test de 90 s. Les silences passent dans les deux variantes en 1,151 s et 1,267 s ; ils ne sollicitent pas le décodeur Whisper. Le parcours UI n’a pas été exécuté dans ce run, interrompu sur cet échec.
+
+Ce résultat ne répond pas à l’objectif de dictée rapide. Il ne peut pas être écarté au motif que la première démonstration JFK était anglophone. La comparaison Mac dispose aussi du backend CPU Accelerate, absent de cette construction Windows ; quatre processeurs logiques sur deux cœurs ne sont pas quatre cœurs physiques. Une comparaison ClangCL à poids et paramètres constants est engagée, avec journal des durées d’encodage/décodage. Aucun délai de surveillance du produit n’est augmenté pour rendre le test vert. Le choix pour l’essai reste provisoire tant que cette limite Windows n’est pas traitée et que W1/W2 ne sont pas mesurés.
+
 ## Préparer l’essai
 
 Sur une machine connectée, préparer le lot une seule fois puis le transférer intégralement sur les deux postes, en conservant l’arborescence. Les 16 WAV de synthèse du P0 et les dictées longues sont fournies par le poste Mac : changer de voix ou de système modifie le signal. Étapes détaillées dans [le guide P0](README.md) et [la recette du lexique](lexicon_macos.md).

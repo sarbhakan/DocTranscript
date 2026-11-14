@@ -6,12 +6,21 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <stdexcept>
 #include <string>
 
 namespace {
+void quiet_log(ggml_log_level, const char*, void*) {}
+void timing_log(ggml_log_level, const char* text, void*) {
+    // Upstream timing lines contain numeric counters only. Never forward model
+    // logs, input paths, tokens or transcripts through this opt-in diagnostic.
+    constexpr const char* prefix = "whisper_print_timings:";
+    if (text && std::strncmp(text, prefix, std::strlen(prefix)) == 0) std::fputs(text, stderr);
+}
 class ModelFile {
     std::unique_ptr<FILE, decltype(&fclose)> file{nullptr, fclose};
 public:
@@ -39,6 +48,7 @@ class Pipeline {
     void* output_context = nullptr;
     NVWhisperCancelled cancelled = nullptr;
     void* cancel_context = nullptr;
+    bool benchmark_metrics = false;
 
     static int completed(void* ctx, const float* samples, size_t count) {
         return static_cast<Pipeline*>(ctx)->transcribe(samples, count);
@@ -56,7 +66,15 @@ class Pipeline {
             return self.cancelled && self.cancelled(self.cancel_context);
         };
         params.abort_callback_user_data = this;
-        if (whisper_full(asr.get(), params, samples, static_cast<int>(count)) != 0) return -1;
+        if (benchmark_metrics) whisper_reset_timings(asr.get());
+        const int status = whisper_full(asr.get(), params, samples, static_cast<int>(count));
+        if (benchmark_metrics) {
+            // Only one decoder runs in this worker. VAD and ASR calls are serial.
+            whisper_log_set(timing_log, nullptr);
+            whisper_print_timings(asr.get());
+            whisper_log_set(quiet_log, nullptr);
+        }
+        if (status != 0) return -1;
         std::string result;
         const int segments = whisper_full_n_segments(asr.get());
         for (int i = 0; i < segments; ++i) {
@@ -85,11 +103,14 @@ class Pipeline {
 public:
     Pipeline(const char* model_path, const char* vad_path, unsigned pause_ms) : pauses(pause_ms) {
         if (std::string(whisper_version()) != "1.8.5") throw std::runtime_error("Whisper version mismatch");
-        whisper_log_set([](ggml_log_level, const char*, void*) {}, nullptr);
+        whisper_log_set(quiet_log, nullptr);
+        const auto* metrics = std::getenv("NOTEVIVE_ASR_BENCH_METRICS");
+        benchmark_metrics = metrics && std::strcmp(metrics, "1") == 0;
         ModelFile model(model_path);
         auto params = whisper_context_default_params(); params.use_gpu = false;
         asr.reset(whisper_init_with_params(&model.loader, params));
         if (!asr) throw std::runtime_error("Whisper initialization failed");
+        if (benchmark_metrics) std::fprintf(stderr, "nv_backend %s\n", whisper_print_system_info());
         ModelFile vad_file(vad_path);
         auto vparams = whisper_vad_default_context_params(); vparams.use_gpu = false; vparams.n_threads = 1;
         vad.reset(whisper_vad_init_with_params(&vad_file.loader, vparams));
