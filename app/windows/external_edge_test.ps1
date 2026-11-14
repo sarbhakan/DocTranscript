@@ -157,7 +157,8 @@ function Trace-SyntheticLowBox {
 .printf "NV_DUP_WANTED=%08x attributes=%08x options=%08x\n", dwo(@rsp+0x28), dwo(@rsp+0x30), dwo(@rsp+0x38)
 .if (@rcx == 0xffffffffffffffff) { .echo NV_DUP_SOURCE=self-pseudo } .else { .if (@rcx == 0) { .echo NV_DUP_SOURCE=null } .else { .echo NV_DUP_SOURCE=process-handle } }
 .if (@r8 == 0xffffffffffffffff) { .echo NV_DUP_TARGET=self-pseudo } .else { .if (@r8 == 0) { .echo NV_DUP_TARGET=null } .else { .echo NV_DUP_TARGET=process-handle } }
-.if (@rcx == 0xffffffffffffffff) { .if (@rdx > 0) { .if (@rdx < 0xfffffffffffffff0) { r @$t2=@rdx; !handle @$t2 7 } } }
+.if (@rcx == 0xffffffffffffffff) { .if (@$t4 == 0) { .echo NV_DUP_CREATED=unknown } .else { .if (@rdx == @$t4) { .echo NV_DUP_CREATED=yes } .else { .echo NV_DUP_CREATED=no } } }
+.if (@rcx == 0xffffffffffffffff) { .if (@rdx != 0) { .if (@rdx != 0xffffffffffffffff) { .if (@rdx != 0xfffffffffffffffe) { .echo NV_DUP_INSPECT=attempted; r @$t2=@rdx; !handle @$t2 7 } } } }
 bp /1 poi(@rsp) "$$><nv-duplicate-return.txt"
 gc
 '@ | Set-Content -LiteralPath (Join-Path $work 'nv-duplicate-entry.txt') -Encoding Ascii
@@ -165,6 +166,21 @@ gc
 .printf "NV_DUP_STATUS=%08x\n", @eax
 gc
 '@ | Set-Content -LiteralPath (Join-Path $work 'nv-duplicate-return.txt') -Encoding Ascii
+    # Remember the output handle of the most recent successful creation in
+    # this factory only. No raw handle or address leaves the debugger.
+    @'
+r @$t3=@rcx
+r @$t4=0
+.echo NV_CREATE_SD_BEGIN
+.if (@r8 == 0) { .echo NV_CREATE_SD=missing-attributes } .else { .if (dwo(@r8) != 0x30) { .echo NV_CREATE_SD=unexpected-layout } .else { .if (poi(@r8+0x20) == 0) { .echo NV_CREATE_SD=default } .else { .echo NV_CREATE_SD=explicit; r @$t5=poi(@r8+0x20); !sd @$t5 0 } } }
+.echo NV_CREATE_SD_END
+bp /1 poi(@rsp) "$$><nv-directory-created-return.txt"
+gc
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-created-entry.txt') -Encoding Ascii
+    @'
+.if (@eax == 0) { .if (@$t3 != 0) { r @$t4=poi(@$t3) } }
+gc
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-created-return.txt') -Encoding Ascii
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $kits
     $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -logo "{1}" -c "bu kernelbase!CreateAppContainerToken;g" "{2}" --edge-lowbox-trace' -f $symbols, $rawLog, $ProbeExe
@@ -181,7 +197,9 @@ gc
         $stderr = $debugger.StandardError.ReadToEndAsync()
         # Trace the duplicate call only during the first synthetic factory call.
         $debugger.StandardInput.WriteLine('bc *')
+        $debugger.StandardInput.WriteLine('r @$t4=0')
         $debugger.StandardInput.WriteLine('bp /1 poi(@rsp) ".echo NV_FACTORY_RETURN; q"')
+        $debugger.StandardInput.WriteLine('bu ntdll!NtCreateDirectoryObjectEx "$$><nv-directory-created-entry.txt"')
         $debugger.StandardInput.WriteLine('bu ntdll!ZwDuplicateObject "$$><nv-duplicate-entry.txt"')
         $debugger.StandardInput.WriteLine('g')
         $debugger.StandardInput.Flush()
@@ -197,14 +215,68 @@ gc
         # This text stays in the disposable profile. Emit only allowlisted
         # metadata; never emit actual object names, paths, SIDs or handles.
         $raw = if (Test-Path -LiteralPath $rawLog -PathType Leaf) { Get-Content -LiteralPath $rawLog -Raw } else { $stdout.Result }
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        try {
+            $userSid = $identity.User.Value
+            $logonSids = @($identity.Groups | ForEach-Object Value | Where-Object { $_ -match '^S-1-5-5-\d+-\d+$' })
+        } finally { $identity.Dispose() }
+        function Sid-Category([string]$Sid) {
+            if ($Sid -eq $userSid) { return 'current-user' }
+            if ($logonSids -contains $Sid) { return 'current-logon' }
+            switch -Regex ($Sid) {
+                '^S-1-5-18$' { return 'system' }
+                '^S-1-5-32-544$' { return 'administrators' }
+                '^S-1-5-5-\d+-\d+$' { return 'other-logon' }
+                '^S-1-15-2-1$' { return 'all-app-packages' }
+                '^S-1-15-2-2$' { return 'all-restricted-app-packages' }
+                '^S-1-15-2-(?:\d+-){6}\d+$' { return 'package' }
+                default { return 'other' }
+            }
+        }
         $pending = $null
         $kept = 0
+        $descriptor = $null
+        $descriptors = 0
         foreach ($line in ($raw -split "`r?`n")) {
-            if ($line -match '^\s*NV_DUP_WANTED=(?<mask>[0-9a-f]{8}) attributes=(?<attr>[0-9a-f]{8}) options=(?<options>[0-9a-f]{8})\s*$') {
+            if ($line -match '^\s*NV_CREATE_SD_BEGIN\s*$') {
+                $descriptor = @{source='unknown'; owner='unavailable'; aces=@{}}
+            } elseif ($descriptor -and $line -match '^\s*NV_CREATE_SD=(?<source>explicit|default|unexpected-layout|missing-attributes)\s*$') {
+                $descriptor.source = $Matches.source
+            } elseif ($descriptor -and $line -match '^\s*->Owner\s*:\s*(?<sid>S-(?:\d+-){1,16}\d+)\b') {
+                $descriptor.owner = Sid-Category $Matches.sid
+            } elseif ($descriptor -and $line -match '^\s*->Dacl\s*:\s*->Ace\[(?<index>\d{1,3})\]:\s*->(?<field>AceType|AceFlags|Mask|SID)\s*:\s*(?<value>\S{1,160})') {
+                $index = [int]$Matches.index
+                $field = $Matches.field
+                $value = $Matches.value
+                if ($index -lt 24) {
+                    if (-not $descriptor.aces.ContainsKey($index)) {
+                        $descriptor.aces[$index] = @{category='unavailable'; type='unavailable'; flags='unavailable'; mask='unavailable'}
+                    }
+                    $ace = $descriptor.aces[$index]
+                    if ($field -eq 'SID' -and $value -match '^S-(?:\d+-){1,16}\d+$') { $ace.category = Sid-Category $value }
+                    if ($field -eq 'AceType' -and $value -match '^[A-Z_]{1,64}_ACE_TYPE$') { $ace.type = $value }
+                    if ($field -eq 'AceFlags' -and $value -match '^0x[0-9a-f]{1,8}$') { $ace.flags = $value }
+                    if ($field -eq 'Mask' -and $value -match '^0x[0-9a-f]{1,8}$') { $ace.mask = $value }
+                }
+            } elseif ($descriptor -and $line -match '^\s*NV_CREATE_SD_END\s*$') {
+                $descriptors++
+                if ($descriptors -le 4) {
+                    Write-Output "Synthetic LowBox directory descriptor: source=$($descriptor.source) owner=$($descriptor.owner) parsed_aces=$($descriptor.aces.Count)"
+                    foreach ($index in ($descriptor.aces.Keys | Sort-Object)) {
+                        $ace = $descriptor.aces[$index]
+                        Write-Output "Synthetic LowBox directory ACE: index=$index category=$($ace.category) type=$($ace.type) flags=$($ace.flags) mask=$($ace.mask)"
+                    }
+                }
+                $descriptor = $null
+            } elseif ($line -match '^\s*NV_DUP_WANTED=(?<mask>[0-9a-f]{8}) attributes=(?<attr>[0-9a-f]{8}) options=(?<options>[0-9a-f]{8})\s*$') {
                 $pending = @{mask=$Matches.mask; attr=$Matches.attr; options=$Matches.options; source='unknown';
-                    target='unknown'; type='unknown'; granted='unknown'; kind='unknown'}
+                    target='unknown'; type='unknown'; granted='unknown'; kind='unknown'; created='unknown'; inspected=$false}
             } elseif ($pending -and $line -match '^\s*NV_DUP_(?<which>SOURCE|TARGET)=(?<category>self-pseudo|null|process-handle)\s*$') {
                 $pending[$Matches.which.ToLowerInvariant()] = $Matches.category
+            } elseif ($pending -and $line -match '^\s*NV_DUP_CREATED=(?<created>yes|no|unknown)\s*$') {
+                $pending.created = $Matches.created
+            } elseif ($pending -and $line -match '^\s*NV_DUP_INSPECT=attempted\s*$') {
+                $pending.inspected = $true
             } elseif ($pending -and $line -match '^\s+Type\s+(?<type>Directory|SymbolicLink|Token|Process|Thread|File|Key|Section|Event)\s*$') {
                 $pending.type = $Matches.type
             } elseif ($pending -and $line -match '^\s+GrantedAccess\s+(?<granted>0x[0-9a-f]{1,8}):?\s*$') {
@@ -222,7 +294,7 @@ gc
                 $status = $Matches.status
                 $kept++
                 if ($kept -le 16) {
-                    Write-Output "Synthetic LowBox ZwDuplicateObject: source=$($pending.source) target=$($pending.target) object_type=$($pending.type) object_kind=$($pending.kind) granted=$($pending.granted) desired=0x$($pending.mask) attributes=0x$($pending.attr) options=0x$($pending.options) ntstatus=0x$status"
+                    Write-Output "Synthetic LowBox ZwDuplicateObject: source=$($pending.source) target=$($pending.target) same_as_created_dir=$($pending.created) inspected=$($pending.inspected) object_type=$($pending.type) object_kind=$($pending.kind) granted=$($pending.granted) desired=0x$($pending.mask) attributes=0x$($pending.attr) options=0x$($pending.options) ntstatus=0x$status"
                 }
                 $pending = $null
             }
