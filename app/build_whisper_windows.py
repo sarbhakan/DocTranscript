@@ -368,7 +368,10 @@ def toolchain_query(build):
 def ninja_environment(temp, env):
     # Ninja needs the Visual Studio SDK environment (Whisper's VS generator
     # resolves SDK headers and libraries internally). Use the installed tools.
-    vswhere = (Path(env["ProgramFiles(x86)"]) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe")
+    # os.environ is case-insensitive on Windows, but its dict copy is not.
+    # Python normalizes these keys to uppercase.
+    env = {key.upper(): value for key, value in env.items()}
+    vswhere = (Path(env["PROGRAMFILES(X86)"]) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe")
     install = subprocess.check_output([vswhere, "-latest", "-products", "*", "-version", "[17.0,18.0)",
                                        "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
                                        "-property", "installationPath", "-utf8"], encoding="utf-8", env=env).strip()
@@ -380,7 +383,7 @@ def ninja_environment(temp, env):
         raise ValueError("OpenBLAS nécessite le SDK Visual Studio 2022 x64 et Ninja.")
     batch = temp / "nv-vcvars.cmd"
     batch.write_text('@call "%NOTEVIVE_VCVARS64%" >nul && set\n', encoding="ascii")
-    cmd = Path(env["SystemRoot"]) / "System32/cmd.exe"
+    cmd = Path(env["SYSTEMROOT"]) / "System32/cmd.exe"
     output = subprocess.check_output([cmd, "/d", "/u", "/v:off", "/c", batch.name], cwd=temp, env={
         **env, "NOTEVIVE_VCVARS64": str(setup),
     }).decode("utf-16-le")
