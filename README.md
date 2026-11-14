@@ -4,7 +4,7 @@
 
 **Dictée médicale en français, aux pauses et hors ligne.** NoteVive transforme une dictée en brouillon éditable sur Windows. Les phrases reconnues sont ajoutées au fil des pauses. La bibliothèque locale permet de renommer les notes, les classer en dossiers et sous-dossiers, rechercher leur contenu et trier par titre, création ou modification.
 
-**État : candidat Windows 0.3.0 en cours de recette, réservé aux données fictives.** Le [comparatif sur Mac](p0/asr_benchmark.md) a conduit à tester Whisper Large-v3 Turbo Q5_0 avec Silero 6.2 et une pause de 576 ms sous Windows. Des erreurs de médicaments, de négations et des ajouts indésirables subsistent. Le dernier test Windows a traité 6,44 s de parole en 30,33 s, encore trop lent pour la dictée. Le [détail des mesures](docs/p0-choix-moteur.md) explique ce qui bloque la publication. La recette sur deux PC physiques, dont un à 8 Go sans GPU dédié, reste à faire.
+**État : candidat Windows 0.3.0 en cours de recette, réservé aux données fictives.** Après le [comparatif sur Mac](p0/asr_benchmark.md), le candidat Windows associe Whisper Large-v3 Turbo Q5_0, Silero 6.2 et une pause de 576 ms. En CI avec OpenBLAS, le moteur traite 6,44 s de parole en 14,74 s, démarrage compris : le calcul reste plus long que la parole. Les doses et les fractions attendues des deux extraits de régression passent, mais un nom de médicament n’est pas reconnu et le test d’interface reste à confirmer. Voir le [détail des mesures Windows](docs/p0-choix-moteur.md). La recette sur deux PC physiques, dont un à 8 Go sans GPU dédié, reste à faire.
 
 ## Préparer l’essai sur Windows 11 x64
 

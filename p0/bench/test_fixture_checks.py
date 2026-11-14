@@ -14,6 +14,17 @@ class FixtureChecksTest(unittest.TestCase):
             with self.subTest(fraction=fraction):
                 self.assertTrue(check_fixture(self.cases[0], ref.replace('1 quart de', fraction))['passed'])
 
+    def test_feminine_capsule_quantity_is_equivalent_but_not_optional(self):
+        case = {'reference': 'prozac 20 milligrammes 1 gélule matin et soir',
+                'critical': {'dose': ['prozac 20 milligrammes']}, 'terms': ['prozac']}
+        for amount in ('1', 'une'):
+            with self.subTest(amount=amount):
+                self.assertTrue(check_fixture(case, f'Prozac 20 mg, {amount} gélule matin et soir.')['passed'])
+        for amount in ('2', 'deux', ''):
+            with self.subTest(amount=amount):
+                self.assertFalse(check_fixture(case, f'Prozac 20 mg, {amount} gélule matin et soir.')['passed'])
+        self.assertFalse(check_fixture(case, 'Prozac 20 mg, une gélule matin et soir, puis une gélule.')['passed'])
+
     def test_mistakes_cannot_keep_presence_score_green(self):
         case = self.cases[0]
         ref = case['reference']

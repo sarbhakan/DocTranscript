@@ -1,0 +1,208 @@
+{
+  "schema": 1,
+  "dataset": "corti/med-dictate",
+  "revision": "2a840558d221b4f306c52419d58f93270ea599bb",
+  "config": "fr",
+  "split": "test",
+  "source_manifest_sha256": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+  "silero": {
+    "model_sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+    "pause_ms": 576,
+    "pre_roll_ms": 256,
+    "frame_samples": 512,
+    "library_version": "1.8.5",
+    "macos_vad_only_library_sha256": "27bc84217a5a93538798908585fdaf286f26b9deeda9c6c12bac0de4b515d560",
+    "macos_vad_only_helper_sha256": "8cc1ec2c1275b12a7aeb203be2b6822d3bd7971642d332f48bc249353d150288"
+  },
+  "reference_engine": {
+    "runtime": "macOS-27.2-arm64-arm-64bit",
+    "name": "Whisper.cpp 1.8.5 Turbo Q5_0 / Silero 576 ms",
+    "model_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+    "libwhisper_sha256": "d5efc017f45c1a312d393be336e2a8934d6af73dcf8d180f185a960dd3f31e67",
+    "bridge_sha256": "5b697560d6ebf9d9ee0b54c8e5e9687d0af34efb6312c17348639de4d08cc798",
+    "raw_result_sha256": "4700b60cad3be96a88f51ee339c7f9e32896db11d300c3379142e4821940b02f"
+  },
+  "cases": {
+    "corti-5": {
+      "frames": 1780736,
+      "pcm_sha256": "09ed3774d1e25edc839a4c78e605895aa9c1e11470d8a9d9fbc9edc5df091d0d",
+      "slices": [
+        {
+          "start_frame": 55296,
+          "end_frame": 205824,
+          "pcm_sha256": "e46c94573eaad0a2fffe71fb2edd953738aca94e83e1f5488c86cd8266c0fb63",
+          "pcm_float32_fnv1a64": "5aa23ce47d5a2110"
+        },
+        {
+          "start_frame": 205824,
+          "end_frame": 651264,
+          "pcm_sha256": "60017ef7443139fe17b639c1ea625e61df8cc5cee769eab3cb4b028925a800a1",
+          "pcm_float32_fnv1a64": "4cf312a1866df1ca"
+        },
+        {
+          "start_frame": 653824,
+          "end_frame": 848896,
+          "pcm_sha256": "63eac3b78c9a509c8c474346287132f2e700ad2ff12226b53c1b094ccc611747",
+          "pcm_float32_fnv1a64": "3040df2237aedec3"
+        },
+        {
+          "start_frame": 848896,
+          "end_frame": 981504,
+          "pcm_sha256": "9c9c7ee571181dab9487d3852ba051944eea8ca03a72eaeea95f1725563e2de8",
+          "pcm_float32_fnv1a64": "e12872eab6595ae8"
+        },
+        {
+          "start_frame": 981504,
+          "end_frame": 1209344,
+          "pcm_sha256": "ee12b34248fb63fe3c430875d5a24199982b5d96fe88d9bc3c23a804ad7407f8",
+          "pcm_float32_fnv1a64": "fe4494d4f62e647e"
+        },
+        {
+          "start_frame": 1209344,
+          "end_frame": 1365504,
+          "pcm_sha256": "dff8f98df723eb4893fd64de8b8e23ba1f3e244eee8b608d2f4782ea871f4737",
+          "pcm_float32_fnv1a64": "480823425d9c6693"
+        },
+        {
+          "start_frame": 1368064,
+          "end_frame": 1702400,
+          "pcm_sha256": "caab39a5b3eda943d1dd0b015a9ae06f6776fc049d157ccc2dcc5aa57ba0a714",
+          "pcm_float32_fnv1a64": "cdc73b1be4450d15"
+        }
+      ],
+      "row": 5,
+      "reference_sha256": "a804c12b6fde91af0740b61cf1a14b27bde0ca84a1685c88df89eca62001ae0a",
+      "macos_whisper_cpp": {
+        "matched_spans": {
+          "dose": [
+            false,
+            true
+          ],
+          "duration": [
+            true,
+            true,
+            false
+          ],
+          "negation": [
+            false,
+            true,
+            false,
+            true,
+            false,
+            false
+          ],
+          "vitals": [
+            true,
+            true
+          ]
+        },
+        "normalized_word_edits": 48,
+        "normalized_reference_words": 192
+      }
+    },
+    "corti-6": {
+      "frames": 2059264,
+      "pcm_sha256": "6becc0f3ef1f6a0bf969d51c4d633b8fd49d7eaceb65b7cdcc665928c081d0e1",
+      "slices": [
+        {
+          "start_frame": 0,
+          "end_frame": 17408,
+          "pcm_sha256": "d0cebc8ca5010a1a320c5ae418ad7d5561afb80f13ffb4c1d41abb6a5964e945",
+          "pcm_float32_fnv1a64": "048951e389240a6a"
+        },
+        {
+          "start_frame": 36352,
+          "end_frame": 52736,
+          "pcm_sha256": "46908a252e4bda7b50bf3e1df6154d1df28b38d3286fbb649cbec1edb5b5f4ec",
+          "pcm_float32_fnv1a64": "3ce5ddcaedf4c512"
+        },
+        {
+          "start_frame": 94208,
+          "end_frame": 573952,
+          "pcm_sha256": "e1dee687bf75107ed0b88c6cde08091b080e2d554bf77ced7f601f173aec38ed",
+          "pcm_float32_fnv1a64": "5a951386927d14f2"
+        },
+        {
+          "start_frame": 573952,
+          "end_frame": 627200,
+          "pcm_sha256": "5197840e1d4cf17deec7126b193276663c8eb48caea2b1a988f026de4d0e4ef8",
+          "pcm_float32_fnv1a64": "2f3354d358ddaab0"
+        },
+        {
+          "start_frame": 627200,
+          "end_frame": 808448,
+          "pcm_sha256": "86298efe97d6a74523343ea23351f4536903f6b4c64b79bf66a0e9936a253264",
+          "pcm_float32_fnv1a64": "9b6b8f185cad9aec"
+        },
+        {
+          "start_frame": 808448,
+          "end_frame": 1170432,
+          "pcm_sha256": "3027f7b116bea7fa28e6c91c6d334535ac9ed0ff94ce71abe665b5a00147cc75",
+          "pcm_float32_fnv1a64": "c7902f16f5187bc6"
+        },
+        {
+          "start_frame": 1170432,
+          "end_frame": 1392128,
+          "pcm_sha256": "0914dd693d6baff08d0760d2719f8a6e64f3e1e9f29207a7de9c64defdfb8df6",
+          "pcm_float32_fnv1a64": "d095dc52a864906f"
+        },
+        {
+          "start_frame": 1392640,
+          "end_frame": 1464320,
+          "pcm_sha256": "3125a8fb87164ce4cd706f87e41d54d3af20e350518380914f47401059f1eb3b",
+          "pcm_float32_fnv1a64": "071182869e9e3f3c"
+        },
+        {
+          "start_frame": 1464320,
+          "end_frame": 1684480,
+          "pcm_sha256": "f8710c0259b0ee55a19adcf1b595db2636ff1e84eb8e550762de555d609c6f85",
+          "pcm_float32_fnv1a64": "6a547f6e545b5ba8"
+        },
+        {
+          "start_frame": 1693696,
+          "end_frame": 1931264,
+          "pcm_sha256": "aeb29628c1323b2a47ccaebf185f4b2be2aba689d8840f215e09abfcc54f9990",
+          "pcm_float32_fnv1a64": "e8931d34cd7cc092"
+        },
+        {
+          "start_frame": 1931264,
+          "end_frame": 1978368,
+          "pcm_sha256": "3aceaaf5c8907deb60c87cf71eddfebf135b958c495ba25e526b9884aee1e8af",
+          "pcm_float32_fnv1a64": "6a79726c57da4ec7"
+        }
+      ],
+      "row": 6,
+      "reference_sha256": "d510f945b2508e43a3468c88ae667163cdaaf2b2346547fa11ffa16ce75cecca",
+      "macos_whisper_cpp": {
+        "matched_spans": {
+          "dose": [
+            true,
+            true
+          ],
+          "duration": [
+            true,
+            true
+          ],
+          "laterality": [
+            false,
+            true,
+            false
+          ],
+          "negation": [
+            true,
+            false,
+            true,
+            true,
+            true,
+            true
+          ],
+          "scale": [
+            true
+          ]
+        },
+        "normalized_word_edits": 62,
+        "normalized_reference_words": 241
+      }
+    }
+  }
+}

@@ -1,0 +1,651 @@
+{
+  "schema_version": 1,
+  "source": {
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43614042322",
+    "commit_abbrev": "265d16",
+    "ci_artifact_name": "Mesures-Windows",
+    "candidate_zip_sha256": "5357bb1dbe8ae436b8858d0276492d5f9f8e8df8e0ba51662b31655a7c5dcc2d",
+    "downloaded_metrics_sha256": {
+      "ct2-memory-2.json": "0c88c58a7ceb13d0c0fdcf7d87c949e52638eb63ab2b8c53e9dffb7d8c3603bf",
+      "ct2-memory-4.json": "f37d82cd477767199ddbf64a47e34394e0702f800f7d4e3b7884678840fe111c",
+      "ct2-metrics-2.json": "fc1e4795854ff55662f6bdfff1efe16479592d9329ea5076eb48c1b2aa0d13e0",
+      "ct2-metrics-4.json": "872acaccbdecb3d27e56962f1b3b89974a57603e744cddd4c2a1803c5a467520",
+      "timings.json": "88c36fce8e2d28350e3c846a88e9103ff478e2600ecf7bc2ce2ac92981250cb3"
+    },
+    "native_slice_observation_source": "Native benchmark step log, nv_segment and whisper_print_timings"
+  },
+  "host": {
+    "cpu": "AMD EPYC 9V74",
+    "cores": 2,
+    "logical_processors": 4,
+    "reported_ram_gb_approx": 17.17,
+    "virtualized": true
+  },
+  "method": {
+    "fixtures": [
+      "px-826",
+      "px-23",
+      "px-584"
+    ],
+    "runtime_order": [
+      "whisper_cpp",
+      "ct2_4",
+      "ct2_2"
+    ],
+    "slice_lock_file": "p0/packs/ct2-silero-slices.lock.json",
+    "slice_lock_sha256": "f8b56f48960c293153cda82ddc005ce6ad871cbe480c98001d36ef2f44369712",
+    "native_fingerprints_equal_slice_lock": true,
+    "measurement_is_microphone_to_display_latency": false,
+    "native_case_scope": "Fresh worker for each fixture. Whole accelerated WAV replay with process/model startup, VAD, decode and termination.",
+    "native_segment_scope": "whisper_print_timings total in each decode, with no extra model warmup between fixture launches.",
+    "ct2_case_scope": "Single warmed model per thread setting. Only prepared slices, input conversion and inference; no native VAD, device capture or UI. Imports, load and warmup reported separately.",
+    "ct2_segment_scope": "Timed after int16-to-float32 conversion, includes transcribe and iteration of results. Native and CT2 segment clocks have different boundaries.",
+    "audible_negations_in_fixtures": 0
+  },
+  "native": {
+    "runtime": "whisper.cpp 1.8.5 + OpenBLAS 0.3.34",
+    "cpu_threads": 4,
+    "device": "cpu",
+    "requested_cpu": "auto",
+    "observed_cpu_path": "avx2",
+    "quantization": "Q5_0",
+    "model_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+    "vad": "Silero VAD GGML 6.2.0",
+    "pause_ms": 576,
+    "silence_text_outputs": 0,
+    "cases": [
+      {
+        "test": "silence",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 1.093,
+        "audio_seconds": 8.0,
+        "elapsed_audio_ratio": 0.137,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1783721984,
+          "observed_cpu_seconds": 1.0,
+          "observed_mean_cpu_core_equivalents": 0.9608817358290653,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        }
+      },
+      {
+        "test": "px-826",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 13.995,
+        "audio_seconds": 6.44,
+        "elapsed_audio_ratio": 2.173,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954643968,
+          "observed_cpu_seconds": 51.09375,
+          "observed_mean_cpu_core_equivalents": 3.6636040950107445,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": false,
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": false
+        }
+      },
+      {
+        "test": "px-23",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 53.108,
+        "audio_seconds": 16.8,
+        "elapsed_audio_ratio": 3.161,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1955434496,
+          "observed_cpu_seconds": 204.546875,
+          "observed_mean_cpu_core_equivalents": 3.855208966628925,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "terms": [
+            0,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-584",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 39.602,
+        "audio_seconds": 15.2,
+        "elapsed_audio_ratio": 2.605,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1992622080,
+          "observed_cpu_seconds": 152.296875,
+          "observed_mean_cpu_core_equivalents": 3.850468982334138,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              2,
+              2
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      }
+    ]
+  },
+  "ct2_by_threads": {
+    "4": {
+      "schema": 1,
+      "engine": {
+        "faster-whisper": "1.2.1",
+        "ctranslate2": "4.9.0"
+      },
+      "model_revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+      "model_sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+      "cpu_threads": 4,
+      "worker_count": 1,
+      "device": "cpu",
+      "compute_type": "int8_float32",
+      "decode": {
+        "language": "fr",
+        "task": "transcribe",
+        "beam_size": 1,
+        "best_of": 1,
+        "temperature": 0.0,
+        "condition_on_previous_text": false,
+        "vad_filter": false,
+        "word_timestamps": false
+      },
+      "segmentation": "silero576",
+      "slice_lock_sha256": "f8b56f48960c293153cda82ddc005ce6ad871cbe480c98001d36ef2f44369712",
+      "import_ms": 551.673,
+      "model_load_ms": 2757.173,
+      "warmup": {
+        "id": "px-826",
+        "elapsed_ms": 7219.093
+      },
+      "cases": [
+        {
+          "id": "px-826",
+          "audio_ms": 6440,
+          "elapsed_ms": 7179.189,
+          "asr_elapsed_audio_ratio": 1.11478,
+          "slices": [
+            {
+              "start_frame": 6144,
+              "end_frame": 80384,
+              "elapsed_ms": 7179.038,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "f3e871b317886221"
+            }
+          ],
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ]
+            },
+            "numeric_sequence_equal": false,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              1,
+              1
+            ],
+            "passed": false
+          }
+        },
+        {
+          "id": "px-23",
+          "audio_ms": 16800,
+          "elapsed_ms": 28163.809,
+          "asr_elapsed_audio_ratio": 1.67642,
+          "slices": [
+            {
+              "start_frame": 5120,
+              "end_frame": 57856,
+              "elapsed_ms": 7053.202,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "a72c6ea901956a34"
+            },
+            {
+              "start_frame": 70656,
+              "end_frame": 156672,
+              "elapsed_ms": 7131.325,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "80293e4df40e6812"
+            },
+            {
+              "start_frame": 156672,
+              "end_frame": 195584,
+              "elapsed_ms": 7009.709,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "9aadc4b7a34ee326"
+            },
+            {
+              "start_frame": 214528,
+              "end_frame": 240640,
+              "elapsed_ms": 6968.677,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "b2a8bba4ba777d9f"
+            }
+          ],
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ],
+              "fraction": [
+                1,
+                1
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              0,
+              1
+            ],
+            "passed": true
+          }
+        },
+        {
+          "id": "px-584",
+          "audio_ms": 15200,
+          "elapsed_ms": 21161.506,
+          "asr_elapsed_audio_ratio": 1.3922,
+          "slices": [
+            {
+              "start_frame": 37376,
+              "end_frame": 98816,
+              "elapsed_ms": 7042.428,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "4a3c19d6e3f92074"
+            },
+            {
+              "start_frame": 98816,
+              "end_frame": 157696,
+              "elapsed_ms": 7044.294,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "5dbfa464a403f695"
+            },
+            {
+              "start_frame": 182784,
+              "end_frame": 232448,
+              "elapsed_ms": 7074.101,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "f0cd6a097d9bda6a"
+            }
+          ],
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ],
+              "fraction": [
+                2,
+                2
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              1,
+              1
+            ],
+            "passed": true
+          }
+        }
+      ],
+      "critical_passed": false,
+      "sampled_process_tree_resources": {
+        "schema_version": 1,
+        "interval_ms_requested": 200,
+        "duration_ms": 68388.316,
+        "peak_sampled_private_bytes": 2026213376,
+        "observed_cpu_seconds": 260.9375,
+        "observed_mean_cpu_core_equivalents": 3.8155274777542707,
+        "snapshot_errors": 0,
+        "partial_samples": 0,
+        "exit_code": 0
+      }
+    },
+    "2": {
+      "schema": 1,
+      "engine": {
+        "faster-whisper": "1.2.1",
+        "ctranslate2": "4.9.0"
+      },
+      "model_revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+      "model_sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+      "cpu_threads": 2,
+      "worker_count": 1,
+      "device": "cpu",
+      "compute_type": "int8_float32",
+      "decode": {
+        "language": "fr",
+        "task": "transcribe",
+        "beam_size": 1,
+        "best_of": 1,
+        "temperature": 0.0,
+        "condition_on_previous_text": false,
+        "vad_filter": false,
+        "word_timestamps": false
+      },
+      "segmentation": "silero576",
+      "slice_lock_sha256": "f8b56f48960c293153cda82ddc005ce6ad871cbe480c98001d36ef2f44369712",
+      "import_ms": 122.289,
+      "model_load_ms": 2599.062,
+      "warmup": {
+        "id": "px-826",
+        "elapsed_ms": 8595.647
+      },
+      "cases": [
+        {
+          "id": "px-826",
+          "audio_ms": 6440,
+          "elapsed_ms": 8766.144,
+          "asr_elapsed_audio_ratio": 1.3612,
+          "slices": [
+            {
+              "start_frame": 6144,
+              "end_frame": 80384,
+              "elapsed_ms": 8765.856,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "f3e871b317886221"
+            }
+          ],
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ]
+            },
+            "numeric_sequence_equal": false,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              1,
+              1
+            ],
+            "passed": false
+          }
+        },
+        {
+          "id": "px-23",
+          "audio_ms": 16800,
+          "elapsed_ms": 34937.757,
+          "asr_elapsed_audio_ratio": 2.07963,
+          "slices": [
+            {
+              "start_frame": 5120,
+              "end_frame": 57856,
+              "elapsed_ms": 8776.121,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "a72c6ea901956a34"
+            },
+            {
+              "start_frame": 70656,
+              "end_frame": 156672,
+              "elapsed_ms": 8769.739,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "80293e4df40e6812"
+            },
+            {
+              "start_frame": 156672,
+              "end_frame": 195584,
+              "elapsed_ms": 8735.346,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "9aadc4b7a34ee326"
+            },
+            {
+              "start_frame": 214528,
+              "end_frame": 240640,
+              "elapsed_ms": 8656.011,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "b2a8bba4ba777d9f"
+            }
+          ],
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ],
+              "fraction": [
+                1,
+                1
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              0,
+              1
+            ],
+            "passed": true
+          }
+        },
+        {
+          "id": "px-584",
+          "audio_ms": 15200,
+          "elapsed_ms": 25547.417,
+          "asr_elapsed_audio_ratio": 1.68075,
+          "slices": [
+            {
+              "start_frame": 37376,
+              "end_frame": 98816,
+              "elapsed_ms": 8645.221,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "4a3c19d6e3f92074"
+            },
+            {
+              "start_frame": 98816,
+              "end_frame": 157696,
+              "elapsed_ms": 8616.37,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "5dbfa464a403f695"
+            },
+            {
+              "start_frame": 182784,
+              "end_frame": 232448,
+              "elapsed_ms": 8285.439,
+              "nonempty": true,
+              "pcm_float32_fnv1a64_expected": "f0cd6a097d9bda6a"
+            }
+          ],
+          "fixture_checks": {
+            "critical_span_presence": {
+              "dose": [
+                1,
+                1
+              ],
+              "fraction": [
+                2,
+                2
+              ]
+            },
+            "numeric_sequence_equal": true,
+            "no_added_negation": true,
+            "no_added_concentration": true,
+            "terms": [
+              1,
+              1
+            ],
+            "passed": true
+          }
+        }
+      ],
+      "critical_passed": false,
+      "sampled_process_tree_resources": {
+        "schema_version": 1,
+        "interval_ms_requested": 200,
+        "duration_ms": 81939.374,
+        "peak_sampled_private_bytes": 2024824832,
+        "observed_cpu_seconds": 161.3125,
+        "observed_mean_cpu_core_equivalents": 1.9686811421543962,
+        "snapshot_errors": 0,
+        "partial_samples": 0,
+        "exit_code": 0
+      }
+    }
+  },
+  "paired_slices": {
+    "px-826": [
+      {
+        "start_frame": 6144,
+        "end_frame_exclusive": 80384,
+        "pcm_float32_fnv1a64_native_observed": "f3e871b317886221",
+        "whisper_cpp_total_ms": 12931.16,
+        "ct2_4_elapsed_ms": 7179.038,
+        "ct2_2_elapsed_ms": 8765.856
+      }
+    ],
+    "px-23": [
+      {
+        "start_frame": 5120,
+        "end_frame_exclusive": 57856,
+        "pcm_float32_fnv1a64_native_observed": "a72c6ea901956a34",
+        "whisper_cpp_total_ms": 12976.03,
+        "ct2_4_elapsed_ms": 7053.202,
+        "ct2_2_elapsed_ms": 8776.121
+      },
+      {
+        "start_frame": 70656,
+        "end_frame_exclusive": 156672,
+        "pcm_float32_fnv1a64_native_observed": "80293e4df40e6812",
+        "whisper_cpp_total_ms": 13118.07,
+        "ct2_4_elapsed_ms": 7131.325,
+        "ct2_2_elapsed_ms": 8769.739
+      },
+      {
+        "start_frame": 156672,
+        "end_frame_exclusive": 195584,
+        "pcm_float32_fnv1a64_native_observed": "9aadc4b7a34ee326",
+        "whisper_cpp_total_ms": 12973.24,
+        "ct2_4_elapsed_ms": 7009.709,
+        "ct2_2_elapsed_ms": 8735.346
+      },
+      {
+        "start_frame": 214528,
+        "end_frame_exclusive": 240640,
+        "pcm_float32_fnv1a64_native_observed": "b2a8bba4ba777d9f",
+        "whisper_cpp_total_ms": 12935.42,
+        "ct2_4_elapsed_ms": 6968.677,
+        "ct2_2_elapsed_ms": 8656.011
+      }
+    ],
+    "px-584": [
+      {
+        "start_frame": 37376,
+        "end_frame_exclusive": 98816,
+        "pcm_float32_fnv1a64_native_observed": "4a3c19d6e3f92074",
+        "whisper_cpp_total_ms": 12852.6,
+        "ct2_4_elapsed_ms": 7042.428,
+        "ct2_2_elapsed_ms": 8645.221
+      },
+      {
+        "start_frame": 98816,
+        "end_frame_exclusive": 157696,
+        "pcm_float32_fnv1a64_native_observed": "5dbfa464a403f695",
+        "whisper_cpp_total_ms": 12808.98,
+        "ct2_4_elapsed_ms": 7044.294,
+        "ct2_2_elapsed_ms": 8616.37
+      },
+      {
+        "start_frame": 182784,
+        "end_frame_exclusive": 232448,
+        "pcm_float32_fnv1a64_native_observed": "f0cd6a097d9bda6a",
+        "whisper_cpp_total_ms": 12828.25,
+        "ct2_4_elapsed_ms": 7074.101,
+        "ct2_2_elapsed_ms": 8285.439
+      }
+    ]
+  },
+  "aggregate_paired_slice_timings": {
+    "count": 8,
+    "whisper_cpp": {
+      "median_ms": 12933.29,
+      "min_ms": 12808.98,
+      "max_ms": 13118.07,
+      "sum_ms": 103423.75
+    },
+    "ct2_4": {
+      "median_ms": 7048.748,
+      "min_ms": 6968.677,
+      "max_ms": 7179.038,
+      "sum_ms": 56502.774,
+      "whisper_cpp_sum_over_ct2_sum": 1.830419
+    },
+    "ct2_2": {
+      "median_ms": 8695.6785,
+      "min_ms": 8285.439,
+      "max_ms": 8776.121,
+      "sum_ms": 69250.103,
+      "whisper_cpp_sum_over_ct2_sum": 1.493482
+    }
+  },
+  "raw_scoring_caveat": {
+    "case": "px-826",
+    "signal": "numeric_sequence_equal",
+    "raw_all_runtimes": false,
+    "status": "possible numeric scorer false negative; targeted fix tested locally, rerun required",
+    "supporting_observation": "Independent macOS native reproduction distinguishes grammatical feminine quantity wording from a numeric reference despite semantic equivalence.",
+    "windows_transcript_retained": false,
+    "retrospectively_corrected": false
+  }
+}

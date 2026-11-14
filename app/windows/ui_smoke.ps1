@@ -18,6 +18,7 @@ public static class NvWindow {
     [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, StringBuilder name, int max);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll", EntryPoint = "PostMessageW", ExactSpelling = true)] public static extern bool Post(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp);
     [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", ExactSpelling = true)]
@@ -26,11 +27,14 @@ public static class NvWindow {
     static extern IntPtr ReadBounded(IntPtr hwnd, uint msg, IntPtr wp, StringBuilder buf, uint flags, uint timeout, out UIntPtr result);
     [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", ExactSpelling = true, CharSet = CharSet.Unicode)]
     static extern IntPtr WriteBounded(IntPtr hwnd, uint msg, IntPtr wp, string text, uint flags, uint timeout, out UIntPtr result);
-    static int Send(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp) {
+    static UIntPtr SendRaw(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp) {
         UIntPtr result;
-        if (SendBounded(hwnd, msg, wp, lp, 0x0002, 2000, out result) == IntPtr.Zero)
+        if (SendBounded(hwnd, msg, wp, lp, 0x0022, 2000, out result) == IntPtr.Zero)
             throw new TimeoutException("The NoteVive window did not answer the native smoke test.");
-        return unchecked((int)result.ToUInt64());
+        return result;
+    }
+    static int Send(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp) {
+        return unchecked((int)SendRaw(hwnd, msg, wp, lp).ToUInt64());
     }
     public static string Text(IntPtr hwnd) {
         int length = Send(hwnd, 0x000e, IntPtr.Zero, IntPtr.Zero); // WM_GETTEXTLENGTH
@@ -54,6 +58,94 @@ public static class NvWindow {
     public static int TreeCount(IntPtr tree) {
         return Send(tree, 0x1105, IntPtr.Zero, IntPtr.Zero); // TVM_GETCOUNT
     }
+    [StructLayout(LayoutKind.Sequential)] struct TreeItem {
+        public uint Mask;
+        public IntPtr Handle;
+        public uint State, StateMask;
+        public IntPtr Text;
+        public int TextMax, Image, SelectedImage, Children;
+        public IntPtr Param;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll")] static extern bool IsWow64Process2(IntPtr process, out ushort processMachine, out ushort nativeMachine);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr VirtualAllocEx(IntPtr process, IntPtr addr, UIntPtr size, uint how, uint protection);
+    [DllImport("kernel32.dll")] static extern bool VirtualFreeEx(IntPtr process, IntPtr addr, UIntPtr size, uint how);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool WriteProcessMemory(IntPtr process, IntPtr addr, byte[] data, UIntPtr size, out UIntPtr written);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool ReadProcessMemory(IntPtr process, IntPtr addr, [Out] byte[] data, UIntPtr size, out UIntPtr read);
+
+    static IntPtr TreeNext(IntPtr tree, int relation, IntPtr item) {
+        return new IntPtr(unchecked((long)SendRaw(tree, 0x110a, new IntPtr(relation), item).ToUInt64())); // TVM_GETNEXTITEM
+    }
+    public static bool FindTreePath(IntPtr tree, uint pid, string[] path, bool select) {
+        // TVM_GETITEMW is not marshaled across processes. Limit access to one
+        // scratch page owned by the launched fictitious-test process/window.
+        uint owner;
+        var klass = new StringBuilder(64);
+        int itemSize = Marshal.SizeOf(typeof(TreeItem));
+        if (IntPtr.Size != 8 || itemSize != 56 ||
+            GetWindowThreadProcessId(tree, out owner) == 0 || owner != pid ||
+            GetClassName(tree, klass, klass.Capacity) == 0 ||
+            !string.Equals(klass.ToString(), "SysTreeView32", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The NoteVive x64 native folder tree was not found.");
+        var process = OpenProcess(0x1038, false, pid); // QUERY_LIMITED_INFORMATION, VM_OPERATION, VM_READ, VM_WRITE
+        if (process == IntPtr.Zero) throw new System.ComponentModel.Win32Exception();
+        IntPtr scratch = IntPtr.Zero, local = IntPtr.Zero;
+        bool canFree = true;
+        try {
+            ushort emulated, native;
+            if (!IsWow64Process2(process, out emulated, out native) || (emulated == 0 ? native : emulated) != 0x8664)
+                throw new InvalidOperationException("The folder test requires a native or emulated x64 NoteVive process.");
+            var encoded = new byte[itemSize];
+            var buffer = new byte[512]; // 256 UTF-16 units; app names are limited to 120.
+            scratch = VirtualAllocEx(process, IntPtr.Zero, (UIntPtr)(itemSize + buffer.Length), 0x3000, 0x04);
+            if (scratch == IntPtr.Zero) throw new System.ComponentModel.Win32Exception();
+            local = Marshal.AllocHGlobal(itemSize);
+            IntPtr found = IntPtr.Zero;
+            int remaining = 32; // The isolated smoke only creates two folders.
+            foreach (string expected in path) {
+                IntPtr item = TreeNext(tree, found == IntPtr.Zero ? 0 : 4, found); // TVGN_ROOT or TVGN_CHILD
+                found = IntPtr.Zero;
+                while (item != IntPtr.Zero) {
+                    if (--remaining < 0) throw new InvalidOperationException("Too many native folder items in the test profile.");
+                    var spec = new TreeItem { Mask = 1, Handle = item, Text = IntPtr.Add(scratch, itemSize), TextMax = buffer.Length / 2 };
+                    Marshal.StructureToPtr(spec, local, false);
+                    Marshal.Copy(local, encoded, 0, encoded.Length);
+                    UIntPtr moved;
+                    if (!WriteProcessMemory(process, scratch, encoded, (UIntPtr)encoded.Length, out moved) || moved.ToUInt64() != (ulong)encoded.Length)
+                        throw new System.ComponentModel.Win32Exception();
+                    // A timed-out OS call might still be using the scratch page;
+                    // let that test process release it at exit in that case.
+                    canFree = false;
+                    int ok = Send(tree, 0x113e, IntPtr.Zero, scratch); // TVM_GETITEMW
+                    canFree = true;
+                    if (ok == 0) return false; // An in-progress refresh may have replaced the item.
+                    if (!ReadProcessMemory(process, spec.Text, buffer, (UIntPtr)buffer.Length, out moved) || moved.ToUInt64() != (ulong)buffer.Length)
+                        throw new System.ComponentModel.Win32Exception();
+                    string text = Encoding.Unicode.GetString(buffer);
+                    int end = text.IndexOf('\0');
+                    if (end < 0) throw new InvalidOperationException("A folder label exceeded the test buffer.");
+                    if (string.Equals(text.Substring(0, end), expected, StringComparison.Ordinal)) { found = item; break; }
+                    item = TreeNext(tree, 1, item); // TVGN_NEXT sibling
+                }
+                if (found == IntPtr.Zero) return false;
+                var expanded = new IntPtr(0x20);
+                if (TreeNext(tree, 4, found) != IntPtr.Zero && (Send(tree, 0x1127, found, expanded) & 0x20) == 0) {
+                    Send(tree, 0x1102, new IntPtr(2), found); // TVM_EXPAND / TVE_EXPAND
+                    if ((Send(tree, 0x1127, found, expanded) & 0x20) == 0) return false;
+                }
+            }
+            if (select) {
+                Send(tree, 0x110b, new IntPtr(9), found); // TVM_SELECTITEM / TVGN_CARET
+                return TreeNext(tree, 9, IntPtr.Zero) == found;
+            }
+            return found != IntPtr.Zero;
+        } finally {
+            if (local != IntPtr.Zero) Marshal.FreeHGlobal(local);
+            if (canFree && scratch != IntPtr.Zero) VirtualFreeEx(process, scratch, UIntPtr.Zero, 0x8000);
+            CloseHandle(process);
+        }
+    }
     public static IntPtr PopupMenu(uint processId) {
         IntPtr popup = IntPtr.Zero;
         do {
@@ -74,10 +166,7 @@ $classProperty = [System.Windows.Automation.AutomationElement]::ClassNamePropert
 $processProperty = [System.Windows.Automation.AutomationElement]::ProcessIdProperty
 $typeProperty = [System.Windows.Automation.AutomationElement]::ControlTypeProperty
 $listItemType = [System.Windows.Automation.ControlType]::ListItem
-$treeItemType = [System.Windows.Automation.ControlType]::TreeItem
-$childrenScope = [System.Windows.Automation.TreeScope]::Children
 $selection = [System.Windows.Automation.SelectionItemPattern]::Pattern
-$expand = [System.Windows.Automation.ExpandCollapsePattern]::Pattern
 $invoke = [System.Windows.Automation.InvokePattern]::Pattern
 $prefix = "NVTEST-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
 $testProfile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) 'NoteVive-Pilote'
@@ -128,29 +217,11 @@ function ByName($Parent, [string]$Name) {
     Wait-For { $Parent.FindFirst($enumScope, (Condition $nameProperty $Name)) } "find '$Name'"
 }
 
-function Expand-Branch($Element) {
-    $pattern = $Element.GetCurrentPattern($expand)
-    if ($pattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Collapsed) {
-        $pattern.Expand()
-    }
-}
-
-function Tree-Item([string[]]$Path) {
-    Wait-For {
-        # Reacquire the native root and branch on every attempt: a save rebuilds all tree items.
-        $branch = [System.Windows.Automation.AutomationElement]::FromHandle(
-            [NvWindow]::GetDlgItem((Window-Handle $app), 110))
-        foreach ($name in (@('Toutes les transcriptions') + $Path)) {
-            $children = $branch.FindAll($childrenScope, (Condition $typeProperty $treeItemType))
-            $branch = $null
-            foreach ($child in $children) {
-                if ($child.Current.Name -ceq $name) { $branch = $child; break }
-            }
-            if (-not $branch) { return }
-            Expand-Branch $branch
-        }
-        $branch
-    } "find visible folder branch '$($Path -join ' / ')'"
+function Wait-TreePath([string[]]$Path, [switch]$Select) {
+    $tree = [NvWindow]::GetDlgItem((Window-Handle $app), 110)
+    $labels = @('Toutes les transcriptions') + $Path
+    # Acquire item handles afresh on every attempt; a save rebuilds the tree.
+    $null = Wait-For { [NvWindow]::FindTreePath($tree, $process.Id, [string[]]$labels, $Select.IsPresent) } "find native branch '$($Path -join ' / ')'"
 }
 
 function Saved-Count([string]$Pattern) {
@@ -291,13 +362,12 @@ try {
     Click (ById 114) # New top-level folder.
     Folder-Dialog 'Nouveau dossier' $testFolder
     Wait-Folders 1
-    $parent = Tree-Item @($testFolder)
+    Wait-TreePath @($testFolder) -Select
     Step 'create the child folder'
-    $parent.GetCurrentPattern($selection).Select()
     Click (ById 114) # Child of selected folder.
     Folder-Dialog 'Nouveau dossier' $testChild
     Wait-Folders 2
-    $null = Tree-Item @($testFolder, $testChild)
+    Wait-TreePath @($testFolder, $testChild) -Select
 
     # Type a title first, allow autosave, then verify title and body survive.
     Step 'create the first note in the child folder and wait for autosave'
@@ -330,7 +400,7 @@ try {
     End-App
     Begin-App
     Wait-Folders 2
-    $null = Tree-Item @($testFolder, $testChild)
+    Wait-TreePath @($testFolder, $testChild)
     Step 'search and open the saved note by its body'
     Input-Text (ById 111) 'marqueur ephemere'
     $note = Wait-For {
@@ -347,9 +417,9 @@ try {
         $where = [NvWindow]::GetDlgItem((Window-Handle $app), 120)
         [NvWindow]::Text($where).Contains("$testFolder / $testChild")
     } 'persisted note links to the nested folder'
-    (Tree-Item @($testFolder, $testChild)).GetCurrentPattern($selection).Select()
+    Wait-TreePath @($testFolder, $testChild) -Select
     Rename-SelectedFolder $testChildRenamed
-    $null = Tree-Item @($testFolder, $testChildRenamed)
+    Wait-TreePath @($testFolder, $testChildRenamed)
     $null = Wait-For { (Editor-Folder) -ceq "$testFolder / $testChildRenamed" } 'note remains in the renamed folder'
     Step 'move the note out of its folder'
     Move-Note 'Sans dossier'
@@ -359,7 +429,7 @@ try {
     End-App
     Begin-App
     Wait-Folders 2
-    $null = Tree-Item @($testFolder, $testChildRenamed)
+    Wait-TreePath @($testFolder, $testChildRenamed)
     $moved = Wait-For { Test-NoteVisible $testRenamed } 'find the moved note on restart'
     $moved.GetCurrentPattern($selection).Select()
     $null = Wait-For {
@@ -383,11 +453,6 @@ try {
             $tree = [NvWindow]::GetDlgItem($handle, 110)
             $details += ", native_tree_items=$([NvWindow]::TreeCount($tree)), main_enabled=$([NvWindow]::IsWindowEnabled($handle))"
             [Console]::Error.WriteLine($details)
-            $treeElement = [System.Windows.Automation.AutomationElement]::FromHandle($tree)
-            $nodes = $treeElement.FindAll($enumScope, (Condition $typeProperty $treeItemType))
-            # Only diagnostics from the isolated fictitious test profile; no editor content.
-            $names = @($nodes | Select-Object -First 10 | ForEach-Object { $_.Current.Name })
-            [Console]::Error.WriteLine("Accessible folder labels: " + ($names -join ' | '))
         } else { [Console]::Error.WriteLine($details) }
     } catch {
         [Console]::Error.WriteLine("Additional UI diagnostics unavailable: $($_.Exception.GetType().FullName)")
