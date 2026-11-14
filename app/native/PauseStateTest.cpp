@@ -1,4 +1,7 @@
 #include "../macos/native/PauseState.h"
+#ifdef NDEBUG
+#error "Pause checks require assertions enabled"
+#endif
 #include <cassert>
 #include <iostream>
 

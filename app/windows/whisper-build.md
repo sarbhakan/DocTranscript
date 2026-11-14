@@ -10,7 +10,7 @@ Depuis la racine du dépôt, sur Windows x64 avec Python 3.12+, CMake 3.21+, Vis
 python app/build_whisper_windows.py --source app/private/downloads/whisper-v1.8.5-source.tar.gz --output app/private/whisper-build
 ```
 
-Cette étape ne télécharge rien. `windows-2025` dans [GitHub Actions](https://github.com/actions/runner-images/blob/main/images/windows/Windows2025-Readme.md#visual-studio-enterprise-2022) contient les outils requis. Le dossier de destination doit être nouveau. Il contient `bin/whisper.dll` (SSE2), `bin/cpu-avx2/whisper.dll` (AVX2), `lib/whisper.lib` pour la liaison de l’ABI commune, `include/` pour la compilation, le `LICENSE` amont et `attestation.json`.
+Cette étape ne télécharge rien. `windows-2022` dans [GitHub Actions](https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md#visual-studio-enterprise-2022) contient les outils requis. Le dossier de destination doit être nouveau. Il contient `bin/whisper.dll` (SSE2), `bin/cpu-avx2/whisper.dll` (AVX2), `lib/whisper.lib` pour la liaison de l’ABI commune, `include/` pour la compilation, le `LICENSE` amont et `attestation.json`.
 
 Le script vérifie l’archive avant de l’extraire. Il modifie un seul fichier amont, `CMakeLists.txt` : active `CMP0091=NEW` avant le premier `project()` pour respecter le choix du CRT, puis active `BUILD_SHARED_LIBS` uniquement autour de `add_subdirectory(src)` pour créer la DLL Whisper. Les sources C/C++ ne changent pas.
 

@@ -35,7 +35,7 @@ jobs:
       - name: Extraire le ZIP livré
         run: Expand-Archive dist/NoteVive-Windows-x64-Essai.zip "$env:RUNNER_TEMP/NoteVive-paquet"
       - name: Tester stockage chiffré, migrations, sous-dossiers, crash et moteur
-        run: python -m app.test_windows --zig app/private/toolchain/zig-x86_64-windows-0.15.2/zig.exe --output "$env:RUNNER_TEMP/NoteVive-tests" --package "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive"
+        run: python -m app.test_windows --compiler msvc --output "$env:RUNNER_TEMP/NoteVive-tests" --package "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive"
       - name: Tester la fenêtre et le parcours des notes sans micro
         shell: powershell
         run: ./app/windows/ui_smoke.ps1 -Executable "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive/NoteVive.exe"

@@ -1,4 +1,7 @@
 #include "worker_protocol.h"
+#ifdef NDEBUG
+#error "Protocol checks require assertions enabled"
+#endif
 #include <cassert>
 #include <iostream>
 int main() {

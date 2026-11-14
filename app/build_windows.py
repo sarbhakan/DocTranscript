@@ -89,6 +89,11 @@ def stage_inputs(downloads, staging, catalogue, whisper_runtime):
         shutil.copyfile(notice, notices / notice.name)
     if (notices / "Whisper-cpp-MIT.txt").read_bytes() != (whisper_runtime / "LICENSE").read_bytes():
         raise ValueError("La notice Whisper ne correspond pas aux sources compilées.")
+    (notices / 'cxx-runtime').mkdir()
+    for name, spec in LOCK['runtime_notices'].items():
+        source = ROOT / 'app/licences/cxx-runtime' / name
+        check(source, spec)
+        shutil.copyfile(source, notices / 'cxx-runtime' / name)
     shutil.copyfile(ROOT / "app/NOTICE.md", notices / "Composants.md")
     for source in lex["sources"]:
         del source["file"]

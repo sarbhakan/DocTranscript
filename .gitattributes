@@ -1,3 +1,4 @@
 * text=auto eol=lf
 # Build inputs are byte-locked, including their original newlines.
 app/windows/vendor/whisper-notices/*.txt -text
+app/licences/cxx-runtime/* -text

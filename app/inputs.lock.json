@@ -56,5 +56,28 @@
       "nabm-ans",
       "orphanet-fr"
     ]
+  },
+  "runtime_notices": {
+    "LLVM-libcxx.txt": {
+      "hash": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+    },
+    "LLVM-libcxxabi.txt": {
+      "hash": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c"
+    },
+    "LLVM-libunwind.txt": {
+      "hash": "b5efebcaca80879234098e52d1725e6d9eb8fb96a19fce625d39184b705f7b6d"
+    },
+    "MinGW-w64-COPYING.txt": {
+      "hash": "99a69660981156c21336fdb5661f89341b013c94e4bf9e1c7467b4745718397f"
+    },
+    "MinGW-w64-DISCLAIMER.PD": {
+      "hash": "87f33608570312a0f2a9745edcb2527275df813b13982e8c3b3f893d88a4141a"
+    },
+    "MinGW-w64-runtime.txt": {
+      "hash": "e9b2dc02451ea29092a1f25fa0f3c07207ed421f1807dffb0c4e6dce69dee7bd"
+    },
+    "Zig-compiler-rt-MIT.txt": {
+      "hash": "5c537d6853e005298a285d508cff9ac7192cea23576c840d485b2b586a7ff177"
+    }
   }
 }
