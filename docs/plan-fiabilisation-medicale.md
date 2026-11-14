@@ -4,6 +4,8 @@
 
 Le premier objectif recommandé est une dictée post-consultation de médecine générale, sur Windows, entièrement locale, avec relecture obligatoire. Les autres spécialités seront évaluées progressivement dans **la même application**. Une bibliothèque de mots transversale peut exister dès maintenant ; une promesse de fiabilité pour toutes les spécialités demande des preuves propres à chaque usage.
 
+**Travaux réalisés depuis ce plan :** l’[audit de consolidation 0.3.1](audit-consolidation-031.md) décrit les correctifs Windows, le correctif amont du décodeur, la comparaison appariée et la préparation effective d’un corpus humain. Les poids n’ont pas été entraînés ; le mode d’essai guidé F1 et la qualification clinique restent des travaux à réaliser.
+
 ## 1. Notre point de départ réel
 
 Le produit Windows utilise Whisper Large-v3 Turbo Q5_0, whisper.cpp 1.8.5, OpenBLAS et Silero. Le code décode aujourd’hui les fragments en français, sans réutiliser le contexte des notes précédentes, avec une recherche simple et quatre fils de calcul. Le prototype Mac utilise UltiMed INT8 ; ses résultats ne qualifient pas le produit Windows.

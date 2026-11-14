@@ -9,6 +9,7 @@ import ctypes
 import json
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 from time import perf_counter
 from types import SimpleNamespace
@@ -35,11 +36,25 @@ def build(args):
     output.mkdir()  # Never replace results or an earlier build.
     before = (source / DECODER_PATCH["path"]).read_bytes()
     after = patched_decoder(before)
+    # Freeze included project/upstream headers too: a later checkout must not
+    # silently change the experiment while its copied .cpp remains identical.
+    frozen = output / "upstream"
+    for folder in ("include", "src", "ggml/include", "ggml/src"):
+        for header in (source / folder).rglob("*"):
+            if header.is_file() and header.suffix in {".h", ".hpp", ".inc"}:
+                destination = frozen / header.relative_to(source)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(header, destination)
+    project = output / "notevive"
+    project.mkdir()
+    for header in (ROOT / "app/native/WhisperBridge.h", ROOT / "app/macos/native/PauseState.h",
+                   ROOT / "app/macos/native/SileroPause.h"):
+        shutil.copyfile(header, project / header.name)
     libraries = [runtime / name for name in ("libggml.0.13.1.dylib", "libggml-base.0.13.1.dylib",
                                               "libggml-cpu.0.13.1.dylib", "libggml-blas.0.13.1.dylib")]
     for lib in libraries:
         lib.resolve(strict=True)
-    includes = [p for folder in (source / "include", source / "src", source / "ggml/include", source / "ggml/src")
+    includes = [p for folder in (frozen / "include", frozen / "src", frozen / "ggml/include", frozen / "ggml/src")
                 for p in ("-I", str(folder))]
     commands = []
     def compile(command):
@@ -60,9 +75,9 @@ def build(args):
         compile(["codesign", "--force", "--sign", "-", lib])
     original = (ROOT / "app/native/WhisperBridge.cpp").read_text(encoding="utf-8")
     original = replace_once(original, '#include "WhisperBridge.h"',
-                            f'#include "{ROOT}/app/native/WhisperBridge.h"')
+                            f'#include "{project}/WhisperBridge.h"')
     original = replace_once(original, '#include "../macos/native/PauseState.h"',
-                            f'#include "{ROOT}/app/macos/native/PauseState.h"')
+                            f'#include "{project}/PauseState.h"')
     for arm in PROFILES:
         text = original
         if arm == "beam5":
@@ -77,9 +92,10 @@ def build(args):
         compile(["/usr/bin/clang++", "-std=c++17", "-O3", "-dynamiclib", *includes, cpp,
                  output / f"libwhisper-{engine}.dylib", f"-Wl,-rpath,{runtime}", "-o", binary])
     report = {"schema": 1, "platform": platform.platform(), "decoder_patch": DECODER_PATCH,
+              "compiler": subprocess.check_output(["/usr/bin/clang++", "--version"], text=True).splitlines()[0],
               "bridge_source_sha256": digest(ROOT / "app/native/WhisperBridge.cpp"),
               "ggml_libraries": {p.name: digest(p) for p in libraries}, "commands": commands,
-              "artifacts": {p.name: digest(p) for p in output.iterdir() if p.is_file()}}
+              "artifacts": {p.relative_to(output).as_posix(): digest(p) for p in output.rglob("*") if p.is_file()}}
     (output / "build.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print("Construction comparative terminée.")
 
