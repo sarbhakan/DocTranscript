@@ -416,6 +416,14 @@ struct RecipeNamespace {
         return true;
     }
 
+    static bool preparation_failed(const char* phase) {
+        const auto error = GetLastError();
+        std::fprintf(stderr, "Session namespace preparation: %s failed (Windows error %lu)\n",
+                     phase, static_cast<unsigned long>(error));
+        SetLastError(error);
+        return false;
+    }
+
     static bool supported_access(OpenDirectory call, DWORD session, HANDLE thread_token, NTSTATUS& status) {
         if (!ImpersonateLoggedOnUser(thread_token)) return false;
         LocalHandle check;
@@ -427,20 +435,29 @@ struct RecipeNamespace {
         return true;
     }
 
-    bool start(DWORD pid, HANDLE process, PSID account) {
+    bool start(DWORD pid, HANDLE process, HANDLE logon_token, PSID account) {
         if (!hosted_recipe()) { SetLastError(ERROR_ACCESS_DENIED); return false; }
         DWORD parent_session = 0, session = 0;
         if (!ProcessIdToSessionId(GetCurrentProcessId(), &parent_session) || !ProcessIdToSessionId(pid, &session))
             return false;
         if (!session || session != parent_session) { SetLastError(ERROR_ACCESS_DENIED); return false; }
 
-        // The process remains suspended. Verify its actual token, which was
-        // created by the secondary logon, instead of using the preview token.
+        // Verify the actual child in place; cross-account TOKEN_DUPLICATE
+        // is unnecessary. Use the original successful LogonUser token of
+        // this same SID to test access, as the desktop permission check does.
         LocalHandle token, identity;
-        if (!OpenProcessToken(process, TOKEN_QUERY | TOKEN_DUPLICATE, &token.value) ||
-            !verify_token(token.value, session, account) ||
-            !DuplicateTokenEx(token.value, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
-                              TokenImpersonation, &identity.value)) return false;
+        if (!OpenProcessToken(process, TOKEN_QUERY, &token.value))
+            return preparation_failed("query the suspended child's token");
+        if (!verify_token(token.value, session, account))
+            return preparation_failed("verify the suspended child's account and session");
+        DWORD logon_session = 0, session_bytes = 0;
+        if (!GetTokenInformation(logon_token, TokenSessionId, &logon_session, sizeof(logon_session), &session_bytes))
+            return preparation_failed("query the local logon token's session");
+        std::fprintf(stderr, "Recipe namespace access check: local logon token session=%lu; target session=%lu.\n",
+                     static_cast<unsigned long>(logon_session), static_cast<unsigned long>(session));
+        if (!DuplicateTokenEx(logon_token, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
+                              TokenImpersonation, &identity.value))
+            return preparation_failed("prepare the verified local account's access check");
         const auto nt = GetModuleHandleW(L"ntdll.dll");
         const auto proc = nt ? GetProcAddress(nt, "NtOpenDirectoryObject") : nullptr;
         if (!proc) { SetLastError(ERROR_PROC_NOT_FOUND); return false; }
@@ -450,7 +467,8 @@ struct RecipeNamespace {
         constexpr auto denied = static_cast<NTSTATUS>(0xc0000022u);
 
         NTSTATUS before = 0;
-        if (!supported_access(call, session, identity.value, before)) return false;
+        if (!supported_access(call, session, identity.value, before))
+            return preparation_failed("check session directory access as the local account");
         std::fprintf(stderr, "Recipe account session namespace before grant: 0x%08lx\n",
                      static_cast<unsigned long>(static_cast<DWORD>(before)));
         if (before >= 0) return true;
@@ -484,7 +502,8 @@ struct RecipeNamespace {
         if (!changed) { SetLastError(update_error); return false; }
 
         NTSTATUS after = 0;
-        if (!supported_access(call, session, identity.value, after)) return false;
+        if (!supported_access(call, session, identity.value, after))
+            return preparation_failed("recheck session directory access as the local account");
         std::fprintf(stderr, "Recipe account session namespace after grant: 0x%08lx\n",
                      static_cast<unsigned long>(static_cast<DWORD>(after)));
         if (after < 0) { SetLastError(ERROR_ACCESS_DENIED); return false; }
@@ -905,7 +924,8 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
         TerminateProcess(child_process.value, 1);
         return code;
     }
-    if (edge_session && !named_objects.start(child.dwProcessId, child_process.value, account.sid()))
+    if (edge_session && !named_objects.start(child.dwProcessId, child_process.value,
+                                             account.token.value, account.sid()))
         return failure("Prepare the session namespace for the Edge recipe");
     AllowSetForegroundWindow(child.dwProcessId);
     if (ResumeThread(child_thread.value) == static_cast<DWORD>(-1)) return failure("ResumeThread");
