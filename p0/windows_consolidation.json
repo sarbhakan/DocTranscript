@@ -189,5 +189,212 @@
     "Per-file process startup included; not microphone-to-window latency.",
     "px-23 medication term absent despite passed numeric gate.",
     "Resource peaks are sampled; px-584 has one partial sample."
-  ]
+  ],
+  "release_validation": {
+    "source_commit": "8e9693a3bde605c5adaa4e36910e8cfd33626219",
+    "run_id": 43632194234,
+    "job_id": 132561062891,
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43632194234",
+    "native_tests": "passed",
+    "ui_smoke": "passed",
+    "microphone_physical_tested": false,
+    "python_bench": {
+      "total": 56,
+      "skipped": 2,
+      "failed": 0
+    },
+    "python_catalogue": {
+      "total": 12,
+      "skipped": 1,
+      "failed": 0
+    },
+    "machine": {
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "cores": 2,
+      "logical_processors": 4,
+      "memory_total_bytes": 17174360064,
+      "os_version": "Microsoft Windows NT 10.0.20348.0"
+    },
+    "timings": [
+      {
+        "test": "silence",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 1.266,
+        "audio_seconds": 8.0,
+        "elapsed_audio_ratio": 0.158,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 999882752,
+          "observed_cpu_seconds": 1.015625,
+          "observed_mean_cpu_core_equivalents": 0.8574641872298825,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        }
+      },
+      {
+        "test": "px-826",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 16.376,
+        "audio_seconds": 6.44,
+        "elapsed_audio_ratio": 2.543,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954549760,
+          "observed_cpu_seconds": 60.09375,
+          "observed_mean_cpu_core_equivalents": 3.684254213421171,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "actual_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-23",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 62.163,
+        "audio_seconds": 16.8,
+        "elapsed_audio_ratio": 3.7,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1955311616,
+          "observed_cpu_seconds": 239.6875,
+          "observed_mean_cpu_core_equivalents": 3.859922531646671,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "actual_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            0,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-584",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 46.04,
+        "audio_seconds": 15.2,
+        "elapsed_audio_ratio": 3.029,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954476032,
+          "observed_cpu_seconds": 176.75,
+          "observed_mean_cpu_core_equivalents": 3.84445789268804,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              2,
+              2
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "actual_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      }
+    ],
+    "release": {
+      "tag": "v0.3.1-essai",
+      "url": "https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.1-essai",
+      "zip_asset_id": 748567586,
+      "zip_bytes": 544436683,
+      "zip_sha256": "6993d11fb698c15d050ab69f87c0740fc34c13d80d75307a0ecda98a37e44473",
+      "sha256_asset_id": 748567588,
+      "sha256_asset_digest": "154865b1567e42c1895b98c950d5f59aacfa2e37175fb9c075596f78ff92e6a4",
+      "checksum_file_matches_github_zip_digest": true,
+      "archive_verified_in_release_job": true
+    }
+  }
 }

@@ -50,6 +50,8 @@ Le [candidat Windows vérifié en CI](https://github.com/sarbhakan/DocTranscript
 
 Les valeurs et les trois fractions contrôlées passent, mais le nom **Imovane** manque encore sur `px-23`. Aucun micro physique n’est présent dans cette CI. Ni la vitesse sur un PC de 8 Go ni la précision clinique ne sont validées.
 
+La **Release 0.3.1** a ensuite été reconstruite et validée au commit `8e9693a` dans le [run final](https://github.com/sarbhakan/DocTranscript/actions/runs/43632194234). Les mesures figurent dans `release_validation` du même JSON Windows, en préservant celles du candidat. Sur cette autre VM AMD EPYC 7763, les trois fichiers de parole demandent 16,376 s, 62,163 s et 46,040 s. Les contrôles numériques et le parcours d’interface passent ; Imovane reste absent. Le changement de processeur interdit d’attribuer cet écart de temps à la mise à jour.
+
 ## Rejouer le comparatif
 
 Le script [decoder_ab.py](decoder_ab.py) construit les variantes sur macOS à partir des sources exactes de whisper.cpp 1.8.5 et de bibliothèques GGML compatibles déjà présentes. Il nécessite les outils de compilation Apple et NumPy pour la lecture audio. Le [banc historique](asr_benchmark.md) décrit la préparation du manifeste et des WAV ; les chemins ci-dessous sont à remplacer par les emplacements locaux préparés. Utiliser des dossiers de sortie neufs, hors dépôt et hors synchronisation.

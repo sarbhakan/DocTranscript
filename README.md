@@ -6,13 +6,13 @@
 
 ## Télécharger et essayer l’application
 
-### [Télécharger NoteVive pour Windows — ZIP, environ 544 Mo](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip)
+### [Télécharger NoteVive pour Windows — ZIP, environ 544 Mo](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.1-essai/NoteVive-Windows-x64-Essai.zip)
 
-**[Ouvrir le guide pas à pas pour débuter](docs/guide-essai-windows.md)** · [Voir la page de téléchargement sur GitHub](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai)
+**[Ouvrir le guide pas à pas pour débuter](docs/guide-essai-windows.md)** · [Voir la page de téléchargement sur GitHub](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.1-essai)
 
 Le téléchargement est public : aucun compte GitHub ou NoteVive n’est nécessaire. Le ZIP contient l’application et son modèle de reconnaissance vocale. Vous n’avez aucun outil de programmation à installer.
 
-**Version d’essai 0.3.0 : utilisez uniquement des dictées fictives.** La transcription peut se tromper, notamment sur les doses et les négations. Le texte apparaît après les pauses et le calcul ; ce calcul peut prendre plusieurs secondes, voire davantage selon le PC. L’application n’est pas encore qualifiée pour un usage en cabinet.
+**Version d’essai 0.3.1 : utilisez uniquement des dictées fictives.** La transcription peut se tromper, notamment sur les doses et les négations. Le texte apparaît après les pauses et le calcul ; ce calcul peut prendre plusieurs secondes, voire davantage selon le PC. L’application n’est pas encore qualifiée pour un usage en cabinet.
 
 1. **Téléchargez le ZIP** avec le lien ci-dessus. Attendez la fin du téléchargement, puis retrouvez le fichier dans le dossier choisi par votre navigateur, souvent **Téléchargements**.
 2. **Faites un clic droit sur le ZIP, puis « Extraire tout ».** Ouvrez le dossier obtenu, puis le dossier **NoteVive** qu’il contient. Gardez tous les fichiers ensemble.
@@ -45,6 +45,10 @@ Le [guide d’utilisation](docs/guide-essai-windows.md#organiser-les-notes) dét
 
 Dans cette version Windows, la dictée reste dans NoteVive : le raccourci **F9** agit dans sa fenêtre. L’insertion dans un autre logiciel, le copier-coller et l’export du texte ne sont pas disponibles. **Vocabulaire** sert à consulter des termes ; il ne corrige pas automatiquement la dictée. Les fonctions du prototype Mac peuvent différer.
 
+## Ce qui change dans cet essai
+
+La version 0.3.1 améliore la confirmation de fermeture du micro, la récupération après une interruption et la protection du texte avant sauvegarde. Sur le banc Mac, les 85 enregistrements comparés produisent les mêmes textes avec et sans le correctif officiel de reproductibilité. **Les poids n’ont pas été entraînés et les erreurs de vocabulaire restent possibles.** Le [rapport détaillé](docs/audit-consolidation-031.md) présente les corrections, les mesures et les limites.
+
 ## Besoin d’aide ou envie de transmettre un résultat ?
 
 Commencez par le [dépannage pas à pas](docs/guide-essai-windows.md#depannage). Pour nous transmettre un essai, ouvrez le [formulaire de retour](https://github.com/sarbhakan/DocTranscript/issues/new?template=essai-notevive.yml) : il vous guide sur les informations utiles, même si vous ne connaissez pas les caractéristiques techniques du PC. Un compte GitHub est nécessaire pour envoyer ce formulaire. Vous pouvez aussi transmettre les mêmes observations à la personne qui vous a fourni le lien du dépôt.
@@ -66,7 +70,7 @@ Pour essayer l’application, le **ZIP de la Release** et le **guide pas à pas*
 <details>
 <summary><strong>Documentation technique et contribution</strong></summary>
 
-Le paquet Windows 0.3.0 utilise **Whisper Large-v3 Turbo Q5_0, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 70 517 libellés de six référentiels, sans BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
+Le paquet Windows 0.3.1 utilise **Whisper Large-v3 Turbo Q5_0, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 70 517 libellés de six référentiels, sans BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
 
 | Document | Ce qu’il permet de comprendre |
 | --- | --- |

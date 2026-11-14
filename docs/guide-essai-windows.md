@@ -1,8 +1,8 @@
 # Installer et utiliser NoteVive sur Windows, pas à pas
 
-[Retour à l’accueil du projet](../README.md) · **[Télécharger l’application Windows — ZIP, environ 544 Mo](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip)**
+[Retour à l’accueil du projet](../README.md) · **[Télécharger l’application Windows — ZIP, environ 544 Mo](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.1-essai/NoteVive-Windows-x64-Essai.zip)**
 
-Ce guide concerne **NoteVive 0.3.0 pour Windows**. Il part du principe que vous découvrez GitHub. Vous pouvez suivre toutes les étapes avec la souris ; vous n’avez aucun logiciel de programmation à installer et aucun compte à créer pour télécharger l’application.
+Ce guide concerne **NoteVive 0.3.1 pour Windows**. Il part du principe que vous découvrez GitHub. Vous pouvez suivre toutes les étapes avec la souris ; vous n’avez aucun logiciel de programmation à installer et aucun compte à créer pour télécharger l’application.
 
 NoteVive transforme votre voix en texte sur votre PC. Le téléchargement nécessite Internet ; la dictée et la consultation des notes fonctionnent ensuite hors ligne, modèle inclus. **Cette version est un essai avec des données fictives uniquement.** Relisez toujours le résultat : une dose, un côté du corps ou une négation peuvent être mal transcrits.
 
@@ -24,11 +24,11 @@ Sur un PC professionnel, appliquez les règles de votre organisation. Le paquet 
 
 ## 2. Télécharger le bon fichier
 
-Le plus simple est de cliquer sur **[Télécharger NoteVive pour Windows](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip)**. Le fichier s’appelle **`NoteVive-Windows-x64-Essai.zip`** et pèse environ **544 Mo**. Selon votre connexion, le téléchargement peut durer plusieurs minutes. Attendez sa fin.
+Le plus simple est de cliquer sur **[Télécharger NoteVive pour Windows](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.1-essai/NoteVive-Windows-x64-Essai.zip)**. Le fichier s’appelle **`NoteVive-Windows-x64-Essai.zip`** et pèse environ **544 Mo**. Selon votre connexion, le téléchargement peut durer plusieurs minutes. Attendez sa fin.
 
 Si vous partez de la page GitHub du projet :
 
-1. Ouvrez **[la page de la version v0.3.0-essai](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai)**. Sur GitHub, une page **Release** rassemble les fichiers d’une version à télécharger.
+1. Ouvrez **[la page de la version v0.3.1-essai](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.1-essai)**. Sur GitHub, une page **Release** rassemble les fichiers d’une version à télécharger.
 2. Descendez jusqu’à **Assets**, la liste des fichiers. Cliquez sur ce mot si la liste est repliée.
 3. Cliquez sur **`NoteVive-Windows-x64-Essai.zip`**. La mention **Pre-release** signifie que c’est une version d’essai ; elle est attendue ici.
 
@@ -179,6 +179,12 @@ En cas d’échec de sauvegarde, gardez la fenêtre ouverte, relevez le message 
 
 Après une panne du moteur, relisez ce qui a été conservé : le passage en cours peut manquer. Si le message **Arrêt du microphone non confirmé** apparaît, fermez l’application comme demandé. Après une fermeture inattendue, rouvrez la note et vérifiez les dernières phrases ; seule une sauvegarde réussie confirme leur conservation.
 
+### Un passage est affiché à part et annoncé « non enregistré »
+
+Gardez la fenêtre ouverte. Ce message signifie que le dernier passage n’a pas pu rejoindre la note ; il est visible dans « Dernier passage dicté » et reste seulement en mémoire. Attendez la fin de la finalisation avant de créer une autre note. Relevez le passage fictif avant de changer de note ; vous pourrez ensuite le retaper dans une nouvelle note et l’enregistrer. Avant de quitter, vérifiez que le texte utile a bien été enregistré. Une alerte vous avertit si l’action choisie effacerait le passage.
+
+Si l’application demande de corriger le texte avant de sauvegarder, relisez et corrigez le corps de la note, puis cliquez sur **Enregistrer**. La sauvegarde et le classement restent suspendus tant que cette correction n’est pas faite. Une fermeture forcée peut perdre le passage affiché à part.
+
 ### Je ne retrouve pas mes notes après réouverture
 
 Effacez la recherche et cliquez sur **Toutes les transcriptions**. Vérifiez que vous utilisez le **même compte Windows sur le même PC**. Changer de dossier d’application ne supprime pas les notes ; changer de compte ou de PC ne transfère pas la bibliothèque. Si le problème persiste, ne supprimez aucun fichier de notes pour tenter de le résoudre.
@@ -204,11 +210,11 @@ Les notes et les dossiers se trouvent dans `%LOCALAPPDATA%\NoteVive-Pilote\notes
 
 Ouvrez le **[formulaire de retour d’essai](https://github.com/sarbhakan/DocTranscript/issues/new?template=essai-notevive.yml)**. GitHub demande un compte pour envoyer un retour, mais pas pour télécharger l’application. Si vous ne souhaitez pas créer de compte, transmettez les mêmes informations à la personne qui vous a fourni le lien du dépôt.
 
-Indiquez la version **0.3.0**, l’étape suivie, le résultat attendu et ce qui s’est réellement passé. Ajoutez le message exact s’il y en a un, ainsi que votre version de Windows. Si vous connaissez le modèle du PC, sa mémoire et le type de micro, précisez-les ; sinon, indiquez simplement que vous ne savez pas.
+Indiquez la version **0.3.1**, l’étape suivie, le résultat attendu et ce qui s’est réellement passé. Ajoutez le message exact s’il y en a un, ainsi que votre version de Windows. Si vous connaissez le modèle du PC, sa mémoire et le type de micro, précisez-les ; sinon, indiquez simplement que vous ne savez pas.
 
 Pour une erreur de transcription, donnez la **phrase fictive prononcée**, le **texte obtenu** et le **délai approximatif**. Vérifiez les captures d’écran avant de les joindre : aucun nom de patient, note réelle, enregistrement de consultation ou fichier de bibliothèque ne doit être publié.
 
-Pour conduire une comparaison structurée sur deux postes, utilisez la [recette Windows 0.3.0](windows-recette-030.md). Elle complète ce premier essai par des contrôles de doses, de fractions, de négations, de performances et de sauvegarde.
+Pour conduire une comparaison structurée sur deux postes, utilisez la [recette Windows 0.3.1](windows-recette-030.md). Elle complète ce premier essai par des contrôles de doses, de fractions, de négations, de performances et de sauvegarde.
 
 <a id="verifier-le-telechargement"></a>
 
@@ -219,7 +225,7 @@ Cette vérification technique permet de confirmer que le ZIP reçu correspond ex
 <details>
 <summary>Afficher la procédure SHA-256 avec PowerShell</summary>
 
-1. Téléchargez aussi le [fichier de vérification `.sha256`](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip.sha256). Il s’ouvre comme du texte, par exemple avec le Bloc-notes.
+1. Téléchargez aussi le [fichier de vérification `.sha256`](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.1-essai/NoteVive-Windows-x64-Essai.zip.sha256). Il s’ouvre comme du texte, par exemple avec le Bloc-notes.
 2. Ouvrez **PowerShell** depuis le menu Démarrer. Il n’est pas nécessaire de le lancer en administrateur.
 3. Dans la commande ci-dessous, remplacez `C:\CHEMIN` par le dossier qui contient votre ZIP. Conservez les guillemets autour du chemin, puis exécutez la commande.
 
@@ -227,10 +233,10 @@ Cette vérification technique permet de confirmer que le ZIP reçu correspond ex
    Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\CHEMIN\NoteVive-Windows-x64-Essai.zip'
    ```
 
-4. Comparez les 64 caractères de la colonne **Hash** avec ceux du fichier `.sha256`, sans tenir compte des majuscules et minuscules. Pour **le ZIP v0.3.0-essai uniquement**, l’empreinte attendue est :
+4. Comparez les 64 caractères de la colonne **Hash** avec ceux du fichier `.sha256`, sans tenir compte des majuscules et minuscules. Pour **le ZIP v0.3.1-essai uniquement**, l’empreinte attendue est :
 
    ```text
-   0ef1583902112316c5ea7c4af304e5f84e437276ec9ffec38704db5b119ae5c1
+   6993d11fb698c15d050ab69f87c0740fc34c13d80d75307a0ecda98a37e44473
    ```
 
 Si l’empreinte diffère, ne lancez pas le paquet : téléchargez-le à nouveau depuis le lien officiel et refaites la vérification. [Documentation Microsoft de `Get-FileHash`](https://learn.microsoft.com/fr-fr/powershell/module/microsoft.powershell.utility/get-filehash).

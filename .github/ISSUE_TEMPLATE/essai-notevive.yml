@@ -14,7 +14,7 @@ body:
     attributes:
       label: Version de NoteVive
       description: Indiquez le numéro affiché dans l’application, ou le nom du ZIP téléchargé si elle ne s’ouvre pas.
-      placeholder: "Exemple : 0.3.0 / NoteVive-Windows-x64-Essai.zip"
+      placeholder: "Exemple : 0.3.1 / NoteVive-Windows-x64-Essai.zip"
     validations:
       required: true
   - type: dropdown
