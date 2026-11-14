@@ -291,5 +291,203 @@
     "Private memory is sampled at 200 ms and may miss short peaks",
     "ASR timings include cold process and model loading, not live UI latency",
     "No CT2 comparison in this recipe; the optional comparison remains in separate documented runs"
-  ]
+  ],
+  "published_release": {
+    "tag": "v0.3.0-essai",
+    "url": "https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai",
+    "release_commit": "d5a2389685e715bb1e82482acd68064c5a435383",
+    "prerelease": true,
+    "assets": [
+      {
+        "name": "NoteVive-Windows-x64-Essai.zip",
+        "size_bytes": 544434937,
+        "sha256": "0ef1583902112316c5ea7c4af304e5f84e437276ec9ffec38704db5b119ae5c1",
+        "url": "https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip"
+      },
+      {
+        "name": "NoteVive-Windows-x64-Essai.zip.sha256",
+        "size_bytes": 98,
+        "sha256": "4700e108077154debc9c43b7f8e3f8df8eaf6f94a71930e7208caa9eef2577ee",
+        "url": "https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip.sha256"
+      }
+    ],
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43622527596",
+    "recipe_passed": true,
+    "host": {
+      "schema_version": 1,
+      "cpu": [
+        {
+          "Name": "AMD EPYC 7763 64-Core Processor                ",
+          "NumberOfCores": 2,
+          "NumberOfLogicalProcessors": 4
+        }
+      ],
+      "memory_total_bytes": 17174360064,
+      "os_version": "Microsoft Windows NT 10.0.20348.0"
+    },
+    "native_replay": [
+      {
+        "test": "silence",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 1.226,
+        "audio_seconds": 8.0,
+        "elapsed_audio_ratio": 0.153,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 999915520,
+          "observed_cpu_seconds": 1.0,
+          "observed_mean_cpu_core_equivalents": 0.8644804187404848,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        }
+      },
+      {
+        "test": "px-826",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 16.573,
+        "audio_seconds": 6.44,
+        "elapsed_audio_ratio": 2.573,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954566144,
+          "observed_cpu_seconds": 61.359375,
+          "observed_mean_cpu_core_equivalents": 3.716540617962826,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "actual_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-23",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 62.088,
+        "audio_seconds": 16.8,
+        "elapsed_audio_ratio": 3.696,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1955389440,
+          "observed_cpu_seconds": 239.46875,
+          "observed_mean_cpu_core_equivalents": 3.8610630851228236,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "actual_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "terms": [
+            0,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-584",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 46.816,
+        "audio_seconds": 15.2,
+        "elapsed_audio_ratio": 3.08,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954492416,
+          "observed_cpu_seconds": 179.984375,
+          "observed_mean_cpu_core_equivalents": 3.8498628940530275,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              2,
+              2
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "actual_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      }
+    ],
+    "measurements_artifact_zip_sha256": "6d77fdfb5972e2b49f518eefc09b036fd8a97a9d7a3ea14c4b2185dd094944db",
+    "source_file_sha256": {
+      "timings.json": "249eff6916ec7a627e373839dfa9c1192b747d9b3a089e7c944a797ce217e385",
+      "NoteVive-environment.json": "fb9bada6e960119cc557954ccf920fefc057e5f816199eddbc1b80aa90233a1d"
+    },
+    "checksum_file_matches_release_asset_digest": true
+  }
 }
