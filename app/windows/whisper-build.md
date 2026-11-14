@@ -16,6 +16,8 @@ Cette étape ne télécharge rien. L’[image GitHub Actions `windows-2022`](htt
 
 Le script vérifie l’archive avant de l’extraire. Il modifie un seul fichier amont, `CMakeLists.txt` : active `CMP0091=NEW` avant le premier `project()` pour respecter le choix du CRT, puis active `BUILD_SHARED_LIBS` uniquement autour de `add_subdirectory(src)` pour créer la DLL Whisper. Les sources C/C++ ne changent pas.
 
+L’essai AVX2 active `GGML_LLAMAFILE` pour les multiplications matricielles de GGML, notamment Q5_0 × Q8_0. Cette routine est issue de la même archive verrouillée, sous licence MIT Mozilla jointe au paquet ; elle n’ajoute pas de DLL externe. Les poids et le contexte complet du modèle restent inchangés. Les différences de sommation flottante appellent une nouvelle comparaison de fidélité ; le contrôle de chargement seul ne la remplace pas.
+
 | Fichier | SHA-256 |
 |---|---|
 | `CMakeLists.txt` sans modification | `14b57729cec1bf09635ea23f551112f51220ad2f22214b42c1f1689b96480d7b` |

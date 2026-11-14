@@ -59,7 +59,7 @@ VARIANT_OPTIONS = {
     "baseline": BASELINE_OPTIONS,
     # On MSVC GGML_AVX2 adds /arch:AVX2 and implies GGML_FMA and GGML_F16C
     # preprocessor definitions. Never pass host-native, AVX512 or AVX-VNNI.
-    "avx2": {**BASELINE_OPTIONS, "GGML_AVX": "ON", "GGML_AVX2": "ON"},
+    "avx2": {**BASELINE_OPTIONS, "GGML_AVX": "ON", "GGML_AVX2": "ON", "GGML_LLAMAFILE": "ON"},
 }
 # ClangCL's /arch:AVX2 also selects these features, which the NoteVive
 # supervisor does not test. Keep its existing AVX2 selection contract.

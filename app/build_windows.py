@@ -82,7 +82,7 @@ def stage_inputs(downloads, staging, catalogue, whisper_runtime):
     for name in ("ggml-large-v3-turbo-q5_0.bin", "ggml-silero-v6.2.0.bin"):
         shutil.copyfile(downloads / name, runtime / name)
     shutil.copyfile(catalogue, runtime / "catalogue.sqlite")
-    for name in ("Whisper-cpp-MIT.txt", "Whisper-OpenAI-MIT.txt", "Silero-VAD-MIT.txt"):
+    for name in ("Whisper-cpp-MIT.txt", "Whisper-OpenAI-MIT.txt", "Silero-VAD-MIT.txt", "Llamafile-MIT.txt"):
         notice = WHISPER_NOTICES / name
         if not notice.is_file() or not notice.stat().st_size:
             raise ValueError(f"Notice Whisper/Silero absente ou vide : {notice}")

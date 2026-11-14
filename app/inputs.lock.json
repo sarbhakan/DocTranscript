@@ -33,6 +33,9 @@
     }
   },
   "headers": {
+    "vendor/whisper-notices/Llamafile-MIT.txt": {
+      "hash": "c5843750168debd92766cf0cf2f5040ce8a6eefe2ef7ebc652997b6897e1ba3b"
+    },
     "vendor/whisper-notices/Silero-VAD-MIT.txt": {
       "hash": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b"
     },

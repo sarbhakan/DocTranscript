@@ -35,6 +35,7 @@ jobs:
       - name: Compiler le paquet autonome
         run: python app/build_windows.py --zig app/private/toolchain/zig-x86_64-windows-0.15.2/zig.exe
       - name: Extraire le ZIP livré
+        id: unzip
         run: Expand-Archive dist/NoteVive-Windows-x64-Essai.zip "$env:RUNNER_TEMP/NoteVive-paquet"
       - name: Tester le moteur du ZIP en mode automatique et SSE2
         run: |
@@ -43,6 +44,7 @@ jobs:
           python -m app.test_windows --compiler msvc --engine-only --output "$env:RUNNER_TEMP/NoteVive-engine-tests" --package "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Tester la fenêtre et le parcours des notes sans micro
+        if: ${{ !cancelled() && steps.unzip.outcome == 'success' }}
         shell: powershell
         run: ./app/windows/ui_smoke.ps1 -Executable "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive/NoteVive.exe"
       - name: Publier le paquet de recette
