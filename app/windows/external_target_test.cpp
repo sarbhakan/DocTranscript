@@ -15,6 +15,7 @@
 #include <sddl.h>
 #include <tlhelp32.h>
 #include <userenv.h>
+#include <winternl.h>
 
 #include <cstdio>
 #include <cstdint>
@@ -334,6 +335,162 @@ bool hosted_recipe() {
     };
     return expected(L"GITHUB_ACTIONS", L"true") && expected(L"RUNNER_ENVIRONMENT", L"github-hosted");
 }
+
+// Hosted Edge recipe only. A secondary logon in the runner's desktop session
+// has no default entry permitting creation of named objects in that session.
+// This guard adds a non-inherited entry for the new account on that one
+// directory and restores the original DACL after the process job is stopped.
+struct RecipeNamespace {
+    // NtOpenDirectoryObject's documented DIRECTORY_QUERY / TRAVERSE / CREATE_OBJECT.
+    static constexpr ACCESS_MASK recipe_access = 0x0001 | 0x0002 | 0x0004;
+    using OpenDirectory = NTSTATUS (NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
+    LocalHandle directory;
+    std::vector<BYTE> original;
+    bool changed = false;
+
+    ~RecipeNamespace() {
+        if (!restore()) std::fputs("Unable to restore the session named-object ACL.\n", stderr);
+    }
+
+    bool read_dacl(std::vector<BYTE>& output) const {
+        DWORD needed = 0;
+        GetKernelObjectSecurity(directory.value, DACL_SECURITY_INFORMATION, nullptr, 0, &needed);
+        if (!needed || needed > 65536) return false;
+        output.resize(needed);
+        return GetKernelObjectSecurity(directory.value, DACL_SECURITY_INFORMATION,
+                                       output.data(), needed, &needed) != FALSE;
+    }
+
+    bool restore() {
+        if (changed) {
+            if (!SetKernelObjectSecurity(directory.value, DACL_SECURITY_INFORMATION, original.data())) return false;
+            changed = false;
+            std::vector<BYTE> restored;
+            if (!read_dacl(restored)) return false;
+            SECURITY_DESCRIPTOR_CONTROL old_flags{}, new_flags{};
+            constexpr SECURITY_DESCRIPTOR_CONTROL flags =
+                SE_DACL_PRESENT | SE_DACL_DEFAULTED | SE_DACL_PROTECTED |
+                SE_DACL_AUTO_INHERITED | SE_DACL_AUTO_INHERIT_REQ;
+            DWORD revision = 0;
+            BOOL present = FALSE, defaulted = FALSE;
+            PACL old = nullptr, actual = nullptr;
+            if (!GetSecurityDescriptorControl(original.data(), &old_flags, &revision) ||
+                !GetSecurityDescriptorControl(restored.data(), &new_flags, &revision) ||
+                (old_flags & flags) != (new_flags & flags) ||
+                !GetSecurityDescriptorDacl(original.data(), &present, &old, &defaulted) || !present || !old ||
+                !GetSecurityDescriptorDacl(restored.data(), &present, &actual, &defaulted) || !present || !actual ||
+                old->AclSize != actual->AclSize || std::memcmp(old, actual, old->AclSize) != 0) {
+                std::fputs("Restored session DACL differs from the saved ACL or flags.\n", stderr);
+                return false;
+            }
+            std::fputs("Original session named-object DACL restored and verified.\n", stderr);
+        }
+        return true;
+    }
+
+    static NTSTATUS open(OpenDirectory call, DWORD session, ACCESS_MASK access, HANDLE& handle) {
+        std::wstring path = L"\\Sessions\\" + std::to_wstring(session) + L"\\BaseNamedObjects";
+        UNICODE_STRING name{};
+        name.Length = static_cast<USHORT>(path.size() * sizeof(wchar_t));
+        name.MaximumLength = static_cast<USHORT>(name.Length + sizeof(wchar_t));
+        name.Buffer = path.data();
+        OBJECT_ATTRIBUTES attributes{};
+        InitializeObjectAttributes(&attributes, &name, OBJ_CASE_INSENSITIVE, nullptr, nullptr);
+        return call(&handle, access, &attributes);
+    }
+
+    static bool verify_token(HANDLE token, DWORD session, PSID account) {
+        DWORD assigned = 0, size = 0;
+        if (!GetTokenInformation(token, TokenSessionId, &assigned, sizeof(assigned), &size)) return false;
+        if (assigned != session || IsTokenRestricted(token)) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+        TOKEN_ELEVATION elevation{};
+        if (!GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size)) return false;
+        if (elevation.TokenIsElevated) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+        GetTokenInformation(token, TokenUser, nullptr, 0, &size);
+        std::vector<BYTE> identity(size && size <= 4096 ? size : 0);
+        if (identity.empty() || !GetTokenInformation(token, TokenUser, identity.data(), size, &size)) return false;
+        if (!EqualSid(account, reinterpret_cast<TOKEN_USER*>(identity.data())->User.Sid)) {
+            SetLastError(ERROR_INVALID_SID);
+            return false;
+        }
+        return true;
+    }
+
+    static bool supported_access(OpenDirectory call, DWORD session, HANDLE thread_token, NTSTATUS& status) {
+        if (!ImpersonateLoggedOnUser(thread_token)) return false;
+        LocalHandle check;
+        status = open(call, session, recipe_access, check.value);
+        if (!RevertToSelf()) {
+            TerminateProcess(GetCurrentProcess(), 2);
+            return false;
+        }
+        return true;
+    }
+
+    bool start(DWORD pid, HANDLE process, PSID account) {
+        if (!hosted_recipe()) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+        DWORD parent_session = 0, session = 0;
+        if (!ProcessIdToSessionId(GetCurrentProcessId(), &parent_session) || !ProcessIdToSessionId(pid, &session))
+            return false;
+        if (!session || session != parent_session) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+
+        // The process remains suspended. Verify its actual token, which was
+        // created by the secondary logon, instead of using the preview token.
+        LocalHandle token, identity;
+        if (!OpenProcessToken(process, TOKEN_QUERY | TOKEN_DUPLICATE, &token.value) ||
+            !verify_token(token.value, session, account) ||
+            !DuplicateTokenEx(token.value, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
+                              TokenImpersonation, &identity.value)) return false;
+        const auto nt = GetModuleHandleW(L"ntdll.dll");
+        const auto proc = nt ? GetProcAddress(nt, "NtOpenDirectoryObject") : nullptr;
+        if (!proc) { SetLastError(ERROR_PROC_NOT_FOUND); return false; }
+        static_assert(sizeof(proc) == sizeof(OpenDirectory));
+        OpenDirectory call = nullptr;
+        std::memcpy(&call, &proc, sizeof(call));
+        constexpr auto denied = static_cast<NTSTATUS>(0xc0000022u);
+
+        NTSTATUS before = 0;
+        if (!supported_access(call, session, identity.value, before)) return false;
+        std::fprintf(stderr, "Recipe account session namespace before grant: 0x%08lx\n",
+                     static_cast<unsigned long>(static_cast<DWORD>(before)));
+        if (before >= 0) return true;
+        if (before != denied) { SetLastError(ERROR_INVALID_HANDLE); return false; }
+
+        const auto opened = open(call, session, READ_CONTROL | WRITE_DAC, directory.value);
+        if (opened < 0) {
+            std::fprintf(stderr, "Opening this runner's session DACL for administration: 0x%08lx\n",
+                         static_cast<unsigned long>(static_cast<DWORD>(opened)));
+            SetLastError(ERROR_ACCESS_DENIED);
+            return false;
+        }
+        if (!read_dacl(original)) return false;
+        BOOL has_dacl = FALSE, defaulted = FALSE;
+        PACL old = nullptr, updated = nullptr;
+        if (!GetSecurityDescriptorDacl(original.data(), &has_dacl, &old, &defaulted)) return false;
+        if (!has_dacl || !old) { SetLastError(ERROR_INVALID_ACL); return false; }
+        EXPLICIT_ACCESSW allow{};
+        allow.grfAccessPermissions = recipe_access;
+        allow.grfAccessMode = GRANT_ACCESS;
+        allow.grfInheritance = NO_INHERITANCE;
+        BuildTrusteeWithSidW(&allow.Trustee, account);
+        const auto result = SetEntriesInAclW(1, &allow, old, &updated);
+        if (result != ERROR_SUCCESS) { SetLastError(result); return false; }
+        SECURITY_DESCRIPTOR descriptor{};
+        changed = InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) &&
+            SetSecurityDescriptorDacl(&descriptor, TRUE, updated, defaulted) &&
+            SetKernelObjectSecurity(directory.value, DACL_SECURITY_INFORMATION, &descriptor);
+        const auto update_error = changed ? ERROR_SUCCESS : GetLastError();
+        LocalFree(updated);
+        if (!changed) { SetLastError(update_error); return false; }
+
+        NTSTATUS after = 0;
+        if (!supported_access(call, session, identity.value, after)) return false;
+        std::fprintf(stderr, "Recipe account session namespace after grant: 0x%08lx\n",
+                     static_cast<unsigned long>(static_cast<DWORD>(after)));
+        if (after < 0) { SetLastError(ERROR_ACCESS_DENIED); return false; }
+        return true;
+    }
+};
 
 struct RecipeDesktop {
     static constexpr DWORD station_access = STANDARD_RIGHTS_REQUIRED | WINSTA_ALL_ACCESS;
@@ -693,7 +850,8 @@ bool stage_directory(const wchar_t* directory) {
     return normal_directory(public_directory) && normal_directory(path) && normal_directory(path + L"\\out");
 }
 
-int launch_standard(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory) {
+int launch_standard(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory,
+                    bool edge_session) {
     if (!hosted_recipe()) {
         std::fputs("Temporary local accounts are only used on hosted GitHub Actions.\n", stderr);
         return 1;
@@ -706,6 +864,7 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     // then remove the isolated profile and account.
     RecipeAccount account;
     RecipeDesktop desktop;
+    RecipeNamespace named_objects;
     LocalHandle job;
     const auto failure = [](const char* operation) {
         const auto error = GetLastError();
@@ -746,6 +905,8 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
         TerminateProcess(child_process.value, 1);
         return code;
     }
+    if (edge_session && !named_objects.start(child.dwProcessId, child_process.value, account.sid()))
+        return failure("Prepare the session namespace for the Edge recipe");
     AllowSetForegroundWindow(child.dwProcessId);
     if (ResumeThread(child_thread.value) == static_cast<DWORD>(-1)) return failure("ResumeThread");
     if (WaitForSingleObject(child_process.value, 95000) != WAIT_OBJECT_0) {
@@ -757,6 +918,10 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     std::fprintf(stderr, "Standard test process exit: 0x%08lx (%lu)\n",
                  static_cast<unsigned long>(elapsed_code), static_cast<unsigned long>(elapsed_code));
     TerminateJobObject(job.value, 1); // No browser/fixture descendants on the retired desktop.
+    if (!named_objects.restore()) {
+        std::fputs("Restoring the session named-object DACL failed.\n", stderr);
+        return 1;
+    }
     if (!desktop.restore()) {
         std::fputs("Restoring the original input desktop or station ACL failed.\n", stderr);
         return 1;
@@ -944,8 +1109,10 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-startup-diagnostic") == 0)
             return edge_startup_diagnostic(argv[2]);
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
-        if (argc == 5 && std::wcscmp(argv[1], L"--launch-standard") == 0)
-            return launch_standard(argv[2], argv[3], argv[4]);
+        if ((argc == 5 || argc == 6) && std::wcscmp(argv[1], L"--launch-standard") == 0) {
+            if (argc == 6 && std::wcscmp(argv[5], L"--edge-session") != 0) return 2;
+            return launch_standard(argv[2], argv[3], argv[4], argc == 6);
+        }
         if (argc == 2 && std::wcscmp(argv[1], L"--native-standard") == 0) {
             if (!_wfreopen(L"out\\native.log", L"wb", stderr)) return 3;
             token_environment("executing native recipe", GetCurrentProcess());

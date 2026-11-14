@@ -114,7 +114,7 @@ try {
 '@
     Set-Content -LiteralPath (Join-Path $work 'edge-bootstrap.ps1') -Value $bootstrap
     $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -File .\edge-bootstrap.ps1' $work
+    & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -File .\edge-bootstrap.ps1' $work --edge-session
     $status = $LASTEXITCODE
     $bootstrapLog = Join-Path $out 'bootstrap.log'
     if (Test-Path -LiteralPath $bootstrapLog) { Get-Content -LiteralPath $bootstrapLog }
