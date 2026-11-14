@@ -918,26 +918,39 @@ struct App {
             return true;
         }
         std::wstring error;
+        bool recovered = false;
         if (!store.Save(pending, error)) {
             set_storage(error.empty() ? L"Sauvegarde impossible · Le texte reste dans cet éditeur." : error);
             if (!recovery || pending.id.empty() || masked || session_locked || phase != Phase::idle) return false;
             if (MessageBoxW(window, L"Cette note n’a pas pu être mise à jour. Enregistrer son contenu dans une nouvelle note ?\n\n"
-                    L"La version précédente restera intacte.", L"NoteVive", MB_YESNO | MB_DEFBUTTON2 | MB_ICONQUESTION) != IDYES) {
+                    L"La version précédente restera intacte. Si le dossier est inaccessible, la copie sera classée dans « Sans dossier ».",
+                    L"NoteVive", MB_YESNO | MB_DEFBUTTON2 | MB_ICONQUESTION) != IDYES) {
                 return false;
             }
             if (masked || session_locked) return false;
-            pending.id.clear();
-            pending.created.clear();
-            pending.modified.clear();
-            if (!store.Save(pending, error)) {
+            if (!store.SaveRecoveryCopy(pending, error)) {
                 set_storage(error.empty() ? L"Impossible de sauvegarder la copie." : error);
                 return false;
             }
+            recovered = true;
         }
         current = std::move(pending);
         dirty = false;
-        set_storage(L"Brouillon sauvegardé localement · À relire.");
-        update_saved_entry();
+        if (recovered) {
+            // Reload the original's metadata and make the selected copy visible
+            // even if the previous search or folder filter excluded it.
+            all_notes = !current.folder_id.empty();
+            selected_folder.clear();
+            select_folder(all_notes, selected_folder);
+            SetWindowTextW(search_text, L"");
+            reload_library();
+            set_note_info();
+            update_controls();
+            set_storage(current.folder_id.empty() ? L"Copie sauvegardée dans « Sans dossier »." : L"Copie sauvegardée localement.");
+        } else {
+            set_storage(L"Brouillon sauvegardé localement · À relire.");
+            update_saved_entry();
+        }
         return true;
     }
 

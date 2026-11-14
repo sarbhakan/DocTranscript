@@ -4,11 +4,14 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cinttypes>
+#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -25,6 +28,22 @@ void timing_log(ggml_log_level, const char* text, void*) {
     // logs, input paths, tokens or transcripts through this opt-in diagnostic.
     constexpr const char* prefix = "whisper_print_timings:";
     if (text && std::strncmp(text, prefix, std::strlen(prefix)) == 0) std::fputs(text, stderr);
+}
+void segment_log(const float* samples, size_t count) {
+    static_assert(CHAR_BIT == 8 && sizeof(float) == 4 && std::numeric_limits<float>::is_iec559,
+                  "The benchmark expects IEEE 754 binary32 samples");
+    // Non-cryptographic: compare public fixture inputs across runtimes. Encode
+    // each sample little-endian explicitly, independent of the host byte order.
+    std::uint64_t fnv = UINT64_C(14695981039346656037);
+    for (size_t i = 0; i < count; ++i) {
+        std::uint32_t bits;
+        std::memcpy(&bits, samples + i, sizeof(bits));
+        for (unsigned shift = 0; shift < 32; shift += 8) {
+            fnv ^= (bits >> shift) & 0xffU;
+            fnv *= UINT64_C(1099511628211);
+        }
+    }
+    std::fprintf(stderr, "nv_segment frames=%zu pcm_fnv1a64=%016" PRIx64 "\n", count, fnv);
 }
 class ModelFile {
     std::unique_ptr<FILE, decltype(&fclose)> file{nullptr, fclose};
@@ -60,6 +79,7 @@ class Pipeline {
     }
     int transcribe(const float* samples, size_t count) {
         if (cancelled && cancelled(cancel_context)) return -1;
+        if (benchmark_metrics) segment_log(samples, count);
         const auto start = std::chrono::steady_clock::now();
         auto params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
         params.language = "fr"; params.translate = false; params.no_context = true;

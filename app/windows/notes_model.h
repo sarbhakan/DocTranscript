@@ -73,6 +73,10 @@ inline bool FolderTitle(std::wstring_view title) {
         std::any_of(title.begin(), title.end(), [](wchar_t ch) { return !Space(ch); });
 }
 
+inline bool NewFolderTitle(std::wstring_view title) {
+    return FolderTitle(title) && title.find_first_of(L"/\\") == std::wstring_view::npos;
+}
+
 inline std::wstring Fold(std::wstring_view text) {
     std::wstring result;
     result.reserve(text.size());
@@ -273,19 +277,19 @@ inline bool DecodeField(const Byte*& cursor, const Byte* end, std::wstring& valu
 }
 
 inline void EncodeNote(std::vector<Byte>& out, const Note& note, std::wstring_view id,
-                       std::wstring_view created, std::wstring_view modified) {
-    const Byte signature[]{'N', 'V', 'N', static_cast<Byte>(note.folder_id.empty() ? '1' : '2')};
+                       std::wstring_view created, std::wstring_view modified, std::wstring_view folderId) {
+    const Byte signature[]{'N', 'V', 'N', static_cast<Byte>(folderId.empty() ? '1' : '2')};
     out.insert(out.end(), std::begin(signature), std::end(signature));
     EncodeField(out, id);
     EncodeField(out, created);
     EncodeField(out, modified);
     EncodeField(out, note.title);
     EncodeField(out, note.text);
-    if (!note.folder_id.empty()) EncodeField(out, note.folder_id);
+    if (!folderId.empty()) EncodeField(out, folderId);
 }
 
 inline void EncodeNote(std::vector<Byte>& out, const Note& note) {
-    EncodeNote(out, note, note.id, note.created, note.modified);
+    EncodeNote(out, note, note.id, note.created, note.modified, note.folder_id);
 }
 
 inline bool DecodeNote(const Byte* start, std::size_t length, std::wstring_view id, Note& result,

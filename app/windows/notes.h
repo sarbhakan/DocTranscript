@@ -63,6 +63,10 @@ public:
     // value from Load or Save. Updates ID/dates only after committing the file.
     bool Save(Note& inout, std::wstring& error) const;
 
+    // Save the editor as a new note; retain its folder only if still accessible.
+    // The original file is never replaced. On failure, inout is unchanged.
+    bool SaveRecoveryCopy(Note& inout, std::wstring& error) const;
+
     // Empty ID creates a folder. Rename/move requires the latest revision.
     // An empty parent_id represents the top level.
     bool SaveFolder(Folder& inout, std::wstring& error) const;
@@ -71,6 +75,7 @@ private:
 #ifdef NOTEVIVE_NOTES_TEST
     friend struct StoreTestAccess;
 #endif
+    bool SaveNote(Note& inout, std::wstring& error, bool recoveryCopy) const;
     std::wstring directory_;
 };
 

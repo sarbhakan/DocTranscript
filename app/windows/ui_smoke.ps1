@@ -14,6 +14,8 @@ public static class NvWindow {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
@@ -49,6 +51,9 @@ public static class NvWindow {
         if (Send(combo, 0x014e, new IntPtr(index), IntPtr.Zero) != index) return false; // CB_SETCURSEL
         return Post(parent, 0x0111, new IntPtr((1 << 16) | 113), combo); // WM_COMMAND / CBN_SELCHANGE
     }
+    public static int TreeCount(IntPtr tree) {
+        return Send(tree, 0x1105, IntPtr.Zero, IntPtr.Zero); // TVM_GETCOUNT
+    }
     public static IntPtr PopupMenu(uint processId) {
         IntPtr popup = IntPtr.Zero;
         do {
@@ -69,6 +74,8 @@ $classProperty = [System.Windows.Automation.AutomationElement]::ClassNamePropert
 $processProperty = [System.Windows.Automation.AutomationElement]::ProcessIdProperty
 $typeProperty = [System.Windows.Automation.AutomationElement]::ControlTypeProperty
 $listItemType = [System.Windows.Automation.ControlType]::ListItem
+$treeItemType = [System.Windows.Automation.ControlType]::TreeItem
+$childrenScope = [System.Windows.Automation.TreeScope]::Children
 $selection = [System.Windows.Automation.SelectionItemPattern]::Pattern
 $expand = [System.Windows.Automation.ExpandCollapsePattern]::Pattern
 $invoke = [System.Windows.Automation.InvokePattern]::Pattern
@@ -119,6 +126,43 @@ function ById([int]$Control) {
 
 function ByName($Parent, [string]$Name) {
     Wait-For { $Parent.FindFirst($enumScope, (Condition $nameProperty $Name)) } "find '$Name'"
+}
+
+function Expand-Branch($Element) {
+    $pattern = $Element.GetCurrentPattern($expand)
+    if ($pattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Collapsed) {
+        $pattern.Expand()
+    }
+}
+
+function Tree-Item([string[]]$Path) {
+    Wait-For {
+        # Reacquire the native root and branch on every attempt: a save rebuilds all tree items.
+        $branch = [System.Windows.Automation.AutomationElement]::FromHandle(
+            [NvWindow]::GetDlgItem((Window-Handle $app), 110))
+        foreach ($name in (@('Toutes les transcriptions') + $Path)) {
+            $children = $branch.FindAll($childrenScope, (Condition $typeProperty $treeItemType))
+            $branch = $null
+            foreach ($child in $children) {
+                if ($child.Current.Name -ceq $name) { $branch = $child; break }
+            }
+            if (-not $branch) { return }
+            Expand-Branch $branch
+        }
+        $branch
+    } "find visible folder branch '$($Path -join ' / ')'"
+}
+
+function Saved-Count([string]$Pattern) {
+    if (-not (Test-Path -LiteralPath $records)) { return 0 }
+    return @(Get-ChildItem -LiteralPath $records -Filter $Pattern -File).Count
+}
+
+function Wait-Folders([int]$Expected) {
+    $null = Wait-For { (Saved-Count '*.nvf') -eq $Expected } "write $Expected encrypted folder record(s)"
+    $tree = [NvWindow]::GetDlgItem((Window-Handle $app), 110)
+    if ($tree -eq [IntPtr]::Zero) { throw 'The native folder tree is missing.' }
+    $null = Wait-For { [NvWindow]::TreeCount($tree) -eq ($Expected + 2) } "display $Expected folder(s) in Win32 tree"
 }
 
 function Test-NoteVisible([string]$Name) {
@@ -185,10 +229,15 @@ function Find-Dialog([string]$Caption) {
 function Confirm-Dialog($Dialog) {
     $accept = $Dialog.FindFirst($enumScope, (Condition $idProperty '1'))
     if (-not $accept -or -not $accept.Current.IsEnabled) { throw 'Cannot find the confirmation button.' }
+    $handle = Window-Handle $Dialog
+    if ($handle -eq [IntPtr]::Zero -or [NvWindow]::GetDlgItem($handle, 1) -ne (Window-Handle $accept)) {
+        throw 'Confirmation did not resolve to the native dialog button.'
+    }
     # Send BN_CLICKED to the dialog: unlike BM_CLICK it works without foreground activation.
-    if (-not [NvWindow]::Post((Window-Handle $Dialog), 0x0111, [IntPtr]1, (Window-Handle $accept))) {
+    if (-not [NvWindow]::Post($handle, 0x0111, [IntPtr]1, (Window-Handle $accept))) {
         throw 'Cannot confirm the action.'
     }
+    $null = Wait-For { -not [NvWindow]::IsWindow($handle) -and [NvWindow]::IsWindowEnabled((Window-Handle $app)) } 'close the confirmed dialog'
 }
 
 function Folder-Dialog([string]$Caption, [string]$Text) {
@@ -241,16 +290,14 @@ try {
     Step 'create the parent folder'
     Click (ById 114) # New top-level folder.
     Folder-Dialog 'Nouveau dossier' $testFolder
+    Wait-Folders 1
+    $parent = Tree-Item @($testFolder)
     Step 'create the child folder'
-    $parent = ByName (ById 110) $testFolder
     $parent.GetCurrentPattern($selection).Select()
     Click (ById 114) # Child of selected folder.
     Folder-Dialog 'Nouveau dossier' $testChild
-    $null = Wait-For {
-        # Saving the child rebuilds the tree; never keep a pre-save item handle.
-        $parent = (ById 110).FindFirst($enumScope, (Condition $nameProperty $testFolder))
-        if ($parent) { $parent.FindFirst($enumScope, (Condition $nameProperty $testChild)) }
-    } 'child nested under the saved parent'
+    Wait-Folders 2
+    $null = Tree-Item @($testFolder, $testChild)
 
     # Type a title first, allow autosave, then verify title and body survive.
     Step 'create the first note in the child folder and wait for autosave'
@@ -282,9 +329,8 @@ try {
     Input-Text (ById 107) $testRenamed
     End-App
     Begin-App
-    $parent = ByName (ById 110) $testFolder
-    $parent.GetCurrentPattern($expand).Expand()
-    $null = ByName $parent $testChild
+    Wait-Folders 2
+    $null = Tree-Item @($testFolder, $testChild)
     Step 'search and open the saved note by its body'
     Input-Text (ById 111) 'marqueur ephemere'
     $note = Wait-For {
@@ -301,8 +347,9 @@ try {
         $where = [NvWindow]::GetDlgItem((Window-Handle $app), 120)
         [NvWindow]::Text($where).Contains("$testFolder / $testChild")
     } 'persisted note links to the nested folder'
-    (ByName $parent $testChild).GetCurrentPattern($selection).Select()
+    (Tree-Item @($testFolder, $testChild)).GetCurrentPattern($selection).Select()
     Rename-SelectedFolder $testChildRenamed
+    $null = Tree-Item @($testFolder, $testChildRenamed)
     $null = Wait-For { (Editor-Folder) -ceq "$testFolder / $testChildRenamed" } 'note remains in the renamed folder'
     Step 'move the note out of its folder'
     Move-Note 'Sans dossier'
@@ -311,9 +358,8 @@ try {
     Step 'reopen NoteVive and verify the renamed folder and moved note'
     End-App
     Begin-App
-    $parent = ByName (ById 110) $testFolder
-    $parent.GetCurrentPattern($expand).Expand()
-    $null = ByName $parent $testChildRenamed
+    Wait-Folders 2
+    $null = Tree-Item @($testFolder, $testChildRenamed)
     $moved = Wait-For { Test-NoteVisible $testRenamed } 'find the moved note on restart'
     $moved.GetCurrentPattern($selection).Select()
     $null = Wait-For {
@@ -326,10 +372,27 @@ try {
     if ($savedCount -ne 2 -or $folderCount -ne 2) { throw "Expected exactly two notes and folders, found $savedCount / $folderCount." }
     Write-Output 'Windows UI, nested folders, renaming, moving notes, sort, body search, autosave and close/reopen verified with fictitious text.'
 } catch {
+    $failure = $_
     [Console]::Error.WriteLine("Windows UI smoke failed at '$stage': $($_.Exception.GetType().FullName): $($_.Exception.Message)")
     [Console]::Error.WriteLine($_.InvocationInfo.PositionMessage)
     [Console]::Error.WriteLine($_.ScriptStackTrace)
-    throw
+    try {
+        $details = "folder_files=$(Saved-Count '*.nvf'), note_files=$(Saved-Count '*.nvn')"
+        if ($app -and $process -and -not $process.HasExited) {
+            $handle = Window-Handle $app
+            $tree = [NvWindow]::GetDlgItem($handle, 110)
+            $details += ", native_tree_items=$([NvWindow]::TreeCount($tree)), main_enabled=$([NvWindow]::IsWindowEnabled($handle))"
+            [Console]::Error.WriteLine($details)
+            $treeElement = [System.Windows.Automation.AutomationElement]::FromHandle($tree)
+            $nodes = $treeElement.FindAll($enumScope, (Condition $typeProperty $treeItemType))
+            # Only diagnostics from the isolated fictitious test profile; no editor content.
+            $names = @($nodes | Select-Object -First 10 | ForEach-Object { $_.Current.Name })
+            [Console]::Error.WriteLine("Accessible folder labels: " + ($names -join ' | '))
+        } else { [Console]::Error.WriteLine($details) }
+    } catch {
+        [Console]::Error.WriteLine("Additional UI diagnostics unavailable: $($_.Exception.GetType().FullName)")
+    }
+    throw $failure
 } finally {
     if ($process -and -not $process.HasExited) {
         $process.CloseMainWindow() | Out-Null

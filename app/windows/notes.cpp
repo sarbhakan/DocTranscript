@@ -284,6 +284,30 @@ bool ReadFolders(const std::wstring& directory, std::vector<Folder>& folders) {
     });
 }
 
+bool SameFolderTitle(std::wstring_view normalized, std::wstring_view title) {
+    const auto other = model::Fold(title);
+    if (normalized == other) return true;
+    if (normalized.empty() || other.empty()) return false;
+    return CompareStringEx(L"fr-FR", NORM_IGNORECASE | NORM_IGNORENONSPACE,
+        normalized.data(), static_cast<int>(normalized.size()),
+        other.data(), static_cast<int>(other.size()), nullptr, nullptr, 0) == CSTR_EQUAL;
+}
+
+enum class FolderAccess { Available, InvalidChain, Unreadable };
+
+FolderAccess CheckFolderAccess(const std::wstring& directory, std::wstring folderId) {
+    std::unordered_set<std::wstring> ancestry;
+    std::wstring detail;
+    while (!folderId.empty()) {
+        if (ancestry.size() == kMaxFolderDepth || !ancestry.insert(folderId).second)
+            return FolderAccess::InvalidChain;
+        Folder folder;
+        if (!ReadFolder(directory, folderId, folder, detail)) return FolderAccess::Unreadable;
+        folderId = std::move(folder.parent_id);
+    }
+    return FolderAccess::Available;
+}
+
 } // namespace
 
 std::wstring FolderPath(const std::vector<Folder>& folders, const std::wstring& id) {
@@ -374,13 +398,22 @@ bool Store::Load(const std::wstring& id, Note& out, std::wstring& error) const {
 }
 
 bool Store::Save(Note& inout, std::wstring& error) const {
+    return SaveNote(inout, error, false);
+}
+
+bool Store::SaveRecoveryCopy(Note& inout, std::wstring& error) const {
+    if (!IsId(inout.id)) return Fail(error, L"Il n’y a pas de note existante à copier.");
+    return SaveNote(inout, error, true);
+}
+
+bool Store::SaveNote(Note& inout, std::wstring& error, bool recoveryCopy) const {
     error.clear();
     if (directory_.empty()) return Fail(error, L"La bibliothèque de notes est fermée.");
     if (inout.title.size() > kMaxTitle || inout.text.size() > kMaxText ||
         !model::IsUnicode(inout.title, false) || !model::IsUnicode(inout.text, true))
         return Fail(error, L"Le titre ou le texte dépasse la limite ou contient un caractère invalide.");
     if (!inout.folder_id.empty() && !IsId(inout.folder_id)) return Fail(error, L"Identifiant de dossier invalide.");
-    const bool create = inout.id.empty();
+    const bool create = recoveryCopy || inout.id.empty();
     auto id = create ? NewId() : inout.id;
     if (!IsId(id)) return Fail(error, L"Identifiant de note invalide.");
     Handle lock(LockWriter(directory_));
@@ -391,21 +424,18 @@ bool Store::Save(Note& inout, std::wstring& error) const {
     if (!create) {
         if (!ReadNote(directory_, id, false, current, error)) return false;
         if (current.modified != inout.modified || !ParseDate(current.modified, previous))
-            return Fail(error, L"Cette note a changé depuis son ouverture. Rechargez-la avant de l’enregistrer.");
+            return Fail(error, L"Cette note a changé. Ctrl+S permet de sauvegarder une copie du brouillon.");
     }
-    if (!inout.folder_id.empty() && inout.folder_id != current.folder_id) {
+    auto folderId = inout.folder_id;
+    if (!folderId.empty() && folderId != current.folder_id) {
         // Read only the ancestry of the destination, not every folder. A
         // missing folder cannot attach a new/moved note, but a note already
         // in a damaged folder stays editable and can be moved back to root.
-        std::unordered_set<std::wstring> ancestry;
-        auto folderId = inout.folder_id;
-        while (!folderId.empty()) {
-            if (ancestry.size() == kMaxFolderDepth || !ancestry.insert(folderId).second)
-                return Fail(error, L"Le rattachement du dossier est invalide.");
-            Folder folder;
-            if (!ReadFolder(directory_, folderId, folder, error))
-                return Fail(error, L"Le dossier de destination est inaccessible.");
-            folderId = std::move(folder.parent_id);
+        const auto access = CheckFolderAccess(directory_, folderId);
+        if (access != FolderAccess::Available) {
+            if (recoveryCopy) folderId.clear();
+            else return Fail(error, access == FolderAccess::InvalidChain ? L"Le rattachement du dossier est invalide."
+                                                                         : L"Le dossier de destination est inaccessible.");
         }
     }
     auto modified = NowAfter(previous);
@@ -413,8 +443,8 @@ bool Store::Save(Note& inout, std::wstring& error) const {
     auto created = create ? modified : std::move(current.created);
     Plaintext plain;
     plain.bytes.reserve(4 + kHashSize + 6 * sizeof(std::uint32_t) +
-        (id.size() + created.size() + modified.size() + inout.title.size() + inout.text.size() + inout.folder_id.size()) * 2);
-    model::EncodeNote(plain.bytes, inout, id, created, modified);
+        (id.size() + created.size() + modified.size() + inout.title.size() + inout.text.size() + folderId.size()) * 2);
+    model::EncodeNote(plain.bytes, inout, id, created, modified, folderId);
     Blob encrypted;
     if (!Encrypt(plain, encrypted))
         return Fail(error, L"Impossible de chiffrer la note avec ce compte Windows.");
@@ -422,6 +452,7 @@ bool Store::Save(Note& inout, std::wstring& error) const {
     inout.id = std::move(id);
     inout.created = std::move(created);
     inout.modified = std::move(modified);
+    inout.folder_id = std::move(folderId);
     return true;
 }
 
@@ -447,24 +478,36 @@ bool Store::SaveFolder(Folder& inout, std::wstring& error) const {
             return Fail(error, L"Ce dossier a changé depuis son ouverture. Rechargez-le avant de l’enregistrer.");
     }
     Folder pending{id, inout.title, inout.parent_id, {}, {}};
-    if (create || current.parent_id != pending.parent_id) {
+    const bool move = create || current.parent_id != pending.parent_id;
+    if (move || current.title != pending.title) {
+        const auto normalizedTitle = model::Fold(pending.title);
+        if (!model::NewFolderTitle(pending.title) || normalizedTitle.empty())
+            return Fail(error, L"Choisissez un nom de dossier sans / ni \\.");
+        if (pending.parent_id.empty() && (SameFolderTitle(normalizedTitle, L"Sans dossier") ||
+                SameFolderTitle(normalizedTitle, L"À la racine")))
+            return Fail(error, L"Ce nom est réservé à la racine. Choisissez un autre nom de dossier.");
         std::vector<Folder> folders;
-        // A move must validate all descendants. If some encrypted folder
-        // files are unreadable a move cannot prove its resulting depth, and
-        // a creation cannot prove that the directory has space available.
+        // Read sibling names while holding the same writer lock as the commit.
+        // An unreadable sidecar could hide a sibling or affect a move's depth.
         const bool complete = ReadFolders(directory_, folders);
         if (create && folders.size() >= kMaxFolders)
             return Fail(error, L"La bibliothèque a atteint sa limite de dossiers.");
         if (!complete)
             return Fail(error, L"Organisation des dossiers impossible tant que certains dossiers sont illisibles.");
-        switch (model::CheckFolderMove(pending, folders)) {
-        case model::MoveResult::Ok: break;
-        case model::MoveResult::MissingParent:
-            return Fail(error, L"Le dossier parent est introuvable ou mal rattaché.");
-        case model::MoveResult::Cycle:
-            return Fail(error, L"Un dossier ne peut pas être placé dans lui-même ou dans un de ses sous-dossiers.");
-        case model::MoveResult::TooDeep:
-            return Fail(error, L"Cette action dépasserait 32 niveaux de dossiers.");
+        if (std::any_of(folders.begin(), folders.end(), [&](const auto& sibling) {
+                return sibling.id != pending.id && sibling.parent_id == pending.parent_id &&
+                    SameFolderTitle(normalizedTitle, sibling.title);
+            })) return Fail(error, L"Un dossier portant ce nom existe déjà à cet emplacement.");
+        if (move) {
+            switch (model::CheckFolderMove(pending, folders)) {
+            case model::MoveResult::Ok: break;
+            case model::MoveResult::MissingParent:
+                return Fail(error, L"Le dossier parent est introuvable ou mal rattaché.");
+            case model::MoveResult::Cycle:
+                return Fail(error, L"Un dossier ne peut pas être placé dans lui-même ou dans un de ses sous-dossiers.");
+            case model::MoveResult::TooDeep:
+                return Fail(error, L"Cette action dépasserait 32 niveaux de dossiers.");
+            }
         }
     }
     pending.modified = NowAfter(previous);

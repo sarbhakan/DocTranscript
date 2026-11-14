@@ -47,6 +47,36 @@ jobs:
         if: ${{ !cancelled() && steps.unzip.outcome == 'success' }}
         shell: powershell
         run: ./app/windows/ui_smoke.ps1 -Executable "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive/NoteVive.exe"
+      - name: Comparer CTranslate2 INT8 sur le même hôte Windows
+        if: ${{ !cancelled() }}
+        run: |
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
+          $py = "$env:RUNNER_TEMP/ct2-venv/Scripts/python.exe"
+          python -m venv "$env:RUNNER_TEMP/ct2-venv"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $py -m pip --isolated install --index-url https://pypi.org/simple --disable-pip-version-check --require-hashes --only-binary ':all:' -r p0/packs/ct2-cp312-win-amd64.lock.txt
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $py -m pip check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m p0.windows.ct2_probe fetch --model "$env:RUNNER_TEMP/ct2-turbo"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          foreach ($threads in @(4, 2)) {
+            python -m p0.windows.measure --output "$env:RUNNER_TEMP/ct2-memory-$threads.json" -- $py -m p0.windows.ct2_probe run --model "$env:RUNNER_TEMP/ct2-turbo" --threads $threads --output "$env:RUNNER_TEMP/ct2-metrics-$threads.json"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            $resources = Get-Content "$env:RUNNER_TEMP/ct2-memory-$threads.json" -Raw | ConvertFrom-Json
+            $resources | Select-Object interval_ms_requested, peak_sampled_private_bytes, observed_cpu_seconds, observed_mean_cpu_core_equivalents, snapshot_errors, partial_samples, exit_code | ConvertTo-Json -Compress
+          }
+      - name: Conserver les mesures agrégées sans audio ni transcription
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Mesures-Windows
+          path: |
+            ${{ runner.temp }}/NoteVive-engine-tests/timings.json
+            ${{ runner.temp }}/ct2-metrics-*.json
+            ${{ runner.temp }}/ct2-memory-*.json
+          retention-days: 30
+          if-no-files-found: warn
       - name: Publier le paquet de recette
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

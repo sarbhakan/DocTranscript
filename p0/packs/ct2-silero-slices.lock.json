@@ -1,0 +1,75 @@
+{
+  "schema": 1,
+  "provenance": "Public Px fixture WAVs. On macOS ARM64 CPU, whisper.cpp 1.8.5 Silero read contiguous blocks of 512 samples (one VAD thread, GPU off), using NoteVive PauseState with a 576 ms pause and 256 ms preroll. Offsets are zero-based sample ranges [start_frame, end_frame) in the original mono 16 kHz int16 data chunk. Prepared before running the CT2 probe; every emitted native float sample was compared to the corresponding int16/32768 sample.",
+  "vad_sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+  "whisper_cpp_version": "1.8.5",
+  "libwhisper_dylib_sha256": "27bc84217a5a93538798908585fdaf286f26b9deeda9c6c12bac0de4b515d560",
+  "pause_state_header_sha256": "673474bf355ec256b324f444ac97821e06f10e29b32536fb347aa47ee9dea9ad",
+  "silero_pause_header_sha256": "3bae913ed74bfe2b6360c2a1e8983b7610592a0ac97cb999bc7c55b5612ca35e",
+  "fixtures": {
+    "px-826": {
+      "wav_sha256": "c0fa5fb0f58eb9b13d4b7c9d786259f95e33711d4ae0e64bf9768425e0377d10",
+      "slices": [
+        {
+          "start_frame": 6144,
+          "end_frame": 80384,
+          "pcm_sha256": "a7c9dd1d7886ccb8c6698de54b9fa0cc35181341ac0dac90bbb3d8f8fb46fb15",
+          "pcm_float32_fnv1a64": "f3e871b317886221"
+        }
+      ]
+    },
+    "px-23": {
+      "wav_sha256": "264cc0dbca562aa7a936f01daa2e026775b6cf89efcca151694e2c8a9a96e323",
+      "slices": [
+        {
+          "start_frame": 5120,
+          "end_frame": 57856,
+          "pcm_sha256": "705bc15822f07df95a6b13c3645732f4bdec58db73f4abb9bb0ed2634afdff0f",
+          "pcm_float32_fnv1a64": "a72c6ea901956a34"
+        },
+        {
+          "start_frame": 70656,
+          "end_frame": 156672,
+          "pcm_sha256": "5746ebaac175d7238aef62d466c917af10a3b0d473ac69f98448fb565b4ff5ad",
+          "pcm_float32_fnv1a64": "80293e4df40e6812"
+        },
+        {
+          "start_frame": 156672,
+          "end_frame": 195584,
+          "pcm_sha256": "5fe1b33caf6b5f7b40bb19018153fafe978f8dece605a8c2c806a1ac5b1dc783",
+          "pcm_float32_fnv1a64": "9aadc4b7a34ee326"
+        },
+        {
+          "start_frame": 214528,
+          "end_frame": 240640,
+          "pcm_sha256": "c54911131b0400e057f0639148c7d3e1354a46967b82a62e58444c9df6284706",
+          "pcm_float32_fnv1a64": "b2a8bba4ba777d9f"
+        }
+      ]
+    },
+    "px-584": {
+      "wav_sha256": "0003f0c6065832b0591dfb5a56a4734769d4fb3c9d45d45f9966dae72b69ed70",
+      "slices": [
+        {
+          "start_frame": 37376,
+          "end_frame": 98816,
+          "pcm_sha256": "a31e9eaa11ef529c4bbb85a0abe006f979425267eebd98cf201d048ed4803c40",
+          "pcm_float32_fnv1a64": "4a3c19d6e3f92074"
+        },
+        {
+          "start_frame": 98816,
+          "end_frame": 157696,
+          "pcm_sha256": "94094b3f35e27f3a40ffd34fa7edc0f221bae8fa45d49012b4a78d4240c60533",
+          "pcm_float32_fnv1a64": "5dbfa464a403f695"
+        },
+        {
+          "start_frame": 182784,
+          "end_frame": 232448,
+          "pcm_sha256": "c88a00e50520dceaa5d169f40ce84d855994e2f813746e91914d61e597bf4e98",
+          "pcm_float32_fnv1a64": "f0cd6a097d9bda6a"
+        }
+      ]
+    }
+  },
+  "pcm_float32_fnv1a64_note": "Non-cryptographic FNV-1a 64 over IEEE 754 little-endian float32 samples (signed int16 PCM divided by 32768), ordered by sample; matches nv_segment in the opt-in benchmark bridge logs."
+}

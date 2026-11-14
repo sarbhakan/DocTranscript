@@ -203,7 +203,9 @@ def main():
             raise ValueError('WAV français altéré.')
         speech = out / 'french-prescription.wav'
         speech.write_bytes(audio)
-        commands.append([smoke, runtime, speech, '--speech'])
+        regressions[speech] = {**spec, 'id': 'px-826', 'terms': ['prozac'],
+                               'critical': {'dose': ['prozac 20 milligrammes']}}
+        commands.append([smoke, runtime, speech, '--regression', out / 'px-826.txt'])
         for case in json.loads((fixture_dir / 'regressions.json').read_text(encoding='utf-8'))['cases']:
             packed = (fixture_dir / case['filename']).read_bytes()
             if hashlib.sha256(packed).hexdigest() != case['gzip_sha256']:
@@ -222,8 +224,8 @@ def main():
         return
     timings = []
     def execute(cmd, env, is_smoke):
-        regression = is_smoke and cmd[2] in regressions
-        label = cmd[2].stem if regression else ('speech-fr' if is_smoke and cmd[-1] == '--speech' else ('silence' if is_smoke else cmd[0].name))
+        regression = is_smoke and len(cmd) == 5 and cmd[3] == '--regression' and cmd[2] in regressions
+        label = regressions[cmd[2]]['id'] if regression else ('speech-fr' if is_smoke and cmd[-1] == '--speech' else ('silence' if is_smoke else cmd[0].name))
         requested_cpu = env.get('NOTEVIVE_CPU', 'auto')
         print(f'Test {label}, requested_cpu={requested_cpu}', flush=True)
         start = time.perf_counter()
@@ -279,6 +281,8 @@ def main():
             baseline_commands.append(cmd)
     # Explicit engineering diagnostic, outside the product CPU requirement.
     # If requested, any failure still fails this invocation. No timeouts change.
+    if args.include_unsupported_baseline and args.package:
+        baseline_commands.append([smoke, runtime, speech, '--speech'])
     for cmd in baseline_commands:
         env = {**os.environ, 'NOTEVIVE_CPU': 'baseline', 'NOTEVIVE_ASR_BENCH_METRICS': '1'}
         try:

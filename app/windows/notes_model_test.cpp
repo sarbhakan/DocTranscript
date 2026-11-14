@@ -102,6 +102,13 @@ void Tree() {
           reloaded.modified == kModified, "folder survives serialization");
     Check(!DecodeFolder(bytes.data(), bytes.size(), leaf.id, reloaded) &&
           !DecodeFolder(bytes.data(), bytes.size() - 1, reloaded.id, reloaded), "folder corruption rejected");
+    Folder legacy = child;
+    legacy.title = L"Ancien / dossier\\libre";
+    std::vector<Byte> oldFolder;
+    EncodeFolder(oldFolder, legacy);
+    Folder oldDecoded;
+    Check(!NewFolderTitle(legacy.title) && DecodeFolder(oldFolder.data(), oldFolder.size(), legacy.id, oldDecoded) &&
+          oldDecoded.title == legacy.title, "new naming restrictions do not invalidate old folders");
     folders.front() = reloaded;
     Check(ViewPath(folders, leaf.id) == L"Archives / Cardiologie / Consultations / Suivi", "move preserves descendants");
     std::vector<Folder> nested;
