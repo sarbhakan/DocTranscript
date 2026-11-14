@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "filename": "px-826.wav.gz",
+  "wav_sha256": "c0fa5fb0f58eb9b13d4b7c9d786259f95e33711d4ae0e64bf9768425e0377d10",
+  "gzip_sha256": "db23604cae1e0193737de836d055ee34700478cbc58b39a4510eeff9d347d4b8",
+  "wav_bytes": 206124,
+  "frames": 103040,
+  "rate_hz": 16000,
+  "channels": 1,
+  "sample_width_bytes": 2,
+  "duration_ms": 6440,
+  "reference": "prozac 20 milligrammes 1 gélule matin et soir",
+  "source": {
+    "doi": "10.5281/zenodo.10080490",
+    "dataset_url": "https://zenodo.org/records/10080490",
+    "license": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "recording_path": "PxCorpus/PxSLU/recordings/jYV4F135rb/recording_4.wav",
+    "recording_sha256": "adfb26c18bd69efd4250d4eff100fee6afc8f1ad9c0e0a136c35b632d8eb2c00",
+    "archive_sha256": "b901f59118f06854a4c4823611d8cadbbd2e68e48459bc514dabe0bda6f7d81c",
+    "row_zero_based": 826,
+    "pcm_sha256": "f9796b6ca1dad2237d20ca3cd8404e1d5d513bc1591c6fca4979fd9b820ea42b"
+  }
+}

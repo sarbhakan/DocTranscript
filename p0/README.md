@@ -5,7 +5,8 @@ Ce lot compare le délai de réponse des **moteurs**, leur consommation et leur 
 - [Procédure sur deux PC Windows](../docs/p0-windows.md) : inventaire, conditions de mesure, essais, traces réseau et recette indépendante.
 - [Contrat et métriques du banc](bench/README.md) : protocole du worker, options, fichiers et règles de calcul.
 - [Essai du micro sur Mac](bench/macos-smoke.md) : affichage en direct, fidélité médicale et sauvegarde après relance. Voir aussi [les résultats Mac et le comparatif local](../docs/p0-macos-dictee.md).
-- [Comparatif Whisper–UltiMed et choix du candidat](../docs/p0-choix-moteur.md) : lot PxCorpus, résultats et préparation du rejeu Windows.
+- [Banc moteur enrichi et choix du candidat Windows](asr_benchmark.md) : mêmes fichiers, doses et fractions séparées, comparaison du découpage, résultats Mac et procédure exacte Windows.
+- [Comparatif historique Whisper–UltiMed pour le pilote Mac](../docs/p0-choix-moteur.md) : lot PxCorpus, résultats et préparation du rejeu.
 - [Corpus fictif](corpus/README.md) : scripts, attributs à relire, génération des contrôles, constitution du jeu inédit.
 - [Portes de validation des lots suivants](../docs/recette-iterative.md) : interface, interaction, intégrité de la base et transfert.
 

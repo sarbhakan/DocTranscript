@@ -1,6 +1,6 @@
 # Adaptation du vocabulaire médical · NoteVive
 
-Veille documentaire au 13 novembre 2026. **L’objectif produit est une application Windows, un moteur et un modèle de reconnaissance retenus sur preuves.** Plusieurs lexiques peuvent être disponibles dans la même application. Un lexique change les indices donnés au moteur ou au relecteur, sans charger un modèle par spécialité. Aucun essai de biais lexical sur moteur réel et aucun entraînement n’ont été réalisés dans ce lot.
+Veille documentaire au 13 novembre 2026. **L’objectif produit est une application Windows, un moteur et un modèle de reconnaissance retenus sur preuves.** Plusieurs lexiques peuvent être disponibles dans la même application. Un lexique change les indices donnés au moteur ou au relecteur, sans charger un modèle par spécialité. Pour l’intégration et l’essai apparié réalisés sur Mac, voir [la recette 0.2.1](p0-recette-lexique-mac.md). Le présent document décrit les pistes Windows et ne constitue pas une validation de ces moteurs.
 
 ## Un catalogue riche, une sélection courte par dictée
 

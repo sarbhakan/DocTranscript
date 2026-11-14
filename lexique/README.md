@@ -4,6 +4,8 @@ Ce catalogue d’ingénierie indexe des libellés de référence français pour 
 
 Le catalogue ne reçoit aucune note, aucun enregistrement et aucun identifiant patient. Les notes de l’application auront leur propre stockage chiffré. Ce catalogue ne constitue ni un outil de diagnostic, de prescription ou de facturation, ni un modèle entraîné, ni une preuve de couverture clinique d’une spécialité. Un même terme peut avoir plusieurs codes ou provenances ; les statistiques comptent les libellés indexés et conservent ces distinctions.
 
+L’essai Mac utilise un pack distinct de [14 profils médicaux français](PROFILS.md), avec un index consultable hors ligne et une présélection limitée de termes pour tester l’aide à la dictée. Le guide détaille la couverture, la génération et la provenance par libellé.
+
 ## Catalogue de l’essai public Windows
 
 Le ZIP distribué sur GitHub embarque **70 517 libellés provenant de six référentiels**. Il exclut les dénominations et substances de la BDPM : leur diffusion demanderait de suivre aussi les corrections entre publications, comme l’indique le [portail BDPM](https://base-donnees-publique.medicaments.gouv.fr/telechargement). Les six autres référentiels, listés dans le [manifeste public](manifest-essai-public.json), restent consultables hors ligne. Le contenu du catalogue ne modifie pas les résultats de dictée.

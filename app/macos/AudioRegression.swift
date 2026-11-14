@@ -53,11 +53,11 @@ func audioCallbackRegression(model: URL) throws {
 }
 
 private func renderWithTap(worker: RecognitionWorker) throws -> (callbacks: Int, frames: Int) {
-    try worker.queue.sync { try worker.start() }
-    let ingress = AudioIngress(worker: worker, update: { _ in }, interrupted: {})
+    _ = try worker.queue.sync { try worker.start() }
+    let ingress = AudioIngress(worker: worker, text: { _ in }, interrupted: { _ in })
     defer {
         ingress.close()
-        _ = worker.queue.sync { worker.stop(flush: false) }
+        worker.queue.sync { worker.stop(flush: false, text: { _ in }, error: { _ in }, done: {}) }
     }
 
     let sampleRate: Int32 = 16_000

@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "date_local": "2026-11-14",
+  "decision": "reject_adaptive_audio_context_keep_full",
+  "scope": "development_regression_macos_only",
+  "machine": {
+    "cpu": "Apple M1 Pro",
+    "memory_gib": 16,
+    "os": "macOS 27.2 (26B123)",
+    "architecture": "arm64",
+    "accelerate": true,
+    "gpu_asr": false,
+    "gpu_vad": false
+  },
+  "inputs": {
+    "manifest_sha256": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+    "whisper_version": "1.8.5",
+    "libwhisper_sha256": "d5efc017f45c1a312d393be336e2a8934d6af73dcf8d180f185a960dd3f31e67",
+    "whisper_model": "ggml-large-v3-turbo-q5_0.bin",
+    "whisper_weights_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+    "silero_model": "ggml-silero-v6.2.0.bin",
+    "silero_weights_sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+    "pause_state_header_sha256": "673474bf355ec256b324f444ac97821e06f10e29b32536fb347aa47ee9dea9ad",
+    "silero_pause_header_sha256": "3bae913ed74bfe2b6360c2a1e8983b7610592a0ac97cb999bc7c55b5612ca35e"
+  },
+  "protocol": {
+    "wav_count": 32,
+    "speech_count": 28,
+    "silence_or_noise_count": 4,
+    "audio_duration_ms": 564536.062,
+    "fragment_count_per_arm": 72,
+    "corti_used": false,
+    "measured_replays_per_clip_per_arm": 1,
+    "warmup_case_per_arm": "dev-17",
+    "warm_contexts_in_one_process": 2,
+    "parallel_inference": false,
+    "arm_order": "alternating_by_manifest_parity",
+    "pcm_packet_ms": 100,
+    "pause_ms": 576,
+    "language": "fr",
+    "model_threads": 4,
+    "vad_threads": 1,
+    "sampling": "greedy_default_fallbacks",
+    "prompt_history": false,
+    "flash_attention": true,
+    "baseline_audio_ctx": 0,
+    "default_audio_context_frames": 1500,
+    "adaptive_audio_ctx_expression": "min(1500, max(256, 64 * ceil((ceil(sample_count / 320) + 50) / 64)))",
+    "adaptive_audio_context_frame_histogram": {
+      "256": 20,
+      "320": 19,
+      "384": 4,
+      "448": 7,
+      "512": 9,
+      "576": 4,
+      "640": 2,
+      "704": 4,
+      "768": 2,
+      "832": 1
+    }
+  },
+  "baseline": {
+    "bridge_library_sha256": "f8b85a5838adbb38d069e03a3be215419a81769c37dd0e582349c112f9ae63d3",
+    "bridge_source_sha256": "446e23d94b041ae7b4ed9c779f5f54c57c9a61128c401171787b008fdc3d9d2e",
+    "score": {
+      "covered": [
+        32,
+        32
+      ],
+      "critical": {
+        "dose": [
+          22,
+          26
+        ],
+        "negation": [
+          15,
+          22
+        ],
+        "latéralité": [
+          4,
+          4
+        ],
+        "fraction": [
+          8,
+          8
+        ],
+        "quantité": [
+          0,
+          2
+        ],
+        "délai": [
+          1,
+          2
+        ]
+      },
+      "terms": [
+        25,
+        66
+      ],
+      "word_changes": [
+        126,
+        1064
+      ],
+      "control_nonempty": [
+        0,
+        4
+      ],
+      "pause_estimate_missing": [
+        0,
+        32
+      ]
+    },
+    "time_ms": {
+      "elapsed_ms": {
+        "p50": 6294.19,
+        "p95": 13030.598,
+        "n": 32
+      },
+      "decode_ms_per_segment": {
+        "p50": 3157.048,
+        "p95": 3359.866,
+        "n": 72
+      },
+      "pause_estimate_synth_ms": {
+        "p50": 3898.055,
+        "p95": 4129.148,
+        "n": 32
+      },
+      "pause_estimate_synth_with_serial_queue_ms": {
+        "p50": 3902.511,
+        "p95": 4129.148,
+        "n": 32
+      }
+    },
+    "speech_rtf": {
+      "p50": 0.44314,
+      "p95": 0.79237,
+      "n": 28
+    },
+    "upstream_timing_ms": {
+      "mel": {
+        "p50": 3.36,
+        "p95": 6.82,
+        "n": 72
+      },
+      "encode": {
+        "p50": 3014.55,
+        "p95": 3175.03,
+        "n": 72
+      },
+      "decode_total": {
+        "p50": 119.68,
+        "p95": 296.14,
+        "n": 72
+      },
+      "total": {
+        "p50": 3156.97,
+        "p95": 3359.76,
+        "n": 72
+      }
+    },
+    "upstream_fallbacks": {
+      "log_probability": 1,
+      "entropy": 0
+    }
+  },
+  "adaptive": {
+    "bridge_library_sha256": "383ff3e5c1bdc043eec0b0bf13db16e87c2bc64ec3438e1c03a62e9deacf854b",
+    "bridge_source_sha256": "00f897eea00aeb57ea7fc60d72052e1de0f6fd5f4b071b598c7c73521b3e4522",
+    "score": {
+      "covered": [
+        32,
+        32
+      ],
+      "critical": {
+        "dose": [
+          13,
+          26
+        ],
+        "negation": [
+          11,
+          22
+        ],
+        "latéralité": [
+          3,
+          4
+        ],
+        "fraction": [
+          3,
+          8
+        ],
+        "quantité": [
+          0,
+          2
+        ],
+        "délai": [
+          0,
+          2
+        ]
+      },
+      "terms": [
+        13,
+        66
+      ],
+      "word_changes": [
+        727,
+        1064
+      ],
+      "control_nonempty": [
+        0,
+        4
+      ],
+      "pause_estimate_missing": [
+        0,
+        32
+      ]
+    },
+    "time_ms": {
+      "elapsed_ms": {
+        "p50": 2613.604,
+        "p95": 24004.598,
+        "n": 32
+      },
+      "decode_ms_per_segment": {
+        "p50": 1079.208,
+        "p95": 10098.502,
+        "n": 72
+      },
+      "pause_estimate_synth_ms": {
+        "p50": 2107.275,
+        "p95": 11541.6,
+        "n": 32
+      },
+      "pause_estimate_synth_with_serial_queue_ms": {
+        "p50": 2107.275,
+        "p95": 11917.616,
+        "n": 32
+      }
+    },
+    "speech_rtf": {
+      "p50": 0.15746,
+      "p95": 0.88066,
+      "n": 28
+    },
+    "upstream_timing_ms": {
+      "mel": {
+        "p50": 3.45,
+        "p95": 6.88,
+        "n": 72
+      },
+      "encode": {
+        "p50": 578.87,
+        "p95": 1207.56,
+        "n": 72
+      },
+      "decode_total": {
+        "p50": 194.9,
+        "p95": 9449.5,
+        "n": 72
+      },
+      "total": {
+        "p50": 1079.1,
+        "p95": 10098.43,
+        "n": 72
+      }
+    },
+    "upstream_fallbacks": {
+      "log_probability": 65,
+      "entropy": 14
+    }
+  },
+  "paired": {
+    "baseline_exact_match_with_previous_576_replay": 32,
+    "identical_boundaries_and_fragment_sample_counts": true,
+    "same_assembled_transcript_exact": 6,
+    "same_assembled_transcript_normalized": 7,
+    "critical_span_changes": {
+      "gained": 0,
+      "lost": 20
+    },
+    "rare_term_changes": {
+      "gained": 1,
+      "lost": 13
+    },
+    "adaptive_slower_speech_files": 7,
+    "median_warm_speech_file_speedup_ratio": 2.391,
+    "aggregate_warm_speech_time_speedup_ratio": 1.209
+  },
+  "observations": {
+    "cases_with_observed_prior_clip_phrase_inserted": 2,
+    "mechanism_status": "consistent_with_upstream_report_not_isolated_in_this_experiment",
+    "upstream_flash_attention_padding_report": "https://github.com/ggml-org/whisper.cpp/pull/3941"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "px-23",
+      "filename": "px-23.wav.gz",
+      "wav_sha256": "264cc0dbca562aa7a936f01daa2e026775b6cf89efcca151694e2c8a9a96e323",
+      "gzip_sha256": "932140aec75bb07e207396c48aff527de6c13115b0f3aed42f5e41d30e4d14a7",
+      "gzip_bytes": 343248,
+      "wav_bytes": 537644,
+      "frames": 268800,
+      "rate_hz": 16000,
+      "channels": 1,
+      "sample_width_bytes": 2,
+      "duration_ms": 16800,
+      "reference": "imovane 7,5 milligrammes débuter aujourd'hui à 1 comprimé par jour puis alternance 1 quart de comprimé pendant 7 jours",
+      "terms": [
+        "imovane"
+      ],
+      "critical": {
+        "dose": [
+          "7,5 milligrammes"
+        ],
+        "fraction": [
+          "un quart de comprimé"
+        ]
+      },
+      "source": {
+        "doi": "10.5281/zenodo.10080490",
+        "dataset_url": "https://zenodo.org/records/10080490",
+        "license": "CC-BY-4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "recording_path": "PxCorpus/PxSLU/recordings/0VyPgnxvqc/recording_0.wav",
+        "recording_sha256": "c13ed873ac13aa8172bf0044e0189fb30183cdb983fedf7f374e10075166828c",
+        "archive_sha256": "b901f59118f06854a4c4823611d8cadbbd2e68e48459bc514dabe0bda6f7d81c",
+        "row_zero_based": 23,
+        "pcm_sha256": "5524f621f6b598ca2144d0ca3bcf7e43f27f80b2cf946da133a0f269a542ee3a"
+      }
+    },
+    {
+      "id": "px-584",
+      "filename": "px-584.wav.gz",
+      "wav_sha256": "0003f0c6065832b0591dfb5a56a4734769d4fb3c9d45d45f9966dae72b69ed70",
+      "gzip_sha256": "b10282a503bd39e8118eb408d18e14c5a9aa3f864e866b32b872192ee68ade4c",
+      "gzip_bytes": 347440,
+      "wav_bytes": 486444,
+      "frames": 243200,
+      "rate_hz": 16000,
+      "channels": 1,
+      "sample_width_bytes": 2,
+      "duration_ms": 15200,
+      "reference": "sotalex 80 milligrammes en comprimés 1 demi le matin à 1 demi soir tous les jours de la semaine pendant 2 mois",
+      "terms": [
+        "sotalex"
+      ],
+      "critical": {
+        "dose": [
+          "80 milligrammes"
+        ],
+        "fraction": [
+          "un demi le matin",
+          "un demi le soir|un demi soir"
+        ]
+      },
+      "source": {
+        "doi": "10.5281/zenodo.10080490",
+        "dataset_url": "https://zenodo.org/records/10080490",
+        "license": "CC-BY-4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "recording_path": "PxCorpus/PxSLU/recordings/ffvsvIRpA9/recording_0.wav",
+        "recording_sha256": "88a309d1d0423d41323874ddc1d42c4f3280e4c44726a101d5ea2bce37667d19",
+        "archive_sha256": "b901f59118f06854a4c4823611d8cadbbd2e68e48459bc514dabe0bda6f7d81c",
+        "row_zero_based": 584,
+        "pcm_sha256": "ecc41e96c8e5886ae987ffbb1ce15b241189b3c691cd58236f11514a87961612"
+      }
+    }
+  ]
+}

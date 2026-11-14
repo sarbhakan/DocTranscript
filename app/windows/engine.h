@@ -28,6 +28,9 @@ public:
     Engine(const Engine&) = delete;
     Engine& operator=(const Engine&) = delete;
 
+    // Instruction and OS support only. This probe does not load or verify files.
+    static bool cpu_supported() noexcept;
+    static const wchar_t* cpu_requirement() noexcept;
     bool start(std::uint64_t generation, std::wstring model_directory);
     // Smoke test only: same recognizer and segmentation without opening WinMM.
     bool start_wave(std::uint64_t generation, std::wstring model_directory,
@@ -35,6 +38,9 @@ public:
     void stop();   // Stop the microphone, then finish the captured audio.
     void cancel(); // Stop the microphone and discard pending audio/provisional text.
     void shutdown();
+#ifdef NOTEVIVE_SUPERVISOR_TEST
+    void refuse_cpu_for_test(bool refuse) noexcept;
+#endif
 
 private:
     struct Impl;

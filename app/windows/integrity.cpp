@@ -1,5 +1,8 @@
 #include "integrity.h"
 #include "catalogue_integrity.h"
+#ifndef NOTEVIVE_WORKER_BUILD
+#include "worker_integrity.h"
+#endif
 #include <windows.h>
 #include <bcrypt.h>
 #include <array>
@@ -10,15 +13,8 @@
 namespace doct {
 namespace {
 struct Expected { const wchar_t* name; std::uint64_t bytes; const char* hex; };
-constexpr Expected kEngine[] = {
-    {L"encoder.onnx", 126655903, "47a94a7fdc8dff63d708be4ea0535747640224467f91e238311f1ddbdd09327e"},
-    {L"decoder.onnx", 2092272, "3ef2840b684440e26382af87b2174d25732a9f113f1965cd8abba7ffc5d033fb"},
-    {L"joiner.onnx", 259572, "fc2f3bb851a15a532c6f2422d53eecd1ca949f12b0897e07a852021c30481711"},
-    {L"tokens.txt", 4819, "37fb3f2a7bcb85e5fff3f1f66be04e6fbb05077a22f56d177fe85704e945fb31"},
-    {L"sherpa-onnx-c-api.dll", 3667968, "ee2af9f49b8fc5dae135ad20c0b955cbab90d17b79cc1ad0db91e03b24962f68"},
-    {L"onnxruntime.dll", 17799168, "7f66f939a881baf4f46a2216496798edf4a1429878b646d12674aa62f27d8a25"},
-    {L"onnxruntime_providers_shared.dll", 104960, "551d0e1fe4c227d8542314ba718d52f4379e0c7bfe729a37c59833a884e27b4d"},
-};
+#include "runtime_integrity.h"
+
 constexpr Expected kCatalogue = {L"catalogue.sqlite", NOTEVIVE_CATALOGUE_SIZE, NOTEVIVE_CATALOGUE_SHA256};
 
 struct File {
@@ -74,6 +70,15 @@ bool verify(const std::wstring& dir, const Expected* data, std::size_t count) {
 
 bool verify_engine_files(const std::wstring& dir) noexcept {
     try { return verify(dir, kEngine, std::size(kEngine)); } catch (...) { return false; }
+}
+bool verify_worker_file(const std::wstring& dir) noexcept {
+#ifdef NOTEVIVE_WORKER_BUILD
+    (void)dir;
+    return false;
+#else
+    constexpr Expected worker{L"NoteVive-ASR.exe", NOTEVIVE_WORKER_SIZE, NOTEVIVE_WORKER_SHA256};
+    try { return verify(dir, &worker, 1); } catch (...) { return false; }
+#endif
 }
 bool verify_catalogue_file(const std::wstring& dir) noexcept {
     try { return verify(dir, &kCatalogue, 1); } catch (...) { return false; }
