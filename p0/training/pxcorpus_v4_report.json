@@ -1,0 +1,53 @@
+{
+  "artifacts_sha256": {
+    "ATTRIBUTION.txt": "c039c731a5a62b116be5ef55f78eb84545efd7f0ffcacfd181119e6128264a2a",
+    "reserve.local.json": "49a645a495b6fbd2d8cf638ccc244daf2f01799a5105e5de058ee8cede49a720",
+    "train.jsonl": "9535bfe0917978944fe02d2506c9a9eb6d9792a535c5ef24f5c94cbf64a245b4",
+    "validation.jsonl": "bc20986372064c0d3a0ff12a0246b211e5a7ced9d92301730e2e34cb1d763800"
+  },
+  "dataset": "pxcorpus-v4-pxslu",
+  "development_only": true,
+  "excluded_by_reason": {
+    "duplicate_pcm_in_partition": 3,
+    "reference_crosses_partitions": 16,
+    "reference_matches_reserve": 29,
+    "reserved_speaker": 570
+  },
+  "leakage_check": "speaker, normalized-reference and PCM intersections empty",
+  "licence": "CC-BY-4.0",
+  "partition_policy": "20% of eligible speakers by fixed SHA-256 rank; shared texts/PCM removed from both",
+  "partitions": {
+    "train": {
+      "categories": {
+        "expert": 362,
+        "non-expert": 719
+      },
+      "rows": 1081,
+      "seconds": 8076.9306,
+      "speakers": 32
+    },
+    "validation": {
+      "categories": {
+        "expert": 57,
+        "non-expert": 225
+      },
+      "rows": 282,
+      "seconds": 1633.6,
+      "speakers": 8
+    }
+  },
+  "protected_benchmark_rows": 51,
+  "protected_prior_rows": 10,
+  "references": "source seq.in, not independently re-audited; no ASR-generated labels",
+  "reserved_rows": 570,
+  "reserved_speakers": 14,
+  "schema": 1,
+  "source_rows": 1981,
+  "source_sha256": "b901f59118f06854a4c4823611d8cadbbd2e68e48459bc514dabe0bda6f7d81c",
+  "source_speakers": 54,
+  "source_train_dev_shared_speakers": 39,
+  "source_url": "https://zenodo.org/records/10080490",
+  "split_key": "notevive-px-adaptation-v1",
+  "training_performed": false,
+  "upstream_pretraining_overlap": "unknown"
+}

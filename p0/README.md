@@ -1,5 +1,7 @@
 # P0 · Banc de reconnaissance vocale hors ligne
 
+Dernier lot : [comparaison appariée du décodeur et consolidation 0.3.1](decoder_consolidation.md), [mesures Windows](windows_consolidation.json) et [préparation locale des données d’adaptation](training/README.md). Les poids ne sont pas entraînés par ces outils.
+
 Ce lot compare le délai de réponse des **moteurs**, leur consommation et leur fidélité sur les mêmes WAV. Les configurations sont des comparateurs de développement pour choisir le moteur de l’unique application, pas des éditions livrées. Le banc fonctionne sans cloud ni téléchargement à l’exécution. L’éditeur WPF, la latence réelle à l’écran, la capture WASAPI, les interactions et le stockage des notes auront leurs tests propres en P1. Les résultats de P0 sont des mesures techniques sur cas fictifs.
 
 - [Procédure sur deux PC Windows](../docs/p0-windows.md) : inventaire, conditions de mesure, essais, traces réseau et recette indépendante.

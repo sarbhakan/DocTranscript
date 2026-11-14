@@ -15,6 +15,11 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 
+if __package__:
+    from .whisper_patch import DECODER_PATCH, edit_decoder
+else:
+    from whisper_patch import DECODER_PATCH, edit_decoder
+
 
 VERSION = "1.8.5"
 SOURCE_NAME = f"whisper-v{VERSION}-source.tar.gz"
@@ -326,9 +331,10 @@ def validate_staged(directory):
     toolset = log.get("toolset")
     blas = log.get("openblas")
     openblas = blas is not None
-    if (log.get("schema") != (4 if openblas else 3) or log.get("version") != VERSION
+    if (log.get("schema") != (6 if openblas else 5) or log.get("version") != VERSION
             or log.get("source_url") != SOURCE_URL or log.get("source_sha256") != SOURCE_SHA256
             or log.get("patch") != CMAKE_PATCH
+            or log.get("decoder_patch") != DECODER_PATCH
             or log.get("generator") != GENERATOR or not isinstance(toolset, str) or toolset not in TOOLSETS
             or log.get("cmake_toolset") != TOOLSETS[toolset][0]
             or not valid_compilers(log.get("compilers"), toolset)
@@ -453,6 +459,7 @@ def build_release(source, output, cmake, jobs, toolset=DEFAULT_TOOLSET, openblas
             archive.extractall(temp, filter="data")
         tree = temp / SOURCE_ROOT
         changed = edit_cmake(tree / "CMakeLists.txt")
+        decoder_patch = edit_decoder(tree / DECODER_PATCH["path"])
         env = os.environ.copy()
         # These can inject compiler switches or change the chosen SDK/libraries.
         for var in ("CL", "_CL_", "CFLAGS", "CXXFLAGS", "ASMFLAGS", "CPPFLAGS", "LINK", "_LINK_", "LDFLAGS",
@@ -499,9 +506,10 @@ def build_release(source, output, cmake, jobs, toolset=DEFAULT_TOOLSET, openblas
         for file, rel in HEADERS.items():
             shutil.copyfile(tree / rel, staging / "include" / file)
         shutil.copyfile(tree / "LICENSE", staging / "LICENSE")
-        log = {"schema": 4 if blas else 3, "version": VERSION,
+        log = {"schema": 6 if blas else 5, "version": VERSION,
                "source_url": SOURCE_URL, "source_sha256": SOURCE_SHA256,
-               "patch": changed, "generator": GENERATOR, "toolset": toolset, "cmake_toolset": cmake_toolset,
+               "patch": changed, "decoder_patch": decoder_patch,
+               "generator": GENERATOR, "toolset": toolset, "cmake_toolset": cmake_toolset,
                "compilers": compilers, "config": CONFIG,
                "cmake_version": subprocess.check_output([cmake, "--version"], text=True).splitlines()[0],
                "variants": variants, "static_crt_projects": list(STATIC_CRT_PROJECTS),

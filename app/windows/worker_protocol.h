@@ -4,6 +4,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace doct::wire {
 // Local anonymous pipes only. Explicit little-endian fields, bounded UTF-16LE
@@ -38,4 +39,18 @@ inline Header decode(const std::array<std::uint8_t, header_size>& b) {
     return h;
 }
 inline bool terminal(Kind k) { return k == stopped || k == error; }
+inline bool valid_text(std::wstring_view text) {
+    // An invalid code unit must not make an otherwise valid note unsavable.
+    // This shares the editor's allowed control characters, not a replacement
+    // policy: corrupted text is rejected rather than silently transformed.
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const auto ch = static_cast<std::uint32_t>(text[i]);
+        if ((ch < 32 && ch != L'\t' && ch != L'\n' && ch != L'\r') ||
+            (ch >= 0x7f && ch <= 0x9f) || ch > 0xffff) return false;
+        if (ch >= 0xd800 && ch <= 0xdbff) {
+            if (++i == text.size() || text[i] < 0xdc00 || text[i] > 0xdfff) return false;
+        } else if (ch >= 0xdc00 && ch <= 0xdfff) return false;
+    }
+    return true;
+}
 }

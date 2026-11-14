@@ -50,6 +50,36 @@ class FixtureChecksTest(unittest.TestCase):
         self.assertIn('1,5', changed['actual_numeric_sequence'])
         self.assertNotEqual(changed['expected_numeric_sequence'], changed['actual_numeric_sequence'])
 
+    def test_alterations_hidden_by_legacy_normalization(self):
+        case = self.cases[0]
+        ref = case['reference']
+        for erroneous, field in (
+            (ref.replace('7,5 milligrammes', '−7,5 mg'), 'no_negative_number'),
+            (ref.replace('7,5 milligrammes', 'moins sept virgule cinq mg'), 'no_negative_number'),
+            (ref.replace('7,5 milligrammes', '7,5 mg ⁄ mL'), 'no_added_concentration'),
+            (ref.replace('7,5 milligrammes', '7,5 mg ∕ kg'), 'no_added_concentration'),
+            (ref.replace('7,5 milligrammes', '7,5 mg par comprimé'), 'no_added_concentration'),
+            (ref.replace("débuter aujourd'hui", "ne débuter aujourd'hui"), 'no_added_negation'),
+            (ref.replace("débuter aujourd'hui", "n'initier aujourd'hui"), 'no_added_negation'),
+            (ref.replace('1 comprimé par jour', '1 par jour'), 'administered_form_amounts_equal'),
+            (ref.replace('7 jours', '7 semaines'), 'duration_amounts_equal'),
+        ):
+            with self.subTest(erroneous=erroneous):
+                result = check_fixture(case, erroneous)
+                self.assertTrue(result['numeric_sequence_equal'])
+                self.assertFalse(result[field])
+                self.assertFalse(result['passed'])
+        self.assertFalse(check_fixture(case, ref.replace('7,5 milligrammes', '7,5 microgrammes'))['passed'])
+
+    def test_narration_order_is_distinct_from_fraction_association(self):
+        case = self.cases[1]
+        text = case['reference'].replace('1 demi le matin à 1 demi soir', '½ le soir, ½ le matin')
+        result = check_fixture(case, text)
+        self.assertEqual(result['critical_span_presence']['fraction'], [2, 2])
+        self.assertTrue(result['numeric_sequence_equal'])
+        self.assertFalse(result['fraction_spans_ordered'])
+        self.assertTrue(result['passed'])
+
 
 if __name__ == '__main__':
     unittest.main()

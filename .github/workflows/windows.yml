@@ -116,7 +116,7 @@ jobs:
           if-no-files-found: error
   release:
     needs: windows
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.3.0]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.3.1]')
     runs-on: windows-2022
     timeout-minutes: 15
     permissions:
@@ -135,5 +135,5 @@ jobs:
           $archive = 'dist/NoteVive-Windows-x64-Essai.zip'
           $expected = (Get-Content "$archive.sha256").Split(' ')[0]
           if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'ZIP altéré' }
-          gh release create v0.3.0-essai --target "$env:RELEASE_COMMIT" --prerelease --latest=false --title "NoteVive 0.3.0 — essai Windows hors ligne" --notes-file app/RELEASE-0.3.0.md $archive "$archive.sha256"
+          gh release create v0.3.1-essai --target "$env:RELEASE_COMMIT" --prerelease --latest=false --title "NoteVive 0.3.1 — dictée consolidée, essai Windows hors ligne" --notes-file app/RELEASE-0.3.1.md $archive "$archive.sha256"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

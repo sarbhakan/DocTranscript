@@ -15,5 +15,11 @@ int main() {
     assert(rejected(encode({started, 1, 0, 2})));
     auto version = encode({start, 1, 0, 0}); version[3] = '9'; assert(rejected(version));
     assert(terminal(stopped) && terminal(error) && !terminal(final));
-    std::cout << "Protocol bounds, framing and event identity: OK\n";
+    assert(valid_text(L"Œdème\r\n\t1/2"));
+    assert(valid_text(std::wstring{L'x', 0xd83d, 0xde00}));
+    assert(!valid_text(std::wstring{L'x', L'\0', L'y'}));
+    assert(!valid_text(L"un\x85 mot"));
+    assert(!valid_text(std::wstring{0xd83d}));
+    assert(!valid_text(std::wstring{0xde00, 0xd83d}));
+    std::cout << "Protocol bounds, framing, Unicode and event identity: OK\n";
 }
