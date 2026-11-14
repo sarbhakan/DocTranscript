@@ -196,7 +196,10 @@ try {
     $browserStart.UseShellExecute = $false
     $browserStart.EnvironmentVariables['TEMP'] = $work
     $browserStart.EnvironmentVariables['TMP'] = $work
-    if ($HostedRecipe) { Log-EdgeStartupEnvironment 'before browser startup' '-' }
+    if ($HostedRecipe) {
+        & $ProbeExe --edge-startup-preflight
+        Require ($LASTEXITCODE -eq 0) 'The ordinary-user browser process still cannot create a local mutex.'
+    }
     $edge = [Diagnostics.Process]::Start($browserStart)
     Wait-Until {
         if ($edge.HasExited) { throw 'The isolated Edge process exited during startup.' }

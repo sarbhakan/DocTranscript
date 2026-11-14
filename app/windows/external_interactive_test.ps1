@@ -100,6 +100,25 @@ try {
     }
     Copy-Item -LiteralPath $scriptFile -Destination (Join-Path $work 'external_interactive_test.ps1')
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'external_edge_test.ps1') -Destination $work
+    # Same hosted VM and session for both arms. The control uses a fresh
+    # standard account with the same profile/setup as the actual Edge arm.
+    # A failed Win32 mutex plus a successful 0x7 and denied 0xF are the only
+    # observed combination warranting the one-bit directory access trial.
+    & $ProbeExe --launch-standard $stagedProbe '--edge-namespace-control' $work --edge-session
+    $controlStatus = $LASTEXITCODE
+    $controlLog = Join-Path $out 'edge-namespace-control.log'
+    if (-not (Test-Path -LiteralPath $controlLog -PathType Leaf)) {
+        throw 'The ordinary-user Edge namespace control did not produce a result.'
+    }
+    $control = @(Get-Content -LiteralPath $controlLog)
+    $control | Write-Output
+    if ($controlStatus) { throw 'The ordinary-user Edge namespace control failed.' }
+    if ($control -ccontains 'Edge namespace control: use 0x7.') {
+        $namespaceOption = '--edge-session'
+    } elseif ($control -ccontains 'Edge namespace control: test 0x8 addition.') {
+        $namespaceOption = '--edge-session-with-subdirectories'
+    } else { throw 'The Edge namespace control did not return a supported result.' }
+
     $result = Join-Path $out 'result'
     $bootstrap = @'
 $ErrorActionPreference = 'Stop'
@@ -114,7 +133,7 @@ try {
 '@
     Set-Content -LiteralPath (Join-Path $work 'edge-bootstrap.ps1') -Value $bootstrap
     $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -File .\edge-bootstrap.ps1' $work --edge-session
+    & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -File .\edge-bootstrap.ps1' $work $namespaceOption
     $status = $LASTEXITCODE
     $bootstrapLog = Join-Path $out 'bootstrap.log'
     if (Test-Path -LiteralPath $bootstrapLog) { Get-Content -LiteralPath $bootstrapLog }

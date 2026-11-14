@@ -295,21 +295,18 @@ void report_edge_processes(DWORD session) {
     std::printf("Edge processes in recipe session: %u\n", count);
 }
 
-int edge_startup_diagnostic(const wchar_t* dll) {
+struct NamespaceObservation {
+    NTSTATUS minimum = 0, with_subdirectory = 0;
+    DWORD bare_mutex = ERROR_GEN_FAILURE, local_mutex = ERROR_GEN_FAILURE;
+    bool have_directory_api = false;
+};
+NamespaceObservation observe_namespace(DWORD session);
+
+int edge_startup_diagnostic(const wchar_t* dll, bool require_named_mutex) {
+    if (require_named_mutex && !ordinary_token()) return 1;
     const auto session = report_session("edge_recipe", GetCurrentProcessId(), GetCurrentProcess());
     report_edge_processes(session);
-    // A private throw-away name proves this token can create a local mutex.
-    // Do not acquire any mutex or make changes to an existing named object.
-    GUID id{};
-    wchar_t id_text[40]{};
-    if (SUCCEEDED(CoCreateGuid(&id)) && StringFromGUID2(id, id_text, 40)) {
-        const auto name = std::wstring(L"Local\\NoteViveRecipeMutex-") + id_text;
-        SetLastError(ERROR_SUCCESS);
-        LocalHandle inner{CreateMutexW(nullptr, FALSE, name.c_str())};
-        const auto result = GetLastError();
-        std::printf("Private local mutex created=%d code=%lu\n", inner.value != nullptr,
-                    static_cast<unsigned long>(result));
-    }
+    const auto observation = observe_namespace(session);
     std::vector<MutexCandidate> names{{L"Local\\ChromeProcessSingletonStartup!", false}};
     discover_edge_mutexes(dll, names);
     for (const auto& item : names) {
@@ -324,7 +321,7 @@ int edge_startup_diagnostic(const wchar_t* dll) {
                     item.name.c_str(), item.found_in_binary, static_cast<unsigned long>(sync),
                     static_cast<unsigned long>(read_write), static_cast<unsigned long>(full));
     }
-    return 0;
+    return require_named_mutex && observation.local_mutex != ERROR_SUCCESS ? 1 : 0;
 }
 
 bool hosted_recipe() {
@@ -343,6 +340,10 @@ bool hosted_recipe() {
 struct RecipeNamespace {
     // NtOpenDirectoryObject's documented DIRECTORY_QUERY / TRAVERSE / CREATE_OBJECT.
     static constexpr ACCESS_MASK recipe_access = 0x0001 | 0x0002 | 0x0004;
+    // Some Win32-compatible implementations additionally request this right
+    // when obtaining the namespace handle, regardless of the object type.
+    static constexpr ACCESS_MASK with_subdirectory = recipe_access | 0x0008;
+    static constexpr NTSTATUS denied = static_cast<NTSTATUS>(0xc0000022u);
     using OpenDirectory = NTSTATUS (NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
     LocalHandle directory;
     std::vector<BYTE> original;
@@ -399,6 +400,16 @@ struct RecipeNamespace {
         return call(&handle, access, &attributes);
     }
 
+    static OpenDirectory api() {
+        const auto nt = GetModuleHandleW(L"ntdll.dll");
+        const auto proc = nt ? GetProcAddress(nt, "NtOpenDirectoryObject") : nullptr;
+        if (!proc) { SetLastError(ERROR_PROC_NOT_FOUND); return nullptr; }
+        static_assert(sizeof(proc) == sizeof(OpenDirectory));
+        OpenDirectory call = nullptr;
+        std::memcpy(&call, &proc, sizeof(call));
+        return call;
+    }
+
     static bool verify_token(HANDLE token, DWORD session, PSID account) {
         DWORD assigned = 0, size = 0;
         if (!GetTokenInformation(token, TokenSessionId, &assigned, sizeof(assigned), &size)) return false;
@@ -424,10 +435,11 @@ struct RecipeNamespace {
         return false;
     }
 
-    static bool supported_access(OpenDirectory call, DWORD session, HANDLE thread_token, NTSTATUS& status) {
+    static bool supported_access(OpenDirectory call, DWORD session, HANDLE thread_token,
+                                 ACCESS_MASK access, NTSTATUS& status) {
         if (!ImpersonateLoggedOnUser(thread_token)) return false;
         LocalHandle check;
-        status = open(call, session, recipe_access, check.value);
+        status = open(call, session, access, check.value);
         if (!RevertToSelf()) {
             TerminateProcess(GetCurrentProcess(), 2);
             return false;
@@ -435,7 +447,7 @@ struct RecipeNamespace {
         return true;
     }
 
-    bool start(DWORD pid, HANDLE process, HANDLE logon_token, PSID account) {
+    bool start(DWORD pid, HANDLE process, HANDLE logon_token, PSID account, ACCESS_MASK access) {
         if (!hosted_recipe()) { SetLastError(ERROR_ACCESS_DENIED); return false; }
         DWORD parent_session = 0, session = 0;
         if (!ProcessIdToSessionId(GetCurrentProcessId(), &parent_session) || !ProcessIdToSessionId(pid, &session))
@@ -458,19 +470,15 @@ struct RecipeNamespace {
         if (!DuplicateTokenEx(logon_token, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
                               TokenImpersonation, &identity.value))
             return preparation_failed("prepare the verified local account's access check");
-        const auto nt = GetModuleHandleW(L"ntdll.dll");
-        const auto proc = nt ? GetProcAddress(nt, "NtOpenDirectoryObject") : nullptr;
-        if (!proc) { SetLastError(ERROR_PROC_NOT_FOUND); return false; }
-        static_assert(sizeof(proc) == sizeof(OpenDirectory));
-        OpenDirectory call = nullptr;
-        std::memcpy(&call, &proc, sizeof(call));
-        constexpr auto denied = static_cast<NTSTATUS>(0xc0000022u);
+        if (access != recipe_access && access != with_subdirectory) { SetLastError(ERROR_INVALID_PARAMETER); return false; }
+        const auto call = api();
+        if (!call) return preparation_failed("resolve NtOpenDirectoryObject");
 
         NTSTATUS before = 0;
-        if (!supported_access(call, session, identity.value, before))
+        if (!supported_access(call, session, identity.value, access, before))
             return preparation_failed("check session directory access as the local account");
-        std::fprintf(stderr, "Recipe account session namespace before grant: 0x%08lx\n",
-                     static_cast<unsigned long>(static_cast<DWORD>(before)));
+        std::fprintf(stderr, "Recipe account session namespace before grant: mask=0x%lx result=0x%08lx\n",
+                     static_cast<unsigned long>(access), static_cast<unsigned long>(static_cast<DWORD>(before)));
         if (before >= 0) return true;
         if (before != denied) { SetLastError(ERROR_INVALID_HANDLE); return false; }
 
@@ -487,7 +495,7 @@ struct RecipeNamespace {
         if (!GetSecurityDescriptorDacl(original.data(), &has_dacl, &old, &defaulted)) return false;
         if (!has_dacl || !old) { SetLastError(ERROR_INVALID_ACL); return false; }
         EXPLICIT_ACCESSW allow{};
-        allow.grfAccessPermissions = recipe_access;
+        allow.grfAccessPermissions = access;
         allow.grfAccessMode = GRANT_ACCESS;
         allow.grfInheritance = NO_INHERITANCE;
         BuildTrusteeWithSidW(&allow.Trustee, account);
@@ -502,14 +510,68 @@ struct RecipeNamespace {
         if (!changed) { SetLastError(update_error); return false; }
 
         NTSTATUS after = 0;
-        if (!supported_access(call, session, identity.value, after))
+        if (!supported_access(call, session, identity.value, access, after))
             return preparation_failed("recheck session directory access as the local account");
-        std::fprintf(stderr, "Recipe account session namespace after grant: 0x%08lx\n",
-                     static_cast<unsigned long>(static_cast<DWORD>(after)));
+        std::fprintf(stderr, "Recipe account session namespace after grant: mask=0x%lx result=0x%08lx\n",
+                     static_cast<unsigned long>(access), static_cast<unsigned long>(static_cast<DWORD>(after)));
         if (after < 0) { SetLastError(ERROR_ACCESS_DENIED); return false; }
         return true;
     }
 };
+
+NamespaceObservation observe_namespace(DWORD session) {
+    NamespaceObservation result;
+    const auto open = RecipeNamespace::api();
+    if (open && session && session != UINT32_MAX) {
+        result.have_directory_api = true;
+        const auto check = [&](ACCESS_MASK access) {
+            LocalHandle directory;
+            return RecipeNamespace::open(open, session, access, directory.value);
+        };
+        result.minimum = check(RecipeNamespace::recipe_access);
+        result.with_subdirectory = check(RecipeNamespace::with_subdirectory);
+        std::printf("Actual child directory: mask_0x7=0x%08lx mask_0xf=0x%08lx\n",
+                    static_cast<unsigned long>(static_cast<DWORD>(result.minimum)),
+                    static_cast<unsigned long>(static_cast<DWORD>(result.with_subdirectory)));
+    }
+    // Fresh unrelated names, no ownership or waiting. Close each handle before
+    // doing anything else, so the recipe never touches an existing browser object.
+    const auto make = [](const wchar_t* prefix) -> DWORD {
+        GUID id{};
+        wchar_t id_text[40]{};
+        if (FAILED(CoCreateGuid(&id)) || !StringFromGUID2(id, id_text, 40)) return ERROR_GEN_FAILURE;
+        const auto name = std::wstring(prefix) + L"NoteViveRecipeMutex-" + id_text;
+        SetLastError(ERROR_SUCCESS);
+        LocalHandle handle{CreateMutexW(nullptr, FALSE, name.c_str())};
+        const auto error = GetLastError();
+        if (handle.value && error != ERROR_ALREADY_EXISTS) return ERROR_SUCCESS;
+        return error ? error : ERROR_GEN_FAILURE;
+    };
+    result.bare_mutex = make(L"");
+    result.local_mutex = make(L"Local\\");
+    std::printf("Actual child mutex: implicit_session=%lu Local=%lu\n",
+                static_cast<unsigned long>(result.bare_mutex), static_cast<unsigned long>(result.local_mutex));
+    return result;
+}
+
+int edge_namespace_control() {
+    if (!_wfreopen(L"out\\edge-namespace-control.log", L"wb", stdout)) return 3;
+    require(ordinary_token(), "Edge namespace control is not a standard account");
+    const auto session = report_session("edge_namespace_control", GetCurrentProcessId(), GetCurrentProcess());
+    const auto result = observe_namespace(session);
+    if (result.local_mutex == ERROR_SUCCESS) {
+        std::puts("Edge namespace control: use 0x7.");
+        return 0;
+    }
+    if (result.have_directory_api && result.minimum >= 0 &&
+        result.with_subdirectory == RecipeNamespace::denied &&
+        result.bare_mutex == ERROR_ACCESS_DENIED && result.local_mutex == ERROR_ACCESS_DENIED) {
+        std::puts("Edge namespace control: test 0x8 addition.");
+        return 0;
+    }
+    std::puts("Edge namespace control: measurements do not support any permission extension.");
+    return 1;
+}
 
 struct RecipeDesktop {
     static constexpr DWORD station_access = STANDARD_RIGHTS_REQUIRED | WINSTA_ALL_ACCESS;
@@ -870,7 +932,7 @@ bool stage_directory(const wchar_t* directory) {
 }
 
 int launch_standard(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory,
-                    bool edge_session) {
+                    ACCESS_MASK edge_access) {
     if (!hosted_recipe()) {
         std::fputs("Temporary local accounts are only used on hosted GitHub Actions.\n", stderr);
         return 1;
@@ -924,8 +986,8 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
         TerminateProcess(child_process.value, 1);
         return code;
     }
-    if (edge_session && !named_objects.start(child.dwProcessId, child_process.value,
-                                             account.token.value, account.sid()))
+    if (edge_access && !named_objects.start(child.dwProcessId, child_process.value,
+                                            account.token.value, account.sid(), edge_access))
         return failure("Prepare the session namespace for the Edge recipe");
     AllowSetForegroundWindow(child.dwProcessId);
     if (ResumeThread(child_thread.value) == static_cast<DWORD>(-1)) return failure("ResumeThread");
@@ -1127,11 +1189,21 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-probe") == 0)
             return edge_probe(static_cast<DWORD>(std::stoul(argv[2])));
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-startup-diagnostic") == 0)
-            return edge_startup_diagnostic(argv[2]);
+            return edge_startup_diagnostic(argv[2], false);
+        if (argc == 2 && std::wcscmp(argv[1], L"--edge-startup-preflight") == 0)
+            return edge_startup_diagnostic(L"-", true);
+        if (argc == 2 && std::wcscmp(argv[1], L"--edge-namespace-control") == 0)
+            return edge_namespace_control();
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
         if ((argc == 5 || argc == 6) && std::wcscmp(argv[1], L"--launch-standard") == 0) {
-            if (argc == 6 && std::wcscmp(argv[5], L"--edge-session") != 0) return 2;
-            return launch_standard(argv[2], argv[3], argv[4], argc == 6);
+            ACCESS_MASK access = 0;
+            if (argc == 6) {
+                if (std::wcscmp(argv[5], L"--edge-session") == 0) access = RecipeNamespace::recipe_access;
+                else if (std::wcscmp(argv[5], L"--edge-session-with-subdirectories") == 0)
+                    access = RecipeNamespace::with_subdirectory;
+                else return 2;
+            }
+            return launch_standard(argv[2], argv[3], argv[4], access);
         }
         if (argc == 2 && std::wcscmp(argv[1], L"--native-standard") == 0) {
             if (!_wfreopen(L"out\\native.log", L"wb", stderr)) return 3;
