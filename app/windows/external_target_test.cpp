@@ -166,7 +166,8 @@ int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const
         std::fprintf(stderr, "%s failed (Windows error %lu)\n", operation, static_cast<unsigned long>(error));
         return 1;
     };
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE | TOKEN_QUERY, &own.value))
+    constexpr DWORD token_access = TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT;
+    if (!OpenProcessToken(GetCurrentProcess(), token_access, &own.value))
         return failure("OpenProcessToken");
     alignas(DWORD) BYTE builtin_admin[SECURITY_MAX_SID_SIZE]{};
     DWORD admin_size = sizeof(builtin_admin);
