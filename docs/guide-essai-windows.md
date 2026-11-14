@@ -135,7 +135,7 @@ NoteVive ne conserve pas d’enregistrement audio. L’application ne propose pa
 
 **Dicter dans un champ compatible.** Laissez NoteVive ouvert, puis ouvrez un document Word fictif ou une page d’essai locale avec un champ de texte. Placez le curseur dans ce champ sans sélectionner de texte. Appuyez sur **Ctrl+Alt+Espace**, relâchez les touches et attendez que le petit indicateur affiche **Micro ouvert**. Dictez une phrase fictive, marquez une pause, puis appuyez sur le même raccourci pour arrêter.
 
-NoteVive sauvegarde chaque passage confirmé dans une nouvelle note **Dictée externe** avant de tenter de l’envoyer. Gardez le même champ actif pendant toute la dictée et la finalisation. Si l’envoi s’arrête, relisez ce qui a été écrit dans la destination et retrouvez les passages sauvegardés dans NoteVive. Ne recollez pas automatiquement toute la note : une partie pourrait déjà être dans le document.
+NoteVive crée une note **Dictée externe** par session et y sauvegarde chaque passage confirmé avant de tenter de l’envoyer. Gardez le même champ actif pendant toute la dictée et la finalisation. Si l’envoi s’arrête, relisez ce qui a été écrit dans la destination et retrouvez les passages sauvegardés dans NoteVive. Ne recollez pas automatiquement toute la note : une partie pourrait déjà être dans le document.
 
 Word, le navigateur et les autres logiciels n’exposent pas tous des champs compatibles. Le texte transmis peut être synchronisé ou stocké par le logiciel qui le reçoit. Windows ne garantit pas la destination des frappes simulées en cas de changement de focus pendant l’envoi vers Word ou un navigateur. Pour le détail du fonctionnement et les cas à tester, voir le [guide de dictée externe](dictee-externe.md).
 
@@ -183,7 +183,7 @@ Si `F9` ne répond pas, cliquez directement sur **Dicter** dans la fenêtre Note
 
 ### Le raccourci externe ne répond pas ou le champ est refusé
 
-Cliquez sur **Dicter ailleurs** dans NoteVive pour vérifier le raccourci. S’il est déjà utilisé par une autre application, libérez-le puis relancez NoteVive, ou utilisez la dictée interne et **Copier le texte**. Si le champ est protégé, en lecture seule ou incompatible, choisissez un autre champ fictif. Si un envoi n’est pas confirmé, relisez la destination et la note locale avant tout collage manuel.
+Si la note est masquée, cliquez d’abord sur **Réafficher la note**. Cliquez sur **Dicter ailleurs** dans NoteVive pour vérifier le raccourci. S’il est déjà utilisé par une autre application, libérez-le puis relancez NoteVive, ou utilisez la dictée interne et **Copier le texte**. Si le champ est protégé, en lecture seule ou incompatible, choisissez un autre champ fictif. Si un envoi n’est pas confirmé, relisez la destination et la note locale avant tout collage manuel.
 
 ### Le texte met longtemps à apparaître, ou certains mots sont faux
 

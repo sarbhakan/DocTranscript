@@ -150,16 +150,28 @@ function Trace-SyntheticLowBox {
     $symbols = Join-Path $work 'local-symbols-only'
     $null = [IO.Directory]::CreateDirectory($symbols)
     $rawLog = Join-Path $work 'private-lowbox-debugger.log'
-    # CDB is x64. Print only arguments for NtOpenDirectoryObject: RCX is the
-    # output handle pointer, EDX is ACCESS_MASK, R8 is OBJECT_ATTRIBUTES.
+    # CDB is x64. For directory open/create, RCX is the output handle
+    # pointer, EDX is ACCESS_MASK, R8 is OBJECT_ATTRIBUTES.
     # The debugger keeps all object names in the disposable profile.
-    @'
+    $directoryEntry = @'
 .printf "NV_DIR_WANT=%08x\n", @edx
 .if (@r8 != 0) { .printf "NV_DIR_ROOT=%p flags=%08x\n", poi(@r8+8), dwo(@r8+0x18); .if (poi(@r8+0x10) != 0) { .printf "NV_DIR_NAME=%msu\n", poi(@r8+0x10) } }
 .if (@r8 != 0) { .if (poi(@r8+8) != 0) { r @$t2=poi(@r8+8); !handle @$t2 4 } }
 bp /1 poi(@rsp) "$$><nv-directory-return.txt"
 gc
-'@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-entry.txt') -Encoding Ascii
+'@
+    $statusEntry = @'
+bp /1 poi(@rsp) "$$><nv-directory-return.txt"
+gc
+'@
+    $directoryCalls = @('NtOpenDirectoryObject', 'NtCreateDirectoryObject', 'NtCreateDirectoryObjectEx')
+    $statusCalls = @('NtQuerySecurityObject', 'NtSetSecurityObject', 'NtCreateLowBoxToken')
+    foreach ($call in ($directoryCalls + $statusCalls)) {
+        # For calls without a directory OBJECT_ATTRIBUTES, record only their
+        # allowlisted name and return status, never their arguments.
+        $entry = if ($directoryCalls -contains $call) { $directoryEntry } else { $statusEntry }
+        ".echo NV_NT_CALL=$call`r`n$entry" | Set-Content -LiteralPath (Join-Path $work "nv-$call.txt") -Encoding Ascii
+    }
     @'
 .printf "NV_DIR_STATUS=%08x\n", @eax
 gc
@@ -182,7 +194,9 @@ gc
         # factory and quit as soon as that one factory call returns.
         $debugger.StandardInput.WriteLine('bc *')
         $debugger.StandardInput.WriteLine('bp /1 poi(@rsp) ".echo NV_FACTORY_RETURN; q"')
-        $debugger.StandardInput.WriteLine('bu ntdll!NtOpenDirectoryObject "$$><nv-directory-entry.txt"')
+        foreach ($call in ($directoryCalls + $statusCalls)) {
+            $debugger.StandardInput.WriteLine(('bu ntdll!{0} "$$><nv-{0}.txt"' -f $call))
+        }
         $debugger.StandardInput.WriteLine('g')
         $debugger.StandardInput.Flush()
         if (-not $debugger.WaitForExit(18000)) {
@@ -212,11 +226,14 @@ gc
         $pending = $null
         $kept = 0
         foreach ($line in ($raw -split "`r?`n")) {
-            if ($line -match '^\s*NV_DIR_WANT=(?<mask>[0-9a-f]{8})\s*$') {
-                $pending = @{mask=$Matches.mask; root='unknown'; root_name='unknown'; flags='unknown'; name='absent'}
+            if ($line -match '^\s*NV_NT_CALL=(?<call>Nt(?:OpenDirectoryObject|CreateDirectoryObject(?:Ex)?|CreateLowBoxToken|QuerySecurityObject|SetSecurityObject))\s*$') {
+                $pending = @{call=$Matches.call; mask='none'; root='unknown'; root_name='unknown'; flags='unknown'; name='absent'}
+            } elseif ($pending -and $line -match '^\s*NV_DIR_WANT=(?<mask>[0-9a-f]{8})\s*$') {
+                $pending.mask = '0x' + $Matches.mask
             } elseif ($pending -and $line -match '^\s*NV_DIR_ROOT=(?<root>[0-9a-f`]+) flags=(?<flags>[0-9a-f]{8})\s*$') {
-                $pending.root = if ($Matches.root -match '^0+`?0*$') { 'null' } else { 'handle' }
+                $rootHandle = $Matches.root
                 $pending.flags = $Matches.flags
+                $pending.root = if ($rootHandle -match '^0+`?0*$') { 'null' } else { 'handle' }
             } elseif ($pending -and $line -match '^\s*NV_DIR_NAME=(?<name>.*)$') {
                 $pending.name = Classify-ObjectName $Matches.name
             } elseif ($pending -and $line -match '^\s+Name\s+(?<name>.*)$') {
@@ -225,7 +242,7 @@ gc
                 $status = $Matches.status
                 $kept++
                 if ($kept -le 32) {
-                    Write-Output "Synthetic LowBox NtOpenDirectoryObject: mask=0x$($pending.mask) root=$($pending.root) root_kind=$($pending.root_name) flags=$($pending.flags) name_kind=$($pending.name) ntstatus=0x$status"
+                    Write-Output "Synthetic LowBox $($pending.call): mask=$($pending.mask) root=$($pending.root) root_kind=$($pending.root_name) flags=$($pending.flags) name_kind=$($pending.name) ntstatus=0x$status"
                 }
                 $pending = $null
             }
@@ -233,7 +250,7 @@ gc
         Write-Output "Synthetic LowBox trace: captured_calls=$kept; factory_return=$($raw -match '(?m)^\s*NV_FACTORY_RETURN\s*$'); debugger_exited=$($debugger.HasExited)."
         if (-not $kept) {
             $diagnosis = $raw + $stderr.Result
-            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-directory-entry'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
+            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-NtOpenDirectoryObject'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
         }
     } catch {
         # Do not print raw debugger command lines/paths.
@@ -352,9 +369,12 @@ try {
     $browserStart.EnvironmentVariables['TMP'] = $work
     if ($HostedRecipe) {
         & $ProbeExe --edge-startup-preflight
-        if ($LASTEXITCODE -ne 0) {
-            Trace-SyntheticLowBox
-            throw 'The ordinary-user browser preflight could not create a local mutex and both synthetic AppContainer tokens.'
+        $preflight = $LASTEXITCODE
+        if ($preflight -eq 2) {
+            Write-Output 'Synthetic AppContainer creation failed; the actual Edge recipe will still run with its sandbox.'
+            try { Trace-SyntheticLowBox } catch { Write-Output 'Synthetic LowBox trace could not prepare its private scratch files.' }
+        } elseif ($preflight -ne 0) {
+            throw 'The ordinary-user browser preflight did not verify the account, job or local mutex.'
         }
     }
     $edge = [Diagnostics.Process]::Start($browserStart)

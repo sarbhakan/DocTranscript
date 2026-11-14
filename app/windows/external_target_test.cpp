@@ -294,7 +294,10 @@ int edge_startup_preflight() {
     const bool lowbox = observe_lowbox_creation(session);
     const bool mutex = observe_namespace(session).local_mutex == ERROR_SUCCESS;
     std::printf("Edge broker preflight: local_mutex=%d synthetic_lowbox=%d\n", mutex, lowbox);
-    return lowbox && mutex ? 0 : 1;
+    // An unregistered synthetic package does not reproduce Edge's package
+    // and capabilities. Only the actual browser may decide that recipe.
+    if (!mutex) return 1;
+    return lowbox ? 0 : 2;
 }
 
 bool hosted_recipe() {

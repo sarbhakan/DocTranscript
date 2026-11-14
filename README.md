@@ -40,7 +40,7 @@ La dictée Windows exige un processeur compatible **AVX2** et ses extensions ass
 - Rechercher dans les titres et le texte ; trier par modification, création ou titre.
 - Fermer puis rouvrir l’application pour retrouver les notes du même compte Windows sur le même PC.
 - Avec **Copier le texte** ou **Ctrl+Maj+C**, copier uniquement le corps de la note pour le coller vous-même.
-- Avec **Ctrl+Alt+Espace**, essayer la dictée vers un champ externe compatible. NoteVive sauvegarde d’abord chaque segment confirmé dans une nouvelle note locale.
+- Avec **Ctrl+Alt+Espace**, essayer la dictée vers un champ externe compatible. NoteVive crée une note locale par session et y sauvegarde chaque passage confirmé avant de l’envoyer.
 - Consulter le catalogue médical local avec **Vocabulaire**.
 
 Le [guide d’utilisation](docs/guide-essai-windows.md#organiser-les-notes) détaille ces gestes. Les notes sont sauvegardées séparément du dossier de l’application et chiffrées pour le compte Windows courant. Aucun enregistrement audio n’est conservé.
