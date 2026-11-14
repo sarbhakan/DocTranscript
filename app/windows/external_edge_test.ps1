@@ -149,36 +149,9 @@ function Trace-SyntheticLowBox {
     }
     $symbols = Join-Path $work 'local-symbols-only'
     $null = [IO.Directory]::CreateDirectory($symbols)
-    $rawLog = Join-Path $work 'private-lowbox-debugger.log'
-    # CDB is x64. For directory open/create, RCX is the output handle
-    # pointer, EDX is ACCESS_MASK, R8 is OBJECT_ATTRIBUTES.
-    # The debugger keeps all object names in the disposable profile.
-    $directoryEntry = @'
-.printf "NV_DIR_WANT=%08x\n", @edx
-.if (@r8 != 0) { .printf "NV_DIR_ROOT=%p flags=%08x\n", poi(@r8+8), dwo(@r8+0x18); .if (poi(@r8+0x10) != 0) { .printf "NV_DIR_NAME=%msu\n", poi(@r8+0x10) } }
-.if (@r8 != 0) { .if (poi(@r8+8) != 0) { r @$t2=poi(@r8+8); !handle @$t2 4 } }
-bp /1 poi(@rsp) "$$><nv-directory-return.txt"
-gc
-'@
-    $statusEntry = @'
-bp /1 poi(@rsp) "$$><nv-directory-return.txt"
-gc
-'@
-    $directoryCalls = @('NtOpenDirectoryObject', 'NtCreateDirectoryObject', 'NtCreateDirectoryObjectEx')
-    $statusCalls = @('NtQuerySecurityObject', 'NtSetSecurityObject', 'NtCreateLowBoxToken')
-    foreach ($call in ($directoryCalls + $statusCalls)) {
-        # For calls without a directory OBJECT_ATTRIBUTES, record only their
-        # allowlisted name and return status, never their arguments.
-        $entry = if ($directoryCalls -contains $call) { $directoryEntry } else { $statusEntry }
-        ".echo NV_NT_CALL=$call`r`n$entry" | Set-Content -LiteralPath (Join-Path $work "nv-$call.txt") -Encoding Ascii
-    }
-    @'
-.printf "NV_DIR_STATUS=%08x\n", @eax
-gc
-'@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-return.txt') -Encoding Ascii
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $kits
-    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -logo "{1}" -c "bu kernelbase!CreateAppContainerToken;g" "{2}" --edge-lowbox-trace' -f $symbols, $rawLog, $ProbeExe
+    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -c "bu kernelbase!CreateAppContainerToken;g" "{1}" --edge-lowbox-trace' -f $symbols, $ProbeExe
     $start.WorkingDirectory = $work
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -190,14 +163,11 @@ gc
         $debugger = [Diagnostics.Process]::Start($start)
         $stdout = $debugger.StandardOutput.ReadToEndAsync()
         $stderr = $debugger.StandardError.ReadToEndAsync()
-        # Install the NT breakpoint only after stopping at the exported
-        # factory and quit as soon as that one factory call returns.
+        # The initial command stops at the exported factory. These commands
+        # are consumed at its prompt and after the traced return.
         $debugger.StandardInput.WriteLine('bc *')
-        $debugger.StandardInput.WriteLine('bp /1 poi(@rsp) ".echo NV_FACTORY_RETURN; q"')
-        foreach ($call in ($directoryCalls + $statusCalls)) {
-            $debugger.StandardInput.WriteLine(('bu ntdll!{0} "$$><nv-{0}.txt"' -f $call))
-        }
-        $debugger.StandardInput.WriteLine('g')
+        $debugger.StandardInput.WriteLine('wt -l 14 -ns -nw -or')
+        $debugger.StandardInput.WriteLine('q')
         $debugger.StandardInput.Flush()
         if (-not $debugger.WaitForExit(18000)) {
             Write-Output 'Synthetic LowBox trace: debugger deadline reached.'
@@ -208,49 +178,23 @@ gc
             Write-Output 'Synthetic LowBox trace: debugger stream did not close.'
             return
         }
-        function Classify-ObjectName([string]$Name) {
-            switch -Regex ($Name.Trim()) {
-                '^\\Sessions\\\d+\\BaseNamedObjects\\AppContainerNamedObjects\\?$' { return 'session-base-alias' }
-                '^\\Sessions\\\d+\\AppContainerNamedObjects\\?$' { return 'session-app-root' }
-                '^\\Sessions\\\d+\\AppContainerNamedObjects\\.+' { return 'session-app-child' }
-                '^\\Sessions\\\d+\\BaseNamedObjects\\?$' { return 'session-base-root' }
-                '^\\?AppContainerNamedObjects\\?$' { return 'root-or-relative-app' }
-                '^\\?AppContainerNamedObjects\\.+' { return 'root-or-relative-app-child' }
-                '(?:^|\\)S-1-5-5-\d+-\d+(?:\\|$)' { return 'logon-component' }
-                '^$|^<none>$' { return 'absent' }
-                '^\\' { return 'other-absolute' }
-                default { return 'other-relative' }
+        # wt prints symbol names and return registers. Exclude command lines,
+        # process paths, registers other than reported returns, and all raw SIDs.
+        $kept = @()
+        foreach ($line in ($stdout.Result -split "`r?`n")) {
+            if ($line -match '^\s*(?:\d+\s+){2}\[\s*\d+\]\s+(?<symbol>ntdll!(?:Nt|Zw)[A-Za-z0-9_]{2,64})\b(?<tail>.*)$') {
+                $symbol = $Matches.symbol
+                $tail = $Matches.tail
+                $codes = @([regex]::Matches($tail, '(?i)\b(?:0x)?[0-9a-f]{8}(?:`[0-9a-f]{8})?\b') |
+                    ForEach-Object Value | Select-Object -First 3)
+                $kept += "Synthetic LowBox trace call $symbol returns=$($codes -join ',')"
             }
         }
-        $raw = if (Test-Path -LiteralPath $rawLog -PathType Leaf) { Get-Content -LiteralPath $rawLog -Raw } else { $stdout.Result }
-        $pending = $null
-        $kept = 0
-        foreach ($line in ($raw -split "`r?`n")) {
-            if ($line -match '^\s*NV_NT_CALL=(?<call>Nt(?:OpenDirectoryObject|CreateDirectoryObject(?:Ex)?|CreateLowBoxToken|QuerySecurityObject|SetSecurityObject))\s*$') {
-                $pending = @{call=$Matches.call; mask='none'; root='unknown'; root_name='unknown'; flags='unknown'; name='absent'}
-            } elseif ($pending -and $line -match '^\s*NV_DIR_WANT=(?<mask>[0-9a-f]{8})\s*$') {
-                $pending.mask = '0x' + $Matches.mask
-            } elseif ($pending -and $line -match '^\s*NV_DIR_ROOT=(?<root>[0-9a-f`]+) flags=(?<flags>[0-9a-f]{8})\s*$') {
-                $rootHandle = $Matches.root
-                $pending.flags = $Matches.flags
-                $pending.root = if ($rootHandle -match '^0+`?0*$') { 'null' } else { 'handle' }
-            } elseif ($pending -and $line -match '^\s*NV_DIR_NAME=(?<name>.*)$') {
-                $pending.name = Classify-ObjectName $Matches.name
-            } elseif ($pending -and $line -match '^\s+Name\s+(?<name>.*)$') {
-                $pending.root_name = Classify-ObjectName $Matches.name
-            } elseif ($pending -and $line -match '^\s*NV_DIR_STATUS=(?<status>[0-9a-f]{8})\s*$') {
-                $status = $Matches.status
-                $kept++
-                if ($kept -le 32) {
-                    Write-Output "Synthetic LowBox $($pending.call): mask=$($pending.mask) root=$($pending.root) root_kind=$($pending.root_name) flags=$($pending.flags) name_kind=$($pending.name) ntstatus=0x$status"
-                }
-                $pending = $null
-            }
-        }
-        Write-Output "Synthetic LowBox trace: captured_calls=$kept; factory_return=$($raw -match '(?m)^\s*NV_FACTORY_RETURN\s*$'); debugger_exited=$($debugger.HasExited)."
-        if (-not $kept) {
-            $diagnosis = $raw + $stderr.Result
-            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-NtOpenDirectoryObject'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
+        $kept | Select-Object -Last 80 | Write-Output
+        Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); debugger_exited=$($debugger.HasExited)."
+        if (-not $kept.Count) {
+            $raw = $stdout.Result + $stderr.Result
+            Write-Output "Synthetic LowBox trace state: factory_symbol=$($raw -match 'kernelbase!CreateAppContainerToken'); trace_command=$($raw -match 'wt -l 14'); command_error=$($raw -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
         }
     } catch {
         # Do not print raw debugger command lines/paths.
@@ -260,7 +204,6 @@ gc
             if (-not $debugger.HasExited) { $debugger.Kill() }
             $debugger.Dispose()
         }
-    }
 }
 
 function Log-EdgeFailure {
