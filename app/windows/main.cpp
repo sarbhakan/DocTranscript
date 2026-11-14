@@ -281,7 +281,6 @@ struct App {
     HINSTANCE instance{};
     HWND window{};
     HWND banner{}, subtitle{}, local_badge{}, new_note{}, dictate{}, save_button{}, privacy{}, vocab{};
-    // The feature callbacks/guards for these two native buttons are integrated separately.
     HWND copy_button{}, external_button{};
     HWND library_label{}, library{}, title_label{}, title{}, body_label{}, body{}, draft_label{}, draft{};
     HWND folder_label{}, folder_tree{}, search_label{}, search_text{}, search_all{}, sort_by{}, new_folder{}, folder_actions{};
@@ -529,6 +528,15 @@ struct App {
         SetWindowTextW(storage_status, label.c_str());
     }
 
+    bool can_copy() const {
+        return !masked && !session_locked && store_ready && !editor_needs_review &&
+            !shutting_down && !loading && GetWindowTextLengthW(body) > 0;
+    }
+
+    void update_copy_button() const {
+        EnableWindow(copy_button, can_copy());
+    }
+
     void update_controls() {
         const bool idle = phase == Phase::idle && !external_active;
         const bool visible = !masked && !session_locked;
@@ -547,7 +555,7 @@ struct App {
         EnableWindow(folder_actions, idle && store_ready && !all_notes && !selected_folder.empty());
         EnableWindow(move_note, idle && store_ready && !editor_needs_review);
         EnableWindow(save_button, store_ready);
-        EnableWindow(copy_button, visible && store_ready && !editor_needs_review && GetWindowTextLengthW(body) > 0);
+        update_copy_button();
         EnableWindow(external_button, visible && idle);
         EnableWindow(vocab, idle && !runtime.empty());
         EnableWindow(title, store_ready);
@@ -929,6 +937,8 @@ struct App {
                                       : L"Note chargée · Modifications sauvegardées localement.");
         choose_current();
         set_note_info();
+        // Programmatic editor loads intentionally ignore EN_CHANGE.
+        update_copy_button();
     }
 
     bool load_note(const std::wstring& id) {
@@ -964,7 +974,7 @@ struct App {
         }
         if (editor_needs_review) return; // A title edit cannot resolve a truncated body.
         dirty = true;
-        EnableWindow(copy_button, !masked && !session_locked && GetWindowTextLengthW(body) > 0);
+        update_copy_button();
         set_storage(L"Modifications en attente de sauvegarde…");
         SetTimer(window, SaveTimer, SaveDelayMs, nullptr);
     }
@@ -1041,8 +1051,7 @@ struct App {
     }
 
     void copy_transcript() {
-        if (masked || session_locked || !store_ready || editor_needs_review || shutting_down) return;
-        if (!save_note()) return;
+        if (!can_copy() || !save_note()) return;
         const auto text = get_text(body);
         if (text.empty()) return;
         set_storage(doct::external::copy_note_text(window, text)

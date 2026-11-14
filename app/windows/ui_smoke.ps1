@@ -5,6 +5,14 @@ param([Parameter(Mandatory)][string]$Executable, [string]$PreviewPath)
 $ErrorActionPreference = 'Stop'
 if (-not [Environment]::UserInteractive) { throw 'An interactive Windows desktop is required.' }
 $Executable = (Resolve-Path -LiteralPath $Executable).Path
+# Check before launching; a mismatched binary must not open the other library.
+# The dedicated binary alone contains this UTF-16 window property name. The
+# running process must also expose the property before the script edits data.
+$markerBytes = [Text.Encoding]::Unicode.GetBytes("NoteVive.VisualSmoke.FictionalOnly" + [char]0)
+$binaryText = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($Executable))
+$markerFound = $binaryText.Contains([Text.Encoding]::ASCII.GetString($markerBytes))
+if ($markerFound -ne [bool]$PreviewPath) { throw 'PreviewPath and the selected NoteVive executable do not match.' }
+Remove-Variable binaryText
 if ($PreviewPath) {
     $PreviewPath = [IO.Path]::GetFullPath($PreviewPath)
     if ([IO.Path]::GetExtension($PreviewPath) -ine '.png') { throw 'PreviewPath must end in .png.' }
@@ -108,11 +116,14 @@ public static class NvWindow {
         if (GetWindowThreadProcessId(app, out owner) == 0 || owner != pid || !IsWindowVisible(app) ||
             GetClassName(app, klass, klass.Capacity) == 0 || klass.ToString() != "NoteVivePrototypeWindow")
             throw new InvalidOperationException("Preview must target the launched NoteVive test window.");
-        if (GetProp(app, "NoteVive.VisualSmoke.FictionalOnly") != new IntPtr(1))
+        if (!IsVisualTestBuild(app))
             throw new InvalidOperationException("Use the dedicated NoteVive visual test build for PreviewPath.");
         if (!GetWindowRect(app, out bounds) || bounds.Right <= bounds.Left || bounds.Bottom <= bounds.Top)
             throw new InvalidOperationException("Cannot measure the NoteVive test window.");
         return bounds;
+    }
+    public static bool IsVisualTestBuild(IntPtr app) {
+        return GetProp(app, "NoteVive.VisualSmoke.FictionalOnly") == new IntPtr(1);
     }
     public static bool CaptureWindow(IntPtr app, IntPtr dc, uint pid) {
         PreviewSize(app, pid);
@@ -352,7 +363,8 @@ $nameProperty = [System.Windows.Automation.AutomationElement]::NameProperty
 $classProperty = [System.Windows.Automation.AutomationElement]::ClassNameProperty
 $processProperty = [System.Windows.Automation.AutomationElement]::ProcessIdProperty
 $prefix = "NVTEST-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-$testProfile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) 'NoteVive-Pilote'
+$profileName = if ($PreviewPath) { 'NoteVive-VisualSmoke' } else { 'NoteVive-Pilote' }
+$testProfile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) $profileName
 $records = Join-Path $testProfile 'notes'
 $testNote = "$prefix B"
 $testOlder = "$prefix A"
@@ -461,6 +473,9 @@ function Begin-App {
         $candidate = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $match)
         if ($candidate -and -not $candidate.Current.IsOffscreen) { $candidate }
     } 'visible NoteVive window'
+    if ([NvWindow]::IsVisualTestBuild((Window-Handle $app)) -ne [bool]$PreviewPath) {
+        throw 'PreviewPath and the selected NoteVive build do not match.'
+    }
     $bounds = New-Object NvWindow+Rect
     if (-not [NvWindow]::GetWindowRect([IntPtr]$app.Current.NativeWindowHandle, [ref]$bounds) -or
         ($bounds.Right - $bounds.Left) -lt 450 -or ($bounds.Bottom - $bounds.Top) -lt 380 -or
@@ -588,6 +603,10 @@ try {
         [NvWindow]::VisibleClientControl($handle, 121, 75, 24) -and
         [NvWindow]::VisibleClientControl($handle, 122, 85, 24)
     } 'show the library, note editor and new actions at the current DPI'
+    $copyHandle = [NvWindow]::GetDlgItem($handle, 121)
+    if ($copyHandle -eq [IntPtr]::Zero -or [NvWindow]::IsWindowEnabled($copyHandle)) {
+        throw 'Copy must be disabled in the initial empty editor.'
+    }
     Step 'create the parent folder'
     Click (ById 114) # New top-level folder.
     Folder-Dialog 'Nouveau dossier' $testFolder
@@ -612,7 +631,11 @@ try {
     $null = Wait-For { Test-NoteVisible $testOlder } 'first note autosaved under child folder'
     Step 'create and save the second note'
     Click (ById 101)
-    $null = Wait-For { [NvWindow]::Text((Window-Handle (ById 107))) -eq '' } 'second editor clear'
+    $null = Wait-For {
+        [NvWindow]::Text((Window-Handle (ById 107))) -ceq '' -and
+        [NvWindow]::Text((Window-Handle (ById 108))) -ceq '' -and
+        -not [NvWindow]::IsWindowEnabled($copyHandle)
+    } 'second editor clear and Copy disabled'
     Input-Text (ById 107) $testNote
     Input-Text (ById 108) $captureNote
     Click (ById 103)
@@ -684,7 +707,9 @@ try {
     } 'new folder and note body persisted after moving'
     Step 'copy the whole fictitious note as exact Unicode text'
     $copy = ById 121
-    if ([NvWindow]::Text((Window-Handle $copy)).Replace('&', '') -cne 'Copier le texte') { throw 'Unexpected copy button caption.' }
+    $copyHandle = Window-Handle $copy
+    if ([NvWindow]::Text($copyHandle).Replace('&', '') -cne 'Copier le texte') { throw 'Unexpected copy button caption.' }
+    $null = Wait-For { [NvWindow]::IsWindowEnabled($copyHandle) } 'enable Copy when the saved note reopens'
     $beforeClipboard = [NvWindow]::GetClipboardSequenceNumber()
     Click $copy
     $handle = Window-Handle $app
