@@ -172,7 +172,8 @@ def variant_options(toolset, variant):
     options = VARIANT_OPTIONS[variant].copy()
     if toolset == "clangcl" and variant == "avx2":
         limits = " ".join(CLANGCL_AVX2_LIMITS)
-        options.update(CMAKE_C_FLAGS=limits, CMAKE_CXX_FLAGS=limits)
+        # Seed the flags; CMake appends its Windows defaults (including /EHsc).
+        options.update(CMAKE_C_FLAGS_INIT=limits, CMAKE_CXX_FLAGS_INIT=limits)
     return options
 
 
@@ -213,6 +214,15 @@ def verify_projects(build, variant, toolset):
         compiler = release[0].find("{*}ClCompile")
         isa = compiler.findtext("{*}EnableEnhancedInstructionSet")
         flags = compiler.findtext("{*}AdditionalOptions", "").lower().split()
+        has_cpp = any(Path(source.attrib.get("Include", "")).suffix.lower() in {".cpp", ".cxx", ".cc"}
+                      for source in tree.findall("{*}ItemGroup/{*}ClCompile"))
+        if has_cpp:
+            exceptions = compiler.findtext("{*}ExceptionHandling")
+            enabled = exceptions == "Sync" or "/ehsc" in flags or "-ehsc" in flags
+            disabled = {"/ehs-", "-ehs-", "/ehsc-", "-ehsc-", "-fno-exceptions", "-fno-cxx-exceptions",
+                        "-clang:-fno-exceptions", "-clang:-fno-cxx-exceptions"}.intersection(flags)
+            if not enabled or exceptions == "false" or disabled:
+                raise ValueError(f"Exceptions C++ /EHsc non confirmées dans le projet {name} : {exceptions} {flags}")
         if {"/md", "/mdd", "/mtd", "-md", "-mdd", "-mtd"}.intersection(flags):
             raise ValueError(f"Flag CRT incompatible dans le projet {name} : {flags}")
         if toolset == "clangcl" and variant == "avx2" and not set(CLANGCL_AVX2_LIMITS).issubset(flags):
