@@ -170,6 +170,8 @@ def main():
             target('pause-state-test.exe', [ROOT / 'app/native/PauseStateTest.cpp']),
             target('notes-test.exe', [WIN / 'notes.cpp', WIN / 'notes_test.cpp'],
                    defines=['NOTEVIVE_NOTES_TEST'], libraries=['crypt32', 'ole32', 'shell32', 'uuid']),
+            target('external-target-test.exe', [WIN / 'external_target.cpp', WIN / 'external_target_test.cpp'],
+                   libraries=['user32', 'advapi32', 'ole32', 'oleaut32', 'uuid'], wide_main=True),
             target('supervisor-test.exe', [WIN / 'engine.cpp', WIN / 'integrity.cpp', WIN / 'engine_supervisor_test.cpp'],
                    defines=['NOTEVIVE_SUPERVISOR_TEST'], includes=[fixture], libraries=['bcrypt'], wide_main=True),
         ]

@@ -18,8 +18,12 @@
 #include "catalogue.h"
 #include "engine.h"
 #include "notes.h"
+#include "ui_theme.h"
+#include "dictation_overlay.h"
+#include "external_target.h"
 
 namespace {
+namespace ui = doct::ui;
 constexpr wchar_t WindowClass[] = L"NoteVivePrototypeWindow";
 constexpr UINT EngineMessage = WM_APP + 1;
 constexpr UINT_PTR SaveTimer = 1;
@@ -28,6 +32,9 @@ constexpr UINT_PTR SearchTimer = 2;
 constexpr UINT SearchDelayMs = 250;
 constexpr UINT_PTR EngineTimer = 3;
 constexpr UINT EnginePollMs = 250;
+constexpr UINT_PTR ExternalTimer = 4;
+constexpr int GlobalDictationHotkey = 1;
+constexpr UINT OverlayFailureMessage = WM_APP + 2;
 constexpr std::size_t TitleLimit = notes::kMaxTitle;
 constexpr std::size_t TextLimit = notes::kMaxText;
 constexpr wchar_t OriginalEditProc[] = L"NoteVive.OriginalEditProc";
@@ -36,6 +43,7 @@ enum Control : int {
     New = 101, Dictate, Save, Privacy, Vocabulary, Library, Title, Body, Draft,
     FolderTree, SearchText, SearchAll, SortBy, NewFolder, FolderActions, MoveNote,
     RenameFolder, MoveFolder, RenameNote, NoteInfo,
+    CopyTranscript = 121, ExternalDictation = 122,
 };
 enum class Phase { idle, preparing, listening, stopping, finalizing };
 
@@ -90,8 +98,8 @@ std::wstring list_caption(const notes::Note& note, notes::Sort order) {
     return date.empty() ? display_title(note) : display_title(note) + L" · " + date;
 }
 
-// Prototype notes stay within the local editor; don't create a clipboard item
-// that Windows or a separate program could retain or synchronize.
+// Clipboard export is explicit through the Copy button / Ctrl+Shift+C.
+// Editing gestures never silently create or import a clipboard item.
 LRESULT CALLBACK local_edit_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     const auto original = reinterpret_cast<WNDPROC>(GetPropW(window, OriginalEditProc));
     if (!original) return DefWindowProcW(window, message, wparam, lparam);
@@ -272,12 +280,23 @@ struct LibraryPrompt {
 struct App {
     HINSTANCE instance{};
     HWND window{};
-    HWND banner{}, new_note{}, dictate{}, save_button{}, privacy{}, vocab{};
+    HWND banner{}, subtitle{}, local_badge{}, new_note{}, dictate{}, save_button{}, privacy{}, vocab{};
+    // The feature callbacks/guards for these two native buttons are integrated separately.
+    HWND copy_button{}, external_button{};
     HWND library_label{}, library{}, title_label{}, title{}, body_label{}, body{}, draft_label{}, draft{};
     HWND folder_label{}, folder_tree{}, search_label{}, search_text{}, search_all{}, sort_by{}, new_folder{}, folder_actions{};
     HWND note_info{}, note_dates{}, move_note{}, mic_status{}, storage_status{}, masked_info{}, active_dialog{};
-    HFONT font{};
+    HFONT font{}; // Non-owning Theme::body font also used by library dialogs.
     UINT dpi{96};
+    ui::Theme theme;
+    ui::Layout ui_layout;
+    ui::Mic visual_mic = ui::Mic::ready;
+    doct::external::Target external_target;
+    ui::DictationOverlay overlay;
+    HWND external_window{};
+    bool hotkey_registered{}, external_active{}, external_pending{}, external_sending{};
+    ULONGLONG external_drain_started{};
+    std::wstring external_status;
     notes::Store store;
     notes::Note current;
     std::vector<notes::Note> entries;
@@ -323,7 +342,9 @@ struct App {
     bool create() {
         dpi = GetDpiForWindow(window);
         if (!dpi) dpi = 96;
-        banner = control(L"STATIC", L"NoteVive 0.3.1 · Essai hors ligne — données fictives uniquement", SS_LEFT);
+        banner = control(L"STATIC", L"NoteVive", SS_LEFT | SS_NOPREFIX);
+        subtitle = control(L"STATIC", L"Carnet de dictée · Essai sur données fictives", SS_LEFT | SS_NOPREFIX);
+        local_badge = control(L"STATIC", L"Stockage local · Hors ligne", SS_CENTER | SS_CENTERIMAGE | SS_NOPREFIX);
         new_note = control(L"BUTTON", L"+ &Transcription", WS_TABSTOP | BS_PUSHBUTTON, New);
         new_folder = control(L"BUTTON", L"+ &Dossier", WS_TABSTOP | BS_PUSHBUTTON, NewFolder);
         folder_actions = control(L"BUTTON", L"Dossier…", WS_TABSTOP | BS_PUSHBUTTON, FolderActions);
@@ -331,27 +352,31 @@ struct App {
         save_button = control(L"BUTTON", L"&Enregistrer", WS_TABSTOP | BS_PUSHBUTTON, Save);
         privacy = control(L"BUTTON", L"&Masquer la note", WS_TABSTOP | BS_PUSHBUTTON, Privacy);
         vocab = control(L"BUTTON", L"&Vocabulaire", WS_TABSTOP | BS_PUSHBUTTON, Vocabulary);
+        // Enable these in update_controls only when the feature is ready.
+        copy_button = control(L"BUTTON", L"Copier le texte", WS_TABSTOP | WS_DISABLED | BS_PUSHBUTTON, CopyTranscript);
+        external_button = control(L"BUTTON", L"Dicter ailleurs", WS_TABSTOP | WS_DISABLED | BS_PUSHBUTTON, ExternalDictation);
         folder_label = control(L"STATIC", L"&Dossiers", SS_LEFT);
         folder_tree = control(WC_TREEVIEWW, L"", WS_TABSTOP | TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS | TVS_SHOWSELALWAYS,
-            FolderTree, WS_EX_CLIENTEDGE);
+            FolderTree);
         search_label = control(L"STATIC", L"&Rechercher dans le titre ou le texte", SS_LEFT);
-        search_text = control(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, SearchText, WS_EX_CLIENTEDGE);
+        search_text = control(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, SearchText);
         search_all = control(L"BUTTON", L"Dans tous les dossiers", WS_TABSTOP | BS_AUTOCHECKBOX, SearchAll);
         sort_by = control(L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL, SortBy);
         library_label = control(L"STATIC", L"Transcriptions locales", SS_LEFT | SS_NOPREFIX);
-        library = control(L"LISTBOX", L"", WS_TABSTOP | WS_HSCROLL | WS_VSCROLL | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
-            Library, WS_EX_CLIENTEDGE);
+        library = control(L"LISTBOX", L"", WS_TABSTOP | WS_VSCROLL | LBS_NOTIFY |
+            LBS_NOINTEGRALHEIGHT | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS,
+            Library);
         title_label = control(L"STATIC", L"&Titre", SS_LEFT);
-        title = control(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, Title, WS_EX_CLIENTEDGE);
+        title = control(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, Title);
         note_info = control(L"STATIC", L"", SS_LEFT | SS_NOPREFIX | SS_ENDELLIPSIS, NoteInfo);
         note_dates = control(L"STATIC", L"", SS_LEFT | SS_NOPREFIX | SS_ENDELLIPSIS);
         move_note = control(L"BUTTON", L"&Classer…", WS_TABSTOP | BS_PUSHBUTTON, MoveNote);
         body_label = control(L"STATIC", L"T&exte de la note (modifiable)", SS_LEFT);
         body = control(L"EDIT", L"", WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL,
-            Body, WS_EX_CLIENTEDGE);
+            Body);
         draft_label = control(L"STATIC", L"Dernier passage dicté — vérifier doses, unités et négations", SS_LEFT);
-        draft = control(L"EDIT", L"", ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL,
-            Draft, WS_EX_CLIENTEDGE);
+        draft = control(L"EDIT", L"", WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL,
+            Draft);
         mic_status = control(L"STATIC", L"Micro coupé", SS_LEFT | SS_NOPREFIX);
         storage_status = control(L"STATIC", L"", SS_LEFT | SS_NOPREFIX);
         masked_info = control(L"STATIC", L"Bibliothèque masquée. Réaffichez-la explicitement pour reprendre.", SS_LEFT);
@@ -367,6 +392,8 @@ struct App {
         SendMessageW(draft, EM_SETLIMITTEXT, TextLimit, 0);
         update_font();
         runtime = runtime_path();
+        hotkey_registered = RegisterHotKey(window, GlobalDictationHotkey,
+            MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, VK_SPACE) != FALSE;
         wts_registered = WTSRegisterSessionNotification(window, NOTIFY_FOR_THIS_SESSION) != FALSE;
         if (!wts_registered) idle_status = L"Micro coupé · Dictée indisponible : verrouillage de session non surveillé.";
         if (runtime.empty()) idle_status = L"Micro coupé · Dossier du moteur introuvable.";
@@ -400,90 +427,102 @@ struct App {
         return true;
     }
 
+    using Widget = std::pair<HWND, ui::Slot>;
+
+    std::array<Widget, 32> widgets() const {
+        using S = ui::Slot;
+        return {{{banner, S::brand}, {subtitle, S::subtitle}, {local_badge, S::badge},
+            {dictate, S::dictate}, {save_button, S::save}, {copy_button, S::copy},
+            {privacy, S::privacy}, {vocab, S::vocabulary}, {external_button, S::external},
+            {mic_status, S::microphone}, {new_note, S::new_note}, {new_folder, S::new_folder},
+            {folder_label, S::folders_label}, {folder_actions, S::folder_actions}, {folder_tree, S::folder_tree},
+            {search_label, S::search_label}, {search_text, S::search}, {search_all, S::search_all}, {sort_by, S::sort},
+            {library_label, S::library_label}, {library, S::library}, {title_label, S::title_label}, {title, S::title},
+            {move_note, S::move_note}, {note_info, S::note_info}, {note_dates, S::note_dates}, {body_label, S::body_label},
+            {body, S::body}, {draft_label, S::draft_label}, {draft, S::draft}, {storage_status, S::storage},
+            {masked_info, S::masked_info}}};
+    }
+
     std::vector<HWND> controls() const {
-        return {banner, new_note, new_folder, folder_actions, dictate, save_button, privacy, vocab,
-            folder_label, folder_tree, search_label, search_text, search_all, sort_by, library_label, library,
-            title_label, title, note_info, note_dates, move_note, body_label, body, draft_label, draft,
-            mic_status, storage_status, masked_info};
+        std::vector<HWND> handles;
+        for (const auto& widget : widgets()) handles.push_back(widget.first);
+        return handles;
     }
 
     void update_font() {
-        NONCLIENTMETRICSW metrics{};
-        metrics.cbSize = sizeof(metrics);
-        HFONT next = nullptr;
-        if (SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0, dpi)) {
-            next = CreateFontIndirectW(&metrics.lfMessageFont);
+        theme.refresh(dpi);
+        font = theme.font();
+        for (const auto& widget : widgets()) {
+            const auto item = widget.first;
+            if (!item) continue;
+            using F = ui::Font;
+            using S = ui::Slot;
+            auto role = F::body;
+            switch (widget.second) {
+            case S::brand: role = F::brand; break;
+            case S::title: role = F::note_title; break;
+            case S::subtitle: case S::badge: case S::note_info: case S::note_dates: case S::storage:
+                role = F::small; break;
+            case S::folders_label: case S::library_label: case S::title_label: case S::body_label: case S::draft_label:
+                role = F::heading; break;
+            case S::dictate: case S::save: case S::copy: case S::privacy: case S::vocabulary: case S::external:
+            case S::new_note: case S::new_folder: case S::folder_actions: case S::move_note:
+                role = F::button; break;
+            default: break;
+            }
+            SendMessageW(item, WM_SETFONT, reinterpret_cast<WPARAM>(theme.font(role)), TRUE);
         }
-        const auto chosen = next ? next : static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
-        for (HWND item : controls()) if (item) SendMessageW(item, WM_SETFONT, reinterpret_cast<WPARAM>(chosen), TRUE);
-        if (font) DeleteObject(font);
-        font = next;
+        // Folder dialogs can remain open while Windows changes DPI/settings.
+        // Keep their adopted font valid until all their children are rebound.
+        if (active_dialog) EnumChildWindows(active_dialog, [](HWND item, LPARAM adopted) -> BOOL {
+            SendMessageW(item, WM_SETFONT, static_cast<WPARAM>(adopted), TRUE);
+            return TRUE;
+        }, reinterpret_cast<LPARAM>(font));
+        theme.release_previous_fonts();
+        theme.style_collections(folder_tree, library);
+        for (const auto box : {search_text, title})
+            if (box) SendMessageW(box, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM(px(8), px(8)));
+        RedrawWindow(window, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
     }
 
     int px(int value) const { return MulDiv(value, static_cast<int>(dpi), 96); }
 
-    void layout() const {
+    void layout() {
         RECT rect{};
         GetClientRect(window, &rect);
-        const int width = static_cast<int>(rect.right);
-        const int height = static_cast<int>(rect.bottom);
-        const int gap = px(12), left = px(16), right = width - left;
-        const int side = std::clamp(width * 35 / 100, px(202), px(330));
-        const int edit_x = left + side + gap;
-        const int edit_w = std::max(0, right - edit_x);
-        auto move = [](HWND item, int x, int y, int w, int h) {
-            if (item) MoveWindow(item, x, y, std::max(0, w), std::max(0, h), TRUE);
-        };
-        const bool compact = width < px(685);
-        move(banner, left, px(10), right - left, compact ? px(34) : px(23));
-        int x = left;
-        int toolbar_y = compact ? px(45) : px(38);
-        auto button = [&](HWND item, int w) {
-            if (x != left && x + px(w) > right) {
-                x = left;
-                toolbar_y += px(36);
-            }
-            move(item, x, toolbar_y, px(w), px(32));
-            x += px(w + 7);
-        };
-        button(dictate, 154);
-        button(save_button, 100);
-        button(privacy, 140);
-        button(vocab, 108);
-        const int content_top = toolbar_y + px(69);
-        const int content_bottom = height - px(43);
-        const int provisional_h = std::clamp((content_bottom - content_top) / 5, px(40), px(86));
-        const int provisional_top = content_bottom - provisional_h;
-        move(mic_status, left, toolbar_y + px(36), right - left, px(30));
-        int li = content_top;
-        const int button_gap = px(6), folder_width = px(84);
-        move(new_note, left, li, side - folder_width - button_gap, px(29));
-        move(new_folder, left + side - folder_width, li, folder_width, px(29));
-        li += px(35);
-        move(folder_label, left, li + px(3), side - px(93), px(20));
-        move(folder_actions, left + side - px(89), li, px(89), px(25));
-        li += px(28);
-        const int folder_height = std::clamp((content_bottom - content_top - px(112)) / 3, px(54), px(176));
-        move(folder_tree, left, li, side, folder_height);
-        li += folder_height + px(8);
-        move(search_label, left, li, side, px(18));
-        move(search_text, left, li + px(19), side, px(25));
-        move(search_all, left, li + px(46), side, px(21));
-        move(sort_by, left, li + px(71), side, px(140));
-        li += px(101);
-        move(library_label, left, li, side, px(18));
-        move(library, left, li + px(19), side, content_bottom - li - px(19));
-        move(title_label, edit_x, content_top, edit_w, px(18));
-        move(title, edit_x, content_top + px(20), edit_w - px(101), px(28));
-        move(move_note, right - px(95), content_top + px(20), px(95), px(28));
-        move(note_info, edit_x, content_top + px(52), edit_w, px(18));
-        move(note_dates, edit_x, content_top + px(71), edit_w, px(19));
-        move(body_label, edit_x, content_top + px(95), edit_w, px(18));
-        move(body, edit_x, content_top + px(115), edit_w, provisional_top - content_top - px(138));
-        move(draft_label, edit_x, provisional_top - px(21), edit_w, px(20));
-        move(draft, edit_x, provisional_top, edit_w, provisional_h);
-        move(storage_status, left, height - px(38), right - left, px(34));
-        move(masked_info, left, content_top + px(36), right - left, px(40));
+        if (rect.right <= 0 || rect.bottom <= 0) return;
+        ui_layout = ui::layout(rect.right, rect.bottom, dpi, copy_button != nullptr, external_button != nullptr);
+        for (const auto& widget : widgets()) ui::place(widget.first, ui_layout[widget.second]);
+        theme.inset_editor(body);
+        theme.inset_editor(draft);
+        InvalidateRect(window, nullptr, FALSE);
+    }
+
+    HBRUSH theme_colors(HDC dc, HWND item) const {
+        using S = ui::Surface;
+        using I = ui::Ink;
+        if (item == local_badge) return theme.colors(dc, item, S::hint, I::accent);
+        if (item == banner) return theme.colors(dc, item, S::canvas, I::accent);
+        if (item == subtitle || item == storage_status) return theme.colors(dc, item, S::canvas, I::muted);
+        if (item == note_dates || item == note_info || item == draft_label)
+            return theme.colors(dc, item, S::card, I::muted);
+        if (item == folder_label || item == library_label || item == title_label || item == body_label ||
+            item == search_label || item == search_all || item == mic_status || item == masked_info)
+            return theme.colors(dc, item, S::card);
+        return theme.colors(dc, item, S::paper);
+    }
+
+    bool draw_button(const NMCUSTOMDRAW& draw) const {
+        const auto button = draw.hdr.hwndFrom;
+        if (button == dictate) return theme.draw_button(draw,
+            captured ? ui::Button::recording : ui::Button::primary);
+        if (button == new_note) return theme.draw_button(draw, ui::Button::primary, true);
+        if (button == new_folder || button == folder_actions || button == move_note)
+            return theme.draw_button(draw, ui::Button::secondary, true);
+        if (button == save_button || button == copy_button || button == privacy ||
+            button == vocab || button == external_button)
+            return theme.draw_button(draw, ui::Button::secondary);
+        return false;
     }
 
     void set_storage(const std::wstring& label) const {
@@ -491,9 +530,9 @@ struct App {
     }
 
     void update_controls() {
-        const bool idle = phase == Phase::idle;
+        const bool idle = phase == Phase::idle && !external_active;
         const bool visible = !masked && !session_locked;
-        for (HWND item : {new_note, new_folder, folder_actions, dictate, save_button, vocab, folder_label,
+        for (HWND item : {new_note, new_folder, folder_actions, dictate, save_button, copy_button, external_button, vocab, folder_label,
                            folder_tree, search_label, search_text, search_all, sort_by, library_label, library,
                            title_label, title, note_info, note_dates, move_note, body_label, body, draft_label, draft, storage_status}) {
             ShowWindow(item, visible ? SW_SHOW : SW_HIDE);
@@ -508,11 +547,13 @@ struct App {
         EnableWindow(folder_actions, idle && store_ready && !all_notes && !selected_folder.empty());
         EnableWindow(move_note, idle && store_ready && !editor_needs_review);
         EnableWindow(save_button, store_ready);
+        EnableWindow(copy_button, visible && store_ready && !editor_needs_review && GetWindowTextLengthW(body) > 0);
+        EnableWindow(external_button, visible && idle);
         EnableWindow(vocab, idle && !runtime.empty());
         EnableWindow(title, store_ready);
         EnableWindow(body, store_ready);
         EnableWindow(dictate, dictation_cpu_supported && !close_requested && store_ready && wts_registered && !runtime.empty() && !microphone_unconfirmed
-            && (phase == Phase::idle || phase == Phase::listening || phase == Phase::preparing));
+            && !external_pending && (phase == Phase::idle || phase == Phase::listening || phase == Phase::preparing));
         const wchar_t* button_text = L"&Dicter (F9)";
         const wchar_t* status = idle_status.c_str();
         switch (phase) {
@@ -537,7 +578,20 @@ struct App {
         if (!dictation_cpu_supported) status = doct::Engine::cpu_requirement();
         if (microphone_unconfirmed) status = L"Arrêt du microphone non confirmé. Fermez l’application.";
         SetWindowTextW(dictate, button_text);
-        SetWindowTextW(mic_status, status);
+        const auto full_status = external_status.empty() ? std::wstring(status)
+            : std::wstring(status) + L"\r\n" + external_status;
+        SetWindowTextW(mic_status, full_status.c_str());
+        if (external_active) {
+            const auto state = captured ? ui::OverlayState::recording
+                : phase == Phase::preparing || external_pending ? ui::OverlayState::preparing
+                : ui::OverlayState::finalizing;
+            if (!overlay.show(window, external_window, state))
+                PostMessageW(window, OverlayFailureMessage, 0, 0);
+        }
+        using M = ui::Mic;
+        visual_mic = microphone_unconfirmed ? M::error : captured ? M::recording
+            : phase == Phase::preparing ? M::preparing : phase != Phase::idle ? M::pending : M::ready;
+        InvalidateRect(window, nullptr, FALSE);
     }
 
     static const std::wstring& all_key() {
@@ -546,7 +600,7 @@ struct App {
     }
 
     bool can_organize() const {
-        return phase == Phase::idle && !masked && !session_locked && !shutting_down && !close_requested
+        return phase == Phase::idle && !external_active && !masked && !session_locked && !shutting_down && !close_requested
             && store_ready && !active_dialog;
     }
 
@@ -909,6 +963,7 @@ struct App {
         }
         if (editor_needs_review) return; // A title edit cannot resolve a truncated body.
         dirty = true;
+        EnableWindow(copy_button, !masked && !session_locked && GetWindowTextLengthW(body) > 0);
         set_storage(L"Modifications en attente de sauvegarde…");
         SetTimer(window, SaveTimer, SaveDelayMs, nullptr);
     }
@@ -984,9 +1039,126 @@ struct App {
         SendMessageW(title, EM_SETSEL, 0, -1);
     }
 
+    void copy_transcript() {
+        if (masked || session_locked || !store_ready || editor_needs_review || shutting_down) return;
+        if (!save_note()) return;
+        const auto text = get_text(body);
+        if (text.empty()) return;
+        set_storage(doct::external::copy_note_text(window, text)
+            ? L"Texte copié · Vous pouvez le coller dans votre document."
+            : L"Copie indisponible · Fermez le presse-papiers dans l’autre application et réessayez.");
+    }
+
+    void explain_external() const {
+        if (masked || session_locked || external_active) return;
+        MessageBoxW(window, hotkey_registered
+            ? L"1. Cliquez dans le champ où vous voulez écrire (Word, navigateur ou éditeur compatible).\n"
+              L"2. Appuyez sur Ctrl + Alt + Espace et relâchez les touches.\n"
+              L"3. Attendez « Micro ouvert », puis dictez. Le même raccourci arrête la dictée.\n\n"
+              L"Chaque passage est sauvegardé dans une nouvelle note avant son envoi. "
+              L"Gardez le curseur dans le même champ, sans sélection de texte. "
+              L"Un champ incompatible laisse le micro fermé.\n\n"
+              L"Relisez aussi le document de destination : cette application peut synchroniser son contenu."
+            : L"Ctrl + Alt + Espace est déjà utilisé par une autre application. "
+              L"Libérez ce raccourci, puis relancez NoteVive. La dictée interne et le bouton Copier restent disponibles.",
+            L"Dicter dans une autre application", MB_OK | MB_ICONINFORMATION);
+    }
+
+    void finish_external() {
+        KillTimer(window, ExternalTimer);
+        external_target.reset();
+        external_active = external_pending = external_sending = false;
+        external_drain_started = 0;
+        overlay.hide();
+        update_controls();
+    }
+
+    void external_failed(doct::external::Result why) {
+        external_status = doct::external::message(why);
+        external_sending = external_pending = false;
+        external_target.reset();
+        if (phase == Phase::idle) {
+            finish_external();
+            if (!microphone_unconfirmed) overlay.show(window, external_window, ui::OverlayState::unavailable);
+        } else if (phase == Phase::preparing) {
+            cancel_capture(L"Micro coupé · Destination externe indisponible.");
+        } else if (phase == Phase::listening) {
+            phase = Phase::stopping;
+            engine->stop(); // Final audio is still transcribed and saved locally.
+        }
+        update_controls();
+    }
+
+    void poll_external() {
+        if (!external_active) { KillTimer(window, ExternalTimer); return; }
+        using R = doct::external::Result;
+        if (external_sending) {
+            const auto result = external_target.check();
+            if (result != R::pending && result != R::ready && result != R::queued &&
+                    result != R::inserted && result != R::submitted && result != R::no_text) {
+                external_failed(result);
+                return;
+            }
+            const auto name = external_target.destination_label();
+            external_status = (name.empty() ? std::wstring{} : name + L" · ") + doct::external::message(result);
+            if (external_pending && result == R::ready) {
+                external_pending = false;
+                // No SetFocus/foreground activation: the captured external field must remain active.
+                notes::Note blank;
+                blank.folder_id = selected_folder;
+                blank.title = L"Dictée externe";
+                place_note(std::move(blank));
+                mark_dirty();
+                if (!save_note()) {
+                    external_failed(R::unsupported);
+                    return;
+                }
+                start_or_stop();
+                if (phase == Phase::idle) finish_external();
+            }
+        }
+        if (!external_pending && phase == Phase::idle) {
+            if (!external_target.busy()) { finish_external(); return; }
+            if (!external_drain_started) external_drain_started = GetTickCount64();
+            if (GetTickCount64() - external_drain_started > 5000) {
+                external_failed(R::delivery_uncertain);
+                return;
+            }
+        }
+        update_controls();
+    }
+
+    void global_dictation() {
+        if (!hotkey_registered || masked || session_locked || active_dialog || !IsWindowEnabled(window) ||
+                shutting_down || close_requested) return;
+        if (external_active) {
+            if (external_pending) {
+                external_status = L"Démarrage externe annulé.";
+                finish_external();
+            } else if (phase != Phase::idle) start_or_stop();
+            return;
+        }
+        if (phase != Phase::idle) { start_or_stop(); return; }
+        if (GetForegroundWindow() == window) { external_status.clear(); start_or_stop(); return; }
+        if (!can_organize() || !dictation_cpu_supported || !wts_registered || runtime.empty() ||
+                microphone_unconfirmed || editor_needs_review || !rejected_segment.empty() || !save_note()) return;
+        external_window = GetForegroundWindow();
+        const auto result = external_target.capture(window, external_window);
+        external_status = doct::external::message(result);
+        if (result != doct::external::Result::pending ||
+                !SetTimer(window, ExternalTimer, EnginePollMs, nullptr) ||
+                !overlay.show(window, external_window, ui::OverlayState::preparing)) {
+            finish_external();
+            overlay.show(window, external_window, ui::OverlayState::unavailable);
+            return;
+        }
+        external_active = external_pending = external_sending = true;
+        update_controls();
+    }
+
     void start_or_stop() {
         if (!dictation_cpu_supported || session_locked || masked || shutting_down || close_requested || active_dialog || !store_ready || !wts_registered || runtime.empty()
-                || microphone_unconfirmed) return;
+                || microphone_unconfirmed || external_pending) return;
         if (phase == Phase::listening) {
             phase = Phase::stopping;
             engine->stop();
@@ -998,7 +1170,7 @@ struct App {
             } else if (get_text(body).size() >= TextLimit) {
                 idle_status = L"Micro coupé · Note pleine. Créez une nouvelle note.";
             } else {
-                if (!confirm_rejected_segment_discard() || !can_organize()) return;
+                if (!confirm_rejected_segment_discard() || (!can_organize() && !external_active)) return;
                 blocked_generation = cancel_requested = captured = false;
                 interrupt_status.clear();
                 if (!SetTimer(window, EngineTimer, EnginePollMs, nullptr)) {
@@ -1027,6 +1199,8 @@ struct App {
 
     void cancel_capture(const wchar_t* next_status) {
         idle_status = next_status;
+        external_target.reset();
+        external_pending = external_sending = false;
         if (phase != Phase::idle && engine) {
             blocked_generation = cancel_requested = true;
             interrupt_status = next_status;
@@ -1034,6 +1208,7 @@ struct App {
             engine->cancel();
         }
         SetWindowTextW(draft, L"");
+        if (phase == Phase::idle && external_active) finish_external();
         update_controls();
     }
 
@@ -1064,14 +1239,14 @@ struct App {
         }
     }
 
-    void append_final(const std::wstring& segment) {
+    bool append_final(const std::wstring& segment) {
         std::wstring text = editor_text(segment);
-        if (text.find_first_not_of(L" \t\r\n") == std::wstring::npos) return;
+        if (text.find_first_not_of(L" \t\r\n") == std::wstring::npos) return false;
         const std::wstring prior = get_text(body);
         if (!prior.empty() && prior.back() != L'\r' && prior.back() != L'\n') text.insert(0, L"\r\n");
         if (prior.size() > TextLimit || text.size() > TextLimit - prior.size()) {
             keep_rejected_segment(segment, L"Micro coupé · Note pleine. Le dernier passage est affiché à part et n’est pas enregistré.");
-            return;
+            return false;
         }
         DWORD selection_start = 0, selection_end = 0;
         SendMessageW(body, EM_GETSEL, reinterpret_cast<WPARAM>(&selection_start), reinterpret_cast<LPARAM>(&selection_end));
@@ -1113,10 +1288,10 @@ struct App {
             keep_rejected_segment(segment, editor_needs_review
                 ? L"Micro coupé · Le dernier passage a été tronqué. Vérifiez et corrigez la fin de la note."
                 : L"Micro coupé · Dernier passage affiché à part, non enregistré. Le texte précédent est conservé.");
-            return;
+            return false;
         }
         mark_dirty();
-        save_note();
+        return save_note();
     }
 
     void on_engine(doct::EngineEvent& event) {
@@ -1134,7 +1309,14 @@ struct App {
             return;
         case doct::EngineEventKind::final:
             if (!blocked_generation && !masked && !session_locked) {
-                append_final(event.text);
+                const bool saved = append_final(event.text);
+                if (external_sending && saved) {
+                    const auto result = external_target.forward(editor_text(event.text));
+                    if (result != doct::external::Result::queued && result != doct::external::Result::no_text)
+                        external_failed(result);
+                } else if (external_active && !saved) {
+                    cancel_capture(L"Micro coupé · Le passage n’a pas été sauvegardé. Aucun envoi externe.");
+                }
                 if (!blocked_generation) SetWindowTextW(draft, editor_text(event.text).c_str());
             }
             return;
@@ -1161,6 +1343,7 @@ struct App {
             break;
         }
         update_controls();
+        if (phase == Phase::idle && external_active) poll_external();
         if (phase == Phase::idle && close_requested) PostMessageW(window, WM_CLOSE, 0, 0);
         else if (search_pending && can_organize()) reload_library();
     }
@@ -1178,6 +1361,11 @@ struct App {
     }
 
     void close() {
+        if (external_active) {
+            external_target.reset();
+            external_pending = external_sending = false;
+            if (phase == Phase::idle) finish_external();
+        }
         if (phase != Phase::idle) {
             close_requested = true;
             if (phase == Phase::preparing) {
@@ -1207,18 +1395,18 @@ struct App {
         KillTimer(window, SaveTimer);
         KillTimer(window, SearchTimer);
         KillTimer(window, EngineTimer);
+        KillTimer(window, ExternalTimer);
+        external_target.reset();
+        overlay.hide();
+        if (hotkey_registered) UnregisterHotKey(window, GlobalDictationHotkey);
         if (engine) engine->shutdown();
         // The worker cannot post after shutdown; release messages not consumed by the window.
         pending_events.clear();
         MSG message{};
         while (PeekMessageW(&message, window, EngineMessage, EngineMessage, PM_REMOVE)) {}
         if (wts_registered) WTSUnRegisterSessionNotification(window);
-        if (font) {
-            const auto stock = GetStockObject(DEFAULT_GUI_FONT);
-            for (HWND item : controls()) if (item) SendMessageW(item, WM_SETFONT, reinterpret_cast<WPARAM>(stock), FALSE);
-            DeleteObject(font);
-            font = nullptr;
-        }
+        // Theme owns fonts and releases them after this window is destroyed.
+        font = nullptr;
     }
 };
 
@@ -1234,15 +1422,42 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
     case WM_CREATE:
         return app->create() ? 0 : -1;
     case WM_SIZE:
-        if (wparam == SIZE_MINIMIZED && app->phase != Phase::idle) {
+        if (wparam == SIZE_MINIMIZED && app->phase != Phase::idle && !app->external_active) {
             app->conceal(L"Micro coupé · Dictée interrompue lors de la réduction de la fenêtre.");
         }
-        app->layout();
+        if (wparam != SIZE_MINIMIZED) app->layout();
         return 0;
+    case WM_PAINT:
+        app->theme.paint(window, app->ui_layout, app->masked || app->session_locked, app->visual_mic);
+        return 0;
+#ifdef NOTEVIVE_UI_CAPTURE_TEST
+    case WM_PRINTCLIENT: {
+        RECT rect{};
+        GetClientRect(window, &rect);
+        app->theme.draw_background(reinterpret_cast<HDC>(wparam), rect, app->ui_layout,
+            app->masked || app->session_locked, app->visual_mic);
+        return 0;
+    }
+#endif
+    case WM_ERASEBKGND:
+        return 1; // WM_PAINT covers the invalid region; avoid a white flash.
+    case WM_CTLCOLORSTATIC:
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX:
+    case WM_CTLCOLORBTN:
+        return reinterpret_cast<LRESULT>(app->theme_colors(reinterpret_cast<HDC>(wparam), reinterpret_cast<HWND>(lparam)));
     case WM_GETMINMAXINFO: {
         auto limits = reinterpret_cast<MINMAXINFO*>(lparam);
-        limits->ptMinTrackSize.x = app->px(650);
-        limits->ptMinTrackSize.y = app->px(505);
+        const UINT dpi = GetDpiForWindow(window) ? GetDpiForWindow(window) : app->dpi;
+        const auto px = [dpi](int value) { return MulDiv(value, static_cast<int>(dpi), 96); };
+        RECT desired{0, 0, px(ui::Layout::min_client_width), px(ui::Layout::min_client_height)};
+        AdjustWindowRectExForDpi(&desired, static_cast<DWORD>(GetWindowLongPtrW(window, GWL_STYLE)), FALSE,
+            static_cast<DWORD>(GetWindowLongPtrW(window, GWL_EXSTYLE)), dpi);
+        MONITORINFO monitor{sizeof(monitor), {}, {}, 0};
+        const bool work = GetMonitorInfoW(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST), &monitor) != FALSE;
+        const LONG min_w = desired.right - desired.left, min_h = desired.bottom - desired.top;
+        limits->ptMinTrackSize.x = work ? std::min(min_w, monitor.rcWork.right - monitor.rcWork.left) : min_w;
+        limits->ptMinTrackSize.y = work ? std::min(min_h, monitor.rcWork.bottom - monitor.rcWork.top) : min_h;
         return 0;
     }
     case WM_DPICHANGED: {
@@ -1254,8 +1469,31 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         app->layout();
         return 0;
     }
+    case WM_SYSCOLORCHANGE:
+    case WM_THEMECHANGED:
     case WM_SETTINGCHANGE:
         app->update_font();
+        break;
+    case WM_MEASUREITEM:
+        if (wparam == Library && lparam) {
+            reinterpret_cast<MEASUREITEMSTRUCT*>(lparam)->itemHeight = static_cast<UINT>(app->px(40));
+            return TRUE;
+        }
+        break;
+    case WM_DRAWITEM:
+        if (wparam == Library && lparam) {
+            const auto& draw = *reinterpret_cast<const DRAWITEMSTRUCT*>(lparam);
+            // LISTBOX strings and item indices remain the public representation
+            // used by accessibility, search, keyboard navigation and the smoke.
+            wchar_t label[TitleLimit + 64]{};
+            if (draw.itemID != static_cast<UINT>(-1)) {
+                const auto count = SendMessageW(draw.hwndItem, LB_GETTEXTLEN, draw.itemID, 0);
+                if (count >= 0 && static_cast<std::size_t>(count) < std::size(label))
+                    SendMessageW(draw.hwndItem, LB_GETTEXT, draw.itemID, reinterpret_cast<LPARAM>(label));
+            }
+            app->theme.draw_note_row(draw, label);
+            return TRUE;
+        }
         break;
     case WM_COMMAND:
         switch (LOWORD(wparam)) {
@@ -1266,6 +1504,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         case RenameNote: app->rename_note(); return 0;
         case RenameFolder: app->change_folder_metadata(RenameFolder); return 0;
         case Dictate: app->start_or_stop(); return 0;
+        case CopyTranscript: app->copy_transcript(); return 0;
+        case ExternalDictation: app->explain_external(); return 0;
         case Save: if (!app->masked) app->save_note(true); return 0;
         case Privacy: app->toggle_privacy(); return 0;
         case Vocabulary:
@@ -1293,6 +1533,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         break;
     case WM_NOTIFY: {
         const auto header = reinterpret_cast<const NMHDR*>(lparam);
+        if (header && header->code == NM_CUSTOMDRAW &&
+            app->draw_button(*reinterpret_cast<const NMCUSTOMDRAW*>(lparam))) return CDRF_SKIPDEFAULT;
         if (header && header->hwndFrom == app->folder_tree && header->code == static_cast<UINT>(TVN_SELCHANGEDW)) {
             const auto change = reinterpret_cast<const NMTREEVIEWW*>(lparam);
             if (change->itemNew.hItem) app->change_folder(change->itemNew.lParam);
@@ -1301,6 +1543,10 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         break;
     }
     case WM_TIMER:
+        if (wparam == ExternalTimer) {
+            app->poll_external();
+            return 0;
+        }
         if (wparam == EngineTimer) {
             app->drain_engine(false);
             return 0;
@@ -1318,6 +1564,13 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         break;
     case EngineMessage:
         app->drain_engine(true);
+        return 0;
+    case WM_HOTKEY:
+        if (wparam == GlobalDictationHotkey) app->global_dictation();
+        return 0;
+    case OverlayFailureMessage:
+        if (app->external_active)
+            app->cancel_capture(L"Micro coupé · Indicateur de dictée externe indisponible.");
         return 0;
     case WM_WTSSESSION_CHANGE:
         if (wparam == WTS_SESSION_LOCK || wparam == WTS_SESSION_LOGOFF || wparam == WTS_CONSOLE_DISCONNECT
@@ -1363,6 +1616,7 @@ bool shortcut(App& app, const MSG& message) {
     if (!ctrl && !shift && message.wParam == VK_F2 && message.hwnd == app.library) command = RenameNote;
     if (ctrl && message.wParam == 'N') command = shift ? NewFolder : New;
     if (ctrl && !shift && message.wParam == 'S') command = Save;
+    if (ctrl && shift && message.wParam == 'C') command = CopyTranscript;
     if (ctrl && !shift && message.wParam == 'M') command = Privacy;
     if (ctrl && !shift && message.wParam == 'F' && app.can_organize()) {
         SetFocus(app.search_text);
@@ -1401,12 +1655,20 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
                                           : MulDiv(1010, dpi, 96);
     const int start_height = have_work_area ? std::min(MulDiv(680, dpi, 96), static_cast<int>(work.bottom - work.top))
                                            : MulDiv(680, dpi, 96);
-    HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, WindowClass, L"NoteVive · Prototype",
+    HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, WindowClass, L"NoteVive · Carnet de dictée",
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT,
         start_width, start_height, nullptr, nullptr, instance, &app);
     if (!window) return 1;
+#ifdef NOTEVIVE_UI_CAPTURE_TEST
+    if (!SetPropW(window, L"NoteVive.VisualSmoke.FictionalOnly",
+            reinterpret_cast<HANDLE>(static_cast<INT_PTR>(1)))) {
+        DestroyWindow(window);
+        return 1;
+    }
+#else
     // Best-effort suppression of supported screen-capture paths; not a substitute for masking/lock.
     SetWindowDisplayAffinity(window, 0x11); // WDA_EXCLUDEFROMCAPTURE
+#endif
     ShowWindow(window, show);
     UpdateWindow(window);
     if (app.store_ready) SetFocus(app.body);

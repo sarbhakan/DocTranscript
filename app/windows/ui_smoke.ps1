@@ -1,10 +1,16 @@
 ﻿# Requires an interactive Windows desktop and a dedicated, disposable user.
 # The smoke does not open the microphone, replay audio, or modify real notes.
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Executable)
+param([Parameter(Mandatory)][string]$Executable, [string]$PreviewPath)
 $ErrorActionPreference = 'Stop'
 if (-not [Environment]::UserInteractive) { throw 'An interactive Windows desktop is required.' }
 $Executable = (Resolve-Path -LiteralPath $Executable).Path
+if ($PreviewPath) {
+    $PreviewPath = [IO.Path]::GetFullPath($PreviewPath)
+    if ([IO.Path]::GetExtension($PreviewPath) -ine '.png') { throw 'PreviewPath must end in .png.' }
+    if (Test-Path -LiteralPath $PreviewPath) { throw 'PreviewPath already exists; choose a fresh output file.' }
+    Add-Type -AssemblyName System.Drawing
+}
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type -TypeDefinition @'
 using System;
@@ -12,7 +18,14 @@ using System.Runtime.InteropServices;
 using System.Text;
 public static class NvWindow {
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] struct Point { public int X, Y; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
+    [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr hwnd, out Rect rect);
+    [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr hwnd, ref Point point);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr GetProp(IntPtr hwnd, string name);
+    [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
@@ -20,6 +33,17 @@ public static class NvWindow {
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, StringBuilder name, int max);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")] static extern bool OpenClipboard(IntPtr owner);
+    [DllImport("user32.dll")] static extern bool CloseClipboard();
+    [DllImport("user32.dll")] public static extern uint GetClipboardSequenceNumber();
+    [DllImport("user32.dll")] static extern IntPtr GetClipboardOwner();
+    [DllImport("user32.dll")] static extern bool IsClipboardFormatAvailable(uint format);
+    [DllImport("user32.dll")] static extern IntPtr GetClipboardData(uint format);
+    [DllImport("user32.dll")] static extern bool EmptyClipboard();
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern uint RegisterClipboardFormat(string name);
+    [DllImport("kernel32.dll")] static extern UIntPtr GlobalSize(IntPtr memory);
+    [DllImport("kernel32.dll")] static extern IntPtr GlobalLock(IntPtr memory);
+    [DllImport("kernel32.dll")] static extern bool GlobalUnlock(IntPtr memory);
     [DllImport("user32.dll", EntryPoint = "PostMessageW", ExactSpelling = true)] public static extern bool Post(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp);
     [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", ExactSpelling = true)]
     static extern IntPtr SendBounded(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp, uint flags, uint timeout, out UIntPtr result);
@@ -50,6 +74,68 @@ public static class NvWindow {
         // EM_REPLACESEL sends EN_CHANGE for both single- and multiline edits.
         if (WriteBounded(hwnd, 0x00c2, new IntPtr(1), text, 0x0002, 2000, out result) == IntPtr.Zero)
             throw new TimeoutException("The NoteVive edit control did not accept the replacement message.");
+    }
+    public static bool CheckClipboard(IntPtr app, uint previous, string expected) {
+        if (GetClipboardSequenceNumber() == previous || !OpenClipboard(IntPtr.Zero)) return false;
+        try {
+            if (GetClipboardOwner() != app) return false;
+            const uint unicodeText = 13; // CF_UNICODETEXT
+            uint exclusion = RegisterClipboardFormat("ExcludeClipboardContentFromMonitorProcessing");
+            if (!IsClipboardFormatAvailable(unicodeText) || exclusion == 0 || !IsClipboardFormatAvailable(exclusion))
+                return false;
+            IntPtr data = GetClipboardData(unicodeText);
+            if (data == IntPtr.Zero) return false;
+            ulong bytes = GlobalSize(data).ToUInt64();
+            if (bytes < (ulong)((expected.Length + 1) * 2)) return false;
+            IntPtr text = GlobalLock(data);
+            if (text == IntPtr.Zero) return false;
+            bool matched = false;
+            try {
+                matched = Marshal.ReadInt16(text, expected.Length * 2) == 0 &&
+                    string.Equals(Marshal.PtrToStringUni(text, expected.Length), expected, StringComparison.Ordinal);
+            } finally { GlobalUnlock(data); }
+            if (!matched) return false;
+            // Only remove the just-verified fictitious payload and only while
+            // we hold the clipboard, so no later owner can be overwritten.
+            if (!EmptyClipboard()) throw new InvalidOperationException("Could not clear the fictitious clipboard payload.");
+            return true;
+        } finally { CloseClipboard(); }
+    }
+    public static Rect PreviewSize(IntPtr app, uint pid) {
+        uint owner;
+        Rect bounds;
+        var klass = new StringBuilder(64);
+        if (GetWindowThreadProcessId(app, out owner) == 0 || owner != pid || !IsWindowVisible(app) ||
+            GetClassName(app, klass, klass.Capacity) == 0 || klass.ToString() != "NoteVivePrototypeWindow")
+            throw new InvalidOperationException("Preview must target the launched NoteVive test window.");
+        if (GetProp(app, "NoteVive.VisualSmoke.FictionalOnly") != new IntPtr(1))
+            throw new InvalidOperationException("Use the dedicated NoteVive visual test build for PreviewPath.");
+        if (!GetWindowRect(app, out bounds) || bounds.Right <= bounds.Left || bounds.Bottom <= bounds.Top)
+            throw new InvalidOperationException("Cannot measure the NoteVive test window.");
+        return bounds;
+    }
+    public static bool CaptureWindow(IntPtr app, IntPtr dc, uint pid) {
+        PreviewSize(app, pid);
+        // The standard whole-window request asks NoteVive and its controls to paint.
+        Send(app, 0, IntPtr.Zero, IntPtr.Zero); // WM_NULL responsiveness check.
+        return PrintWindow(app, dc, 0);
+    }
+    public static bool VisibleClientControl(IntPtr app, int id, int min_width, int min_height) {
+        IntPtr previous = SetThreadDpiAwarenessContext(new IntPtr(-4)); // PerMonitorV2.
+        if (previous == IntPtr.Zero) return false;
+        try {
+            IntPtr child = GetDlgItem(app, id);
+            Rect control, client;
+            Point origin = new Point();
+            if (child == IntPtr.Zero || !IsWindowVisible(child) ||
+                !GetWindowRect(child, out control) || !GetClientRect(app, out client) ||
+                !ClientToScreen(app, ref origin)) return false;
+            uint dpi = GetDpiForWindow(app);
+            return dpi != 0 && (control.Right - control.Left) * 96 >= min_width * dpi &&
+                (control.Bottom - control.Top) * 96 >= min_height * dpi &&
+                control.Left >= origin.X && control.Top >= origin.Y &&
+                control.Right <= origin.X + client.Right && control.Bottom <= origin.Y + client.Bottom;
+        } finally { SetThreadDpiAwarenessContext(previous); }
     }
     public static bool ChooseSort(IntPtr parent, IntPtr combo, int index) {
         if (Send(combo, 0x014e, new IntPtr(index), IntPtr.Zero) != index) return false; // CB_SETCURSEL
@@ -276,6 +362,7 @@ $testChildRenamed = "$prefix sous-dossier"
 $testRenamed = "$prefix classe"
 $marker = "$prefix marqueur éphémère."
 $savedMarker = "$marker Texte relu."
+$captureNote = "Deuxième transcription fictive.`r`nEssai de dictée hors ligne : œdème à gauche, aucune douleur à droite."
 $process = $null
 $stage = 'initialisation'
 
@@ -446,11 +533,61 @@ function Sorted-Names {
     if ($null -ne $labels) { return @($labels) }
 }
 
+function Save-Preview([string]$Path) {
+    $handle = Window-Handle $app
+    # Match PerMonitorV2 without changing system settings or display scaling.
+    $previousDpi = [NvWindow]::SetThreadDpiAwarenessContext([IntPtr](-4))
+    if ($previousDpi -eq [IntPtr]::Zero) { throw 'Cannot request physical window coordinates for preview.' }
+    try {
+        $bounds = [NvWindow]::PreviewSize($handle, $process.Id)
+        $width = $bounds.Right - $bounds.Left
+        $height = $bounds.Bottom - $bounds.Top
+        if ($width -lt 450 -or $height -lt 380 -or $width -gt 4800 -or $height -gt 2800) {
+            throw "Unexpected preview dimensions: ${width}x${height}."
+        }
+        $bitmap = [Drawing.Bitmap]::new($width, $height, [Drawing.Imaging.PixelFormat]::Format24bppRgb)
+        try {
+            $graphics = [Drawing.Graphics]::FromImage($bitmap)
+            try {
+                $dc = $graphics.GetHdc()
+                try {
+                    if (-not [NvWindow]::CaptureWindow($handle, $dc, $process.Id)) { throw 'PrintWindow did not render NoteVive.' }
+                } finally { $graphics.ReleaseHdc($dc) }
+            } finally { $graphics.Dispose() }
+            $colors = New-Object 'System.Collections.Generic.HashSet[int]'
+            $canvas = 0
+            $paper = 0
+            for ($y = 32; $y -lt $height - 16; $y += 5) {
+                for ($x = 16; $x -lt $width - 16; $x += 5) {
+                    $rgb = $bitmap.GetPixel($x, $y)
+                    $null = $colors.Add($rgb.ToArgb())
+                    if ($rgb.R -eq 242 -and $rgb.G -eq 247 -and $rgb.B -eq 246) { $canvas += 1 }
+                    if ($rgb.R -eq 255 -and $rgb.G -eq 255 -and $rgb.B -eq 255) { $paper += 1 }
+                }
+            }
+            if ($colors.Count -lt 12 -or $canvas -lt 30 -or $paper -lt 50) {
+                throw 'The window preview is empty or missing the expected light theme surfaces (use standard contrast).'
+            }
+            $null = [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($Path))
+            $stream = [IO.File]::Open($Path, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+            try { $bitmap.Save($stream, [Drawing.Imaging.ImageFormat]::Png) } finally { $stream.Dispose() }
+        } finally { $bitmap.Dispose() }
+        Write-Output "NoteVive window preview: ${width}x${height}, $([NvWindow]::GetDpiForWindow($handle)) DPI, $Path"
+    } finally { $null = [NvWindow]::SetThreadDpiAwarenessContext($previousDpi) }
+}
+
 try {
     Step 'open the editor and find the notes sidebar'
     Begin-App
     $null = ById 110 # Dossiers tree sidebar.
     $null = ById 111 # Search.
+    $handle = Window-Handle $app
+    $null = Wait-For {
+        [NvWindow]::VisibleClientControl($handle, 106, 120, 24) -and
+        [NvWindow]::VisibleClientControl($handle, 108, 200, 60) -and
+        [NvWindow]::VisibleClientControl($handle, 121, 75, 24) -and
+        [NvWindow]::VisibleClientControl($handle, 122, 85, 24)
+    } 'show the library, note editor and new actions at the current DPI'
     Step 'create the parent folder'
     Click (ById 114) # New top-level folder.
     Folder-Dialog 'Nouveau dossier' $testFolder
@@ -477,7 +614,7 @@ try {
     Click (ById 101)
     $null = Wait-For { [NvWindow]::Text((Window-Handle (ById 107))) -eq '' } 'second editor clear'
     Input-Text (ById 107) $testNote
-    Input-Text (ById 108) 'Deuxième transcription fictive.'
+    Input-Text (ById 108) $captureNote
     Click (ById 103)
     $null = Wait-For { Test-NoteVisible $testNote } 'second note saved'
     Step 'verify independent modification, creation and title ordering'
@@ -506,7 +643,7 @@ try {
     Step 'rename the note, close and reopen NoteVive'
     Select-Note $testNote
     $null = Wait-For {
-        [NvWindow]::Text((Window-Handle (ById 108))) -ceq 'Deuxième transcription fictive.'
+        [NvWindow]::Text((Window-Handle (ById 108))) -ceq $captureNote
     } 'open the second note before renaming'
     Input-Text (ById 107) $testRenamed
     End-App
@@ -543,14 +680,25 @@ try {
     Wait-TreePath @($testFolder, $testChildRenamed)
     Select-Note $testRenamed
     $null = Wait-For {
-        (Editor-Folder) -ceq $testFolder -and [NvWindow]::Text((Window-Handle (ById 108))) -ceq 'Deuxième transcription fictive.'
+        (Editor-Folder) -ceq $testFolder -and [NvWindow]::Text((Window-Handle (ById 108))) -ceq $captureNote
     } 'new folder and note body persisted after moving'
+    Step 'copy the whole fictitious note as exact Unicode text'
+    $copy = ById 121
+    if ([NvWindow]::Text((Window-Handle $copy)).Replace('&', '') -cne 'Copier le texte') { throw 'Unexpected copy button caption.' }
+    $beforeClipboard = [NvWindow]::GetClipboardSequenceNumber()
+    Click $copy
+    $handle = Window-Handle $app
+    $null = Wait-For { [NvWindow]::CheckClipboard($handle, $beforeClipboard, $captureNote) } 'copy the note to CF_UNICODETEXT without its title and with the Windows clipboard exclusion'
+    if ($PreviewPath) {
+        Step 'capture only the populated NoteVive visual test window'
+        Save-Preview $PreviewPath
+    }
     End-App
     Step 'count the saved notes and folders'
     $savedCount = @(Get-ChildItem -LiteralPath $records -Filter '*.nvn' -File).Count
     $folderCount = @(Get-ChildItem -LiteralPath $records -Filter '*.nvf' -File).Count
     if ($savedCount -ne 2 -or $folderCount -ne 2) { throw "Expected exactly two notes and folders, found $savedCount / $folderCount." }
-    Write-Output 'Windows UI, nested folders, renaming, moving notes, sort, body search, autosave and close/reopen verified with fictitious text.'
+    Write-Output 'Windows UI, nested folders, renaming, moving notes, sort, body search, autosave, close/reopen and Unicode copy verified with fictitious text.'
 } catch {
     $failure = $_
     [Console]::Error.WriteLine("Windows UI smoke failed at '$stage': $($_.Exception.GetType().FullName): $($_.Exception.Message)")

@@ -18,7 +18,7 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-2022
-    timeout-minutes: 40
+    timeout-minutes: 45
     env:
       PYTHONUTF8: '1'
     steps:
@@ -34,12 +34,15 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Tester stockage chiffré, migrations, sous-dossiers et récupération
         run: python -m app.test_windows --compiler msvc --output "$env:RUNNER_TEMP/NoteVive-unit-tests"
+      - name: Tester la dictée externe dans Edge sur une page locale fictive
+        shell: powershell
+        run: ./app/windows/external_edge_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-unit-tests/external-target-test.exe"
       - name: Préparer les entrées officielles et vérifier leurs empreintes
         run: python app/prepare_windows.py
       - name: Compiler Whisper CPU sans redistribuable externe
         run: python app/build_whisper_windows.py --toolset clangcl --source app/private/downloads/whisper-v1.8.5-source.tar.gz --openblas-source app/private/downloads/openblas-v0.3.34-source.tar.gz --output app/private/whisper-build
       - name: Compiler le paquet autonome
-        run: python app/build_windows.py --zig app/private/toolchain/zig-x86_64-windows-0.15.2/zig.exe
+        run: python app/build_windows.py --zig app/private/toolchain/zig-x86_64-windows-0.15.2/zig.exe --preview-exe "$env:RUNNER_TEMP/NoteVive-preview/NoteVive.exe"
       - name: Extraire le ZIP livré
         id: unzip
         run: Expand-Archive dist/NoteVive-Windows-x64-Essai.zip "$env:RUNNER_TEMP/NoteVive-paquet"
@@ -59,6 +62,18 @@ jobs:
         if: ${{ !cancelled() && steps.unzip.outcome == 'success' }}
         shell: powershell
         run: ./app/windows/ui_smoke.ps1 -Executable "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive/NoteVive.exe"
+      - name: Capturer la nouvelle interface sur des notes fictives
+        if: ${{ !cancelled() && steps.unzip.outcome == 'success' }}
+        shell: powershell
+        run: ./app/windows/ui_smoke.ps1 -Executable "$env:RUNNER_TEMP/NoteVive-preview/NoteVive.exe" -PreviewPath "$env:RUNNER_TEMP/NoteVive-preview.png"
+      - name: Conserver la capture fictive, sans binaire de capture
+        if: ${{ !cancelled() && steps.unzip.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: NoteVive-UI-Preview
+          path: ${{ runner.temp }}/NoteVive-preview.png
+          retention-days: 30
+          if-no-files-found: error
       - name: Comparer CTranslate2 INT8 sur le même hôte Windows
         id: ct2
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.compare_ct2 }}
@@ -114,9 +129,52 @@ jobs:
             dist/NoteVive-Windows-x64-Essai.zip.sha256
           retention-days: 30
           if-no-files-found: error
+  ui-preview:
+    needs: windows
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'codex/interface-dictee-adaptation-040'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: NoteVive-UI-Preview
+          path: preview
+      - name: Rendre consultable la capture de recette fictive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        shell: python
+        run: |
+          import base64, json, os, pathlib, urllib.request, urllib.error
+          repo = os.environ['REPOSITORY']
+          branch = 'codex/interface-previews'
+          def api(method, path, payload=None):
+              request = urllib.request.Request('https://api.github.com/repos/' + repo + '/' + path,
+                  data=json.dumps(payload).encode() if payload is not None else None,
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                      'Accept': 'application/vnd.github+json'}, method=method)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+          try:
+              api('GET', 'git/ref/heads/' + branch)
+          except urllib.error.HTTPError as error:
+              if error.code != 404: raise
+              api('POST', 'git/refs', {'ref': 'refs/heads/' + branch, 'sha': os.environ['SOURCE_SHA']})
+          raw = pathlib.Path('preview/NoteVive-preview.png').read_bytes()
+          if not raw.startswith(b'\x89PNG\r\n\x1a\n') or len(raw) > 5 * 1024 * 1024:
+              raise ValueError('Capture PNG fictive attendue')
+          path = 'docs/previews/' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '.png'
+          result = api('PUT', 'contents/' + path, {'branch': branch,
+              'message': 'Capture Windows fictive ' + os.environ['SOURCE_SHA'] + ' [skip ci]',
+              'content': base64.b64encode(raw).decode()})
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write('Capture de recette : ' + result['content']['html_url'] + '\n')
   release:
     needs: windows
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.3.1]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.4.0]')
     runs-on: windows-2022
     timeout-minutes: 15
     permissions:
@@ -135,5 +193,5 @@ jobs:
           $archive = 'dist/NoteVive-Windows-x64-Essai.zip'
           $expected = (Get-Content "$archive.sha256").Split(' ')[0]
           if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'ZIP altéré' }
-          gh release create v0.3.1-essai --target "$env:RELEASE_COMMIT" --prerelease --latest=false --title "NoteVive 0.3.1 — dictée consolidée, essai Windows hors ligne" --notes-file app/RELEASE-0.3.1.md $archive "$archive.sha256"
+          gh release create v0.4.0-essai --target "$env:RELEASE_COMMIT" --prerelease --latest=false --title "NoteVive 0.4.0 — nouveau carnet et dictée externe, essai Windows" --notes-file app/RELEASE-0.4.0.md $archive "$archive.sha256"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
