@@ -2,45 +2,85 @@
 
 # NoteVive · DocTranscript
 
-**Dictée médicale en français, aux pauses et hors ligne.** NoteVive transforme une dictée en brouillon éditable sur Windows. Les phrases reconnues sont ajoutées au fil des pauses. La bibliothèque locale permet de renommer les notes, les classer en dossiers et sous-dossiers, rechercher leur contenu et trier par titre, création ou modification.
+**Dictez une note en français, relisez-la et retrouvez-la sur votre ordinateur.** NoteVive transforme la voix en texte, puis permet de renommer les notes, de les classer dans des dossiers et de les rechercher. Le traitement et la sauvegarde se font localement. Une fois le téléchargement terminé, l’application fonctionne sans Internet.
 
-**Préversion Windows 0.3.0, réservée aux données fictives.** Le paquet utilise Whisper Large-v3 Turbo Q5_0 avec whisper.cpp, OpenBLAS et Silero 6.2. Le traitement démarre après une pause de 576 ms ; l’affichage dépend ensuite du temps de calcul. La [CI Windows](https://github.com/sarbhakan/DocTranscript/actions/runs/43620136119/job/132523751821) valide les contrôles natifs, les trois extraits fictifs et le parcours automatisé de l’interface. Les [mesures](docs/p0-choix-moteur.md) montrent que le calcul reste plus long que la parole sur les contrôles Windows. Les essais au micro sur deux PC physiques, dont un à 8 Go sans GPU dédié, restent à faire.
+## Télécharger et essayer l’application
 
-## Préparer l’essai sur Windows 11 x64
+### [Télécharger NoteVive pour Windows — ZIP, environ 544 Mo](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip)
 
-**Téléchargement : [préversion Windows v0.3.0-essai](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai).** Choisir `NoteVive-Windows-x64-Essai.zip` et son fichier `.sha256`. Les archives « Source code » ne contiennent pas l’EXE.
+**[Ouvrir le guide pas à pas pour débuter](docs/guide-essai-windows.md)** · [Voir la page de téléchargement sur GitHub](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai)
 
-La dictée dans le candidat 0.3.0 demande un processeur x64 compatible **AVX2** et ses extensions associées, sans GPU dédié. Si le processeur est incompatible, NoteVive le signale avant d’ouvrir le micro et la bibliothèque reste accessible.
+Le téléchargement est public : aucun compte GitHub ou NoteVive n’est nécessaire. Le ZIP contient l’application et son modèle de reconnaissance vocale. Vous n’avez aucun outil de programmation à installer.
 
-Vérifier le SHA-256 du ZIP, l’extraire en entier et ouvrir `NoteVive.exe` dans le dossier extrait. Le modèle est inclus. Pour un premier test, cliquer sur **Dicter**, attendre **Micro ouvert**, puis lire « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Cliquer sur **Arrêter**, relire et renommer la note. Fermer puis rouvrir NoteVive pour vérifier la sauvegarde.
+**Version d’essai 0.3.0 : utilisez uniquement des dictées fictives.** La transcription peut se tromper, notamment sur les doses et les négations. Le texte apparaît après les pauses et le calcul ; ce calcul peut prendre plusieurs secondes, voire davantage selon le PC. L’application n’est pas encore qualifiée pour un usage en cabinet.
 
-[Guide d’essai et dépannage](docs/guide-essai-windows.md) · [Recette 0.3.0 sur deux PC](docs/windows-recette-030.md) · [Résultats comparés](p0/asr_benchmark.md)
+1. **Téléchargez le ZIP** avec le lien ci-dessus. Attendez la fin du téléchargement, puis retrouvez le fichier dans le dossier choisi par votre navigateur, souvent **Téléchargements**.
+2. **Faites un clic droit sur le ZIP, puis « Extraire tout ».** Ouvrez le dossier obtenu, puis le dossier **NoteVive** qu’il contient. Gardez tous les fichiers ensemble.
+3. **Double-cliquez sur `NoteVive.exe`.** Windows peut afficher simplement **NoteVive**, avec le type **Application**. C’est le fichier à ouvrir à chaque utilisation ; il n’y a pas d’assistant d’installation.
+4. **Cliquez sur « + Transcription »**, donnez un titre, puis cliquez sur **Dicter**. Attendez le message **Micro ouvert**. Dites « Pas de douleur à la cheville droite », puis laissez une pause pour voir le texte apparaître.
+5. **Cliquez sur « Arrêter »**, attendez la fin du traitement, relisez et cliquez sur **Enregistrer**. Une fois la sauvegarde confirmée, fermez et rouvrez l’application pour retrouver votre note.
 
-Le prototype utilise le microphone par défaut de Windows et sauvegarde les brouillons chiffrés pour le compte Windows courant. Le bouton **Vocabulaire** consulte un catalogue de six référentiels ; il ne modifie pas la dictée. La Base de données publique des médicaments (BDPM) est exclue du ZIP public. Le texte reste dans NoteVive à ce stade. Le moteur tourne dans un processus séparé : une interruption signale l’erreur et conserve les phrases déjà affichées. Le raccourci F9 démarre et arrête la dictée dans NoteVive ; l’insertion directe dans un logiciel médical externe reste à réaliser.
+Si Windows bloque le lancement, suivez la rubrique [dépannage](docs/guide-essai-windows.md#depannage). Le paquet d’essai est non signé ; certains postes demandent l’intervention du service informatique.
 
-## Essayer sur Mac
+> Sur GitHub, **« Code → Download ZIP »** et **« Source code »** téléchargent les fichiers de développement. Pour utiliser l’application, choisissez le fichier **`NoteVive-Windows-x64-Essai.zip`** lié ci-dessus. Le petit fichier `.sha256` sert à vérifier le téléchargement ; il ne lance pas NoteVive.
 
-Le prototype natif pour **Mac Apple Silicon, macOS 15 ou ultérieur** inclut UltiMed INT8 et Silero pour afficher les phrases à chaque pause. Il propose une bibliothèque de notes avec sauvegarde automatique, recherche, dates et dossiers, un export TXT et [14 lexiques médicaux locaux par spécialité](lexique/PROFILS.md). Le [guide Mac](app/macos/README.md) décrit le lancement et la compilation. Cette branche publie aussi les sources de cette .app de test. Le changement de moteur de la version Windows ne remplace pas la .app Mac déjà installée.
+## Sur quel ordinateur ?
 
-## Lire et contribuer au projet
-
-| Document | Ce qu’il permet de décider |
+| Votre ordinateur | Ce qui est disponible |
 | --- | --- |
-| [Feuille de route](docs/feuille-de-route.md) | Périmètre, tâches ordonnées, critères de passage et livraison. |
-| [Exécutable Windows d’essai](app/README.md) | Lancement, choix techniques, construction et recette de l’EXE portable. |
-| [Banc P0](p0/README.md) · [Procédure Windows](docs/p0-windows.md) | Préparer le lot, rejouer les dictées, comparer les moteurs sur deux PC. |
-| [Recette par lot](docs/recette-iterative.md) | Contrôles indépendants de l’interface, des interactions, du stockage et de la livraison. |
-| [Veille des moteurs](docs/veille-moteurs.md) | Candidats locaux, licences et protocole de mesure CPU. |
-| [Architecture Windows](docs/architecture-windows.md) | Application, EXE, capture, stockage et transfert vers un champ externe. |
-| [Qualité médicale](docs/qualite-medicale.md) | Vocabulaire, jeux d’essai, adaptation et évaluation des erreurs critiques. |
-| [Référentiels médicaux](docs/referentiels-medicaux.md) · [Catalogue local](lexique/README.md) | Sources françaises, licences, imports reproductibles et recherche hors ligne. |
-| [Adaptation lexicale](docs/adaptation-lexicale.md) · [Expérience praticien](docs/experience-praticien.md) | Vérifier l’apport du vocabulaire et éprouver les gestes quotidiens avant de figer l’interface. |
-| [Données et usage professionnel](docs/donnees-et-usage.md) | Flux des données, mesures techniques et conditions préalables à un pilote. |
-| [Veille des applications et outillage](docs/reemploi.md) | Références GitHub, stratégie de réemploi et rôle de Dev Toolkit Orchestrator. |
-| [Registre de suivi](docs/suivi.md) | Statuts, décisions, risques et compte rendu de chaque boucle. |
+| **Windows 11, processeur Intel ou AMD, système x64** | Le ZIP d’essai prêt à ouvrir. Un microphone est nécessaire pour dicter. Aucune carte graphique dédiée n’est requise. NoteVive vérifie lui-même la compatibilité du processeur avant la dictée. |
+| **Mac** | Les sources du prototype Mac et son [guide technique](app/macos/README.md). **Aucune `.app` Mac prête à télécharger n’est actuellement publiée dans les Releases.** Une personne disposant seulement de ce dépôt ne peut donc pas encore installer la version Mac sans la construire. |
 
-Le produit vise **un paquet Windows et une configuration de transcription qualifiée**. Les moteurs du banc P0 restent des comparateurs de développement. Une éventuelle préversion publique sert aux essais fictifs ; une livraison stable demande la qualification Windows, la revue avec des praticiens et la signature de l’artefact. Les modèles et référentiels sont documentés par version, empreinte et conditions d’utilisation. Voir [les licences des composants](app/NOTICE.md). Le dépôt ne déclare pas encore de licence générale pour le code NoteVive.
+La dictée Windows exige un processeur compatible **AVX2** et ses extensions associées. Les tests sur deux PC physiques, dont un modèle à **8 Go de mémoire sans GPU dédié**, restent à faire : la compatibilité et la vitesse sur ce poste ne sont pas encore validées. Le [guide](docs/guide-essai-windows.md#avant-de-commencer) explique comment vérifier la version de Windows.
 
-Pour signaler un problème, utiliser les [Issues GitHub](https://github.com/sarbhakan/DocTranscript/issues) avec un exemple fictif, la version Windows et les étapes de reproduction. Ne joindre ni note ou audio patient, ni copie de la bibliothèque locale.
+## Ce que vous pouvez tester
 
-Logo de travail : [source SVG](assets/notevive.svg) · [aperçu PNG](assets/notevive.png).
+- Dicter dans la fenêtre NoteVive, puis modifier le texte et le titre.
+- Créer des dossiers et des sous-dossiers ; ranger une note avec **Classer…**.
+- Rechercher dans les titres et le texte ; trier par modification, création ou titre.
+- Fermer puis rouvrir l’application pour retrouver les notes du même compte Windows sur le même PC.
+- Consulter le catalogue médical local avec **Vocabulaire**.
+
+Le [guide d’utilisation](docs/guide-essai-windows.md#organiser-les-notes) détaille ces gestes. Les notes sont sauvegardées séparément du dossier de l’application et chiffrées pour le compte Windows courant. Aucun enregistrement audio n’est conservé.
+
+Dans cette version Windows, la dictée reste dans NoteVive : le raccourci **F9** agit dans sa fenêtre. L’insertion dans un autre logiciel, le copier-coller et l’export du texte ne sont pas disponibles. **Vocabulaire** sert à consulter des termes ; il ne corrige pas automatiquement la dictée. Les fonctions du prototype Mac peuvent différer.
+
+## Besoin d’aide ou envie de transmettre un résultat ?
+
+Commencez par le [dépannage pas à pas](docs/guide-essai-windows.md#depannage). Pour nous transmettre un essai, ouvrez le [formulaire de retour](https://github.com/sarbhakan/DocTranscript/issues/new?template=essai-notevive.yml) : il vous guide sur les informations utiles, même si vous ne connaissez pas les caractéristiques techniques du PC. Un compte GitHub est nécessaire pour envoyer ce formulaire. Vous pouvez aussi transmettre les mêmes observations à la personne qui vous a fourni le lien du dépôt.
+
+Utilisez uniquement des exemples fictifs dans vos retours et captures d’écran. La [recette sur deux PC](docs/windows-recette-030.md) s’adresse aux personnes qui souhaitent faire des essais plus approfondis.
+
+## Comprendre les fichiers du dépôt
+
+Pour essayer l’application, le **ZIP de la Release** et le **guide pas à pas** suffisent. Les autres fichiers servent à documenter et à faire évoluer le projet.
+
+| Dossier | Contenu et public concerné |
+| --- | --- |
+| [`docs/`](docs/) | Guide d’utilisation, suivi du projet, choix techniques et protocoles d’essai. |
+| [`app/`](app/README.md) | Code de l’application Windows, notices et instructions de construction pour développeurs. Le sous-dossier [`macos/`](app/macos/README.md) contient le prototype Mac. |
+| [`p0/`](p0/README.md) | Outils et résultats de comparaison des moteurs de transcription. Réservés aux essais techniques. |
+| [`lexique/`](lexique/README.md) | Sources, licences et préparation des catalogues médicaux locaux. Le catalogue nécessaire à l’essai Windows est déjà dans le ZIP. |
+| [`assets/`](assets/) | Logo et éléments visuels du projet. |
+
+<details>
+<summary><strong>Documentation technique et contribution</strong></summary>
+
+Le paquet Windows 0.3.0 utilise **Whisper Large-v3 Turbo Q5_0, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 70 517 libellés de six référentiels, sans BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
+
+| Document | Ce qu’il permet de comprendre |
+| --- | --- |
+| [Feuille de route](docs/feuille-de-route.md) · [Registre de suivi](docs/suivi.md) | Périmètre, tâches, décisions, risques et preuves de réalisation. |
+| [Construction Windows](app/README.md) · [Architecture](docs/architecture-windows.md) | Composants, compilation, capture et stockage. |
+| [Résultats comparés](p0/asr_benchmark.md) · [Choix du moteur](docs/p0-choix-moteur.md) | Mesures disponibles, erreurs observées et limites de performance. |
+| [Banc P0](p0/README.md) · [Procédure Windows](docs/p0-windows.md) · [Recette par lot](docs/recette-iterative.md) | Préparation des essais, reproduction et critères de vérification. |
+| [Veille des moteurs](docs/veille-moteurs.md) · [Réemploi](docs/reemploi.md) | Alternatives, licences et rôle de Dev Toolkit Orchestrator. |
+| [Qualité médicale](docs/qualite-medicale.md) · [Adaptation lexicale](docs/adaptation-lexicale.md) | Vocabulaire, évaluation des erreurs critiques et effets des lexiques. |
+| [Référentiels médicaux](docs/referentiels-medicaux.md) · [Catalogue local](lexique/README.md) | Sources françaises, licences et imports reproductibles. |
+| [Expérience praticien](docs/experience-praticien.md) · [Données et usage professionnel](docs/donnees-et-usage.md) | Scénarios d’usage, flux des données et conditions préalables à un pilote. |
+
+La [CI du paquet publié](https://github.com/sarbhakan/DocTranscript/actions/runs/43622527596) a vérifié le stockage, les contrôles audio et le parcours automatisé de l’interface. Elle ne remplace pas les essais au micro sur les deux PC physiques. Les [mesures Windows](docs/p0-choix-moteur.md) restent au-dessus des objectifs de latence.
+
+Le projet vise **un paquet Windows et une configuration de transcription qualifiée**. Une livraison stable demande encore les essais physiques, la revue avec des praticiens et la signature de l’application. Les versions, empreintes et [licences des composants](app/NOTICE.md) sont documentées. Le dépôt ne déclare pas encore de licence générale pour le code NoteVive.
+
+</details>

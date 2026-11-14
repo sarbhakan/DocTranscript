@@ -1,5 +1,7 @@
 # Essayer NoteVive sur Mac
 
+**Disponibilité depuis GitHub : aucune application Mac `.app` prête à télécharger n’est actuellement publiée dans les Releases.** Ce dépôt contient les sources du prototype Mac. Les étapes d’utilisation ci-dessous concernent une copie de ce prototype déjà installée ou fournie séparément ; le ZIP Windows ne s’ouvre pas sur macOS. Pour construire une `.app` à partir des sources, la section **Refaire le paquet** s’adresse aux développeurs disposant des outils et des fichiers indiqués. [Retour à l’accueil du projet](../../README.md).
+
 **NoteVive 0.2.1, essai local sur Mac Apple Silicon (puce série M), macOS 15 ou ultérieur.** L’application contient UltiMed INT8 pour le français médical et Silero pour détecter les pauses. Elle n’a besoin ni d’un compte, ni d’un accès Internet, ni d’un téléchargement de modèle. Le paquet est signé localement, sans certificat Apple Developer ID ni notarisation.
 
 **Utilisez des dictées fictives.** Le moteur peut changer une dose, une fraction ou une négation. Un exemple connu est « 400 mg » rendu comme « quatre milligrammes ». Le texte n’est pas corrigé automatiquement : le brouillon reste éditable.
@@ -15,6 +17,8 @@
 Réduire la fenêtre, passer à une autre application ou changer de périphérique interrompt la capture. Les passages terminés rejoignent la note ; le dernier passage inachevé peut être perdu. Le micro ne se rouvre que sur demande. L’audio n’est pas enregistré. Les notes et la copie de secours restent dans le conteneur local ; l’application ne chiffre pas elle-même ces fichiers. En cas d’échec de sauvegarde, gardez NoteVive ouvert et utilisez **Réessayer** ou exportez le brouillon. La version Mac n’intègre pas le catalogue médical de Windows.
 
 ## Refaire le paquet
+
+Cette section technique s’adresse aux développeurs qui construisent l’application à partir des sources.
 
 Sur un Mac Apple Silicon avec Xcode et Python 3.11+, préparer ces fichiers sous `app/private/ultimed-macos/` (ou passer `--assets`). Le script contrôle toutes les empreintes avant de compiler et ne télécharge rien :
 

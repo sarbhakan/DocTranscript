@@ -1,5 +1,7 @@
 # NoteVive · paquet Windows d’essai
 
+**Vous souhaitez simplement utiliser l’application ? Ouvrez le [guide d’installation et d’utilisation pas à pas](../docs/guide-essai-windows.md).** Il vous accompagne du téléchargement jusqu’à la première dictée et à la réouverture de votre note. La suite de cette page décrit les composants et la compilation pour les personnes qui développent ou vérifient le logiciel.
+
 **Paquet d’essai : [NoteVive 0.3.0 pour Windows](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai).** Extraire le ZIP en entier puis ouvrir `NoteVive.exe` en laissant le dossier `runtime` à côté. NoteVive transcrit en français sur Windows 11 x64, sans réseau. **Dicter** ou **F9** ouvre le microphone par défaut. Le texte rejoint la note éditable après une pause ; **Arrêter** coupe le micro et termine le décodage du dernier passage. La barre latérale permet de créer des notes et des dossiers imbriqués, de rechercher dans les titres et le texte et de choisir l’ordre de tri. Les notes sont sauvegardées localement avec leur titre, leur date de création et leur dernière modification.
 
 Le [guide d’essai](../docs/guide-essai-windows.md) explique le lancement, les gestes utiles et le dépannage. Le paquet est prévu pour des **notes fictives uniquement** : il est non signé, les deux postes physiques restent à qualifier et la transcription peut se tromper sur les valeurs, les unités et le sens d’une négation.

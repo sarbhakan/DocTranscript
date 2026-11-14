@@ -1,0 +1,60 @@
+name: Retour sur un essai de NoteVive
+description: Signaler une difficulté ou partager le résultat d’un essai avec des données fictives.
+title: "[Essai NoteVive] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de décrire votre essai. Vous pouvez répondre « Je ne sais pas » aux questions techniques.
+        Ce formulaire est **public** : utilisez uniquement des phrases fictives, sans nom de patient,
+        note réelle, enregistrement de consultation ou copie de votre bibliothèque.
+        Avant de l’envoyer, vous pouvez consulter le [guide et son dépannage](https://github.com/sarbhakan/DocTranscript/blob/main/docs/guide-essai-windows.md#depannage).
+  - type: input
+    id: version
+    attributes:
+      label: Version de NoteVive
+      description: Indiquez le numéro affiché dans l’application, ou le nom du ZIP téléchargé si elle ne s’ouvre pas.
+      placeholder: "Exemple : 0.3.0 / NoteVive-Windows-x64-Essai.zip"
+    validations:
+      required: true
+  - type: dropdown
+    id: etape
+    attributes:
+      label: À quelle étape en êtes-vous ?
+      options:
+        - Téléchargement ou extraction du ZIP
+        - Ouverture de l’application ou avertissement Windows
+        - Microphone ou démarrage de la dictée
+        - Texte reconnu ou délai d’affichage
+        - Sauvegarde ou réouverture d’une note
+        - Dossiers, classement ou recherche
+        - Essai réussi ou autre retour
+    validations:
+      required: true
+  - type: textarea
+    id: observation
+    attributes:
+      label: Décrivez ce qui s’est passé
+      description: Quels boutons avez-vous utilisés ? Qu’attendiez-vous ? Qu’avez-vous obtenu ? Recopiez le message exact s’il y en a un.
+      placeholder: "Exemple fictif : j’ai cliqué sur Dicter, attendu Micro ouvert, puis dit une phrase. Le texte est apparu après environ 15 secondes. Après fermeture et réouverture, la note était bien présente."
+    validations:
+      required: true
+  - type: textarea
+    id: transcription
+    attributes:
+      label: En cas d’erreur de transcription, donnez un exemple fictif
+      description: Laissez cette partie vide si votre retour ne concerne pas le texte reconnu. Ne joignez pas d’audio ni de texte de patient.
+      placeholder: |
+        Phrase fictive prononcée :
+        Texte obtenu dans NoteVive :
+        Délai approximatif avant l’affichage :
+  - type: textarea
+    id: ordinateur
+    attributes:
+      label: Votre ordinateur et votre micro
+      description: Indiquez ce que vous connaissez. La version de Windows se trouve dans Paramètres → Système → Informations système.
+      placeholder: |
+        Version de Windows :
+        Modèle du PC ou processeur, si connu :
+        Mémoire, si connue :
+        Micro intégré, casque ou autre micro :
