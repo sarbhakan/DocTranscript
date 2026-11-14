@@ -59,6 +59,8 @@ NoteVive
 
 L’application est dite *portable* : il n’y a pas d’assistant d’installation. Pour la rouvrir plus tard, revenez dans ce même dossier et double-cliquez sur le même fichier. Vous pouvez déconnecter Internet après le téléchargement pour vérifier le fonctionnement hors ligne.
 
+Le haut de la fenêtre doit indiquer **Version 0.4.0**. Si vous voyez une autre interface ou un ancien numéro, fermez cette fenêtre et ouvrez `NoteVive.exe` depuis le nouveau dossier extrait, plutôt qu’un ancien raccourci.
+
 Si une alerte Windows empêche l’ouverture, passez au [dépannage](#depannage) avant de poursuivre.
 
 <a id="premiere-dictee"></a>
@@ -73,7 +75,7 @@ Installez-vous dans un endroit calme. NoteVive utilise le **microphone par défa
 4. Dites ensuite : **« La gêne concerne la cheville gauche depuis cinq jours. »** Faites à nouveau une pause, puis cliquez sur **Arrêter (F9)**.
 5. Attendez la fin de **Finalisation du texte…**. Le texte complet se trouve dans **Texte de la note (modifiable)**. Le cadre **Dernier passage dicté** ne montre que le dernier passage reconnu.
 6. Relisez la note : retrouvez-vous **pas**, **droite**, **gauche** et **cinq jours** ? Si besoin, cliquez dans le texte et corrigez au clavier. Cliquez sur **Enregistrer**. Le message **Brouillon sauvegardé localement · À relire** confirme l’enregistrement.
-7. Fermez la fenêtre, puis rouvrez `NoteVive.exe`. Dans **Transcriptions locales**, sélectionnez **Essai cheville** et vérifiez son titre et son texte.
+7. Fermez la fenêtre, puis rouvrez `NoteVive.exe`. Dans la **liste des transcriptions à gauche**, sélectionnez **Essai cheville** et vérifiez son titre et son texte.
 
 **Le premier essai est réussi si** le micro s’ouvre, le texte rejoint la note, vous pouvez le corriger et la note revient après fermeture et réouverture. Notez séparément les erreurs de transcription et le délai d’affichage : un bon fonctionnement de l’interface ne garantit pas une reconnaissance fidèle.
 
@@ -87,7 +89,7 @@ Faites ces manipulations après l’arrêt de la dictée et la fin du traitement
 
 ### Donner un nom à une transcription
 
-Sélectionnez la note dans **Transcriptions locales**, modifiez le champ **Titre**, puis cliquez sur **Enregistrer**. Un titre comme `Essai cheville — 14 novembre` permet de la reconnaître facilement.
+Sélectionnez la note dans la **liste des transcriptions à gauche**, modifiez le champ **Titre**, puis cliquez sur **Enregistrer**. Un titre comme `Essai cheville — 14 novembre` permet de la reconnaître facilement.
 
 ### Créer un dossier et un sous-dossier
 

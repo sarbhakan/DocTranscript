@@ -11,10 +11,14 @@
 #include <aclapi.h>
 #include <bcrypt.h>
 #include <lm.h>
+#include <objbase.h>
 #include <sddl.h>
+#include <tlhelp32.h>
 #include <userenv.h>
 
 #include <cstdio>
+#include <cstdint>
+#include <cstring>
 #include <cwchar>
 #include <iostream>
 #include <stdexcept>
@@ -180,6 +184,147 @@ struct LocalHandle {
     HANDLE value = nullptr;
     ~LocalHandle() { if (value && value != INVALID_HANDLE_VALUE) CloseHandle(value); }
 };
+
+DWORD report_session(const char* role, DWORD pid, HANDLE process) {
+    DWORD session = UINT32_MAX, token_session = UINT32_MAX, length = 0;
+    ProcessIdToSessionId(pid, &session);
+    LocalHandle token;
+    if (OpenProcessToken(process, TOKEN_QUERY, &token.value))
+        GetTokenInformation(token.value, TokenSessionId, &token_session, sizeof(token_session), &length);
+    std::printf("%s process_session=%lu token_session=%lu\n", role,
+                static_cast<unsigned long>(session), static_cast<unsigned long>(token_session));
+    return session;
+}
+
+struct MutexCandidate {
+    std::wstring name;
+    bool found_in_binary = false;
+};
+
+void discover_edge_mutexes(const wchar_t* dll, std::vector<MutexCandidate>& names) {
+    // Read only the installed browser's module. Look solely for a bounded
+    // ASCII-in-UTF16 startup-mutex literal; never emit arbitrary DLL strings.
+    if (!dll || !*dll || std::wcscmp(dll, L"-") == 0) {
+        std::puts("Edge startup mutex: installed DLL not located; upstream name only.");
+        return;
+    }
+    LocalHandle file{CreateFileW(dll, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr,
+                                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)};
+    LARGE_INTEGER size{};
+    if (file.value == INVALID_HANDLE_VALUE || !GetFileSizeEx(file.value, &size) ||
+        size.QuadPart <= 0 || size.QuadPart > 768LL * 1024 * 1024) {
+        std::puts("Edge startup mutex: installed DLL unavailable or outside diagnostic size limit.");
+        return;
+    }
+    LocalHandle mapping{CreateFileMappingW(file.value, nullptr, PAGE_READONLY, 0, 0, nullptr)};
+    if (!mapping.value) return;
+    const auto* bytes = static_cast<const BYTE*>(MapViewOfFile(mapping.value, FILE_MAP_READ, 0, 0, 0));
+    if (!bytes) return;
+    constexpr BYTE prefix[] = {'L', 0, 'o', 0, 'c', 0, 'a', 0, 'l', 0, '\\', 0};
+    const auto end = static_cast<size_t>(size.QuadPart);
+    for (size_t at = 0; at + sizeof(prefix) + 2 < end && names.size() < 5; ++at) {
+        if (bytes[at] != 'L' || std::memcmp(bytes + at, prefix, sizeof(prefix))) continue;
+        std::wstring candidate = L"Local\\";
+        for (size_t i = at + sizeof(prefix); i + 1 < end && candidate.size() <= 96; i += 2) {
+            const auto ch = bytes[i];
+            if (bytes[i + 1]) break;
+            if (!ch) {
+                constexpr wchar_t suffix[] = L"ProcessSingletonStartup!";
+                const auto length = (sizeof(suffix) / sizeof(wchar_t)) - 1;
+                if (candidate.size() > length &&
+                    candidate.compare(candidate.size() - length, length, suffix) == 0) {
+                    bool seen = false;
+                    for (auto& item : names) {
+                        if (item.name != candidate) continue;
+                        seen = item.found_in_binary = true;
+                        break;
+                    }
+                    if (!seen) names.push_back({candidate, true});
+                }
+                break;
+            }
+            if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+                  (ch >= '0' && ch <= '9') || ch == '!' || ch == '_' || ch == '-')) break;
+            candidate += static_cast<wchar_t>(ch);
+        }
+    }
+    UnmapViewOfFile(bytes);
+}
+
+std::vector<BYTE> process_identity(HANDLE process, TOKEN_ELEVATION& elevation) {
+    LocalHandle token;
+    if (!OpenProcessToken(process, TOKEN_QUERY, &token.value)) return {};
+    DWORD bytes = 0;
+    if (!GetTokenInformation(token.value, TokenElevation, &elevation, sizeof(elevation), &bytes))
+        elevation.TokenIsElevated = UINT32_MAX;
+    bytes = 0;
+    GetTokenInformation(token.value, TokenUser, nullptr, 0, &bytes);
+    std::vector<BYTE> user(bytes && bytes <= 4096 ? bytes : 0);
+    if (user.empty() || !GetTokenInformation(token.value, TokenUser, user.data(), bytes, &bytes))
+        return {};
+    return user;
+}
+
+void report_edge_processes(DWORD session) {
+    TOKEN_ELEVATION self_elevation{UINT32_MAX};
+    auto self = process_identity(GetCurrentProcess(), self_elevation);
+    LocalHandle snapshot{CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)};
+    PROCESSENTRY32W item{};
+    item.dwSize = sizeof(item);
+    unsigned count = 0;
+    if (snapshot.value != INVALID_HANDLE_VALUE && Process32FirstW(snapshot.value, &item)) {
+        do {
+            DWORD other_session = UINT32_MAX;
+            if (_wcsicmp(item.szExeFile, L"msedge.exe") ||
+                !ProcessIdToSessionId(item.th32ProcessID, &other_session) || other_session != session) continue;
+            if (++count > 12) continue;
+            LocalHandle process{OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, item.th32ProcessID)};
+            TOKEN_ELEVATION elevation{UINT32_MAX};
+            auto user = process_identity(process.value, elevation);
+            const auto* owner = "unknown";
+            if (!self.empty() && !user.empty()) {
+                owner = EqualSid(reinterpret_cast<TOKEN_USER*>(self.data())->User.Sid,
+                                 reinterpret_cast<TOKEN_USER*>(user.data())->User.Sid) ? "current" : "other";
+            }
+            std::printf("Edge process pid=%lu session=%lu identity=%s elevated=%s\n",
+                        static_cast<unsigned long>(item.th32ProcessID), static_cast<unsigned long>(session), owner,
+                        elevation.TokenIsElevated == 0 ? "no" : elevation.TokenIsElevated == 1 ? "yes" : "unknown");
+        } while (Process32NextW(snapshot.value, &item));
+    }
+    std::printf("Edge processes in recipe session: %u\n", count);
+}
+
+int edge_startup_diagnostic(const wchar_t* dll) {
+    const auto session = report_session("edge_recipe", GetCurrentProcessId(), GetCurrentProcess());
+    report_edge_processes(session);
+    // A private throw-away name proves this token can create a local mutex.
+    // Do not acquire any mutex or make changes to an existing named object.
+    GUID id{};
+    wchar_t id_text[40]{};
+    if (SUCCEEDED(CoCreateGuid(&id)) && StringFromGUID2(id, id_text, 40)) {
+        const auto name = std::wstring(L"Local\\NoteViveRecipeMutex-") + id_text;
+        SetLastError(ERROR_SUCCESS);
+        LocalHandle inner{CreateMutexW(nullptr, FALSE, name.c_str())};
+        const auto result = GetLastError();
+        std::printf("Private local mutex created=%d code=%lu\n", inner.value != nullptr,
+                    static_cast<unsigned long>(result));
+    }
+    std::vector<MutexCandidate> names{{L"Local\\ChromeProcessSingletonStartup!", false}};
+    discover_edge_mutexes(dll, names);
+    for (const auto& item : names) {
+        const auto check = [&](DWORD access) {
+            LocalHandle handle{OpenMutexW(access, FALSE, item.name.c_str())};
+            return handle.value ? ERROR_SUCCESS : GetLastError();
+        };
+        const auto sync = check(SYNCHRONIZE);
+        const auto read_write = check(SYNCHRONIZE | READ_CONTROL | MUTEX_MODIFY_STATE);
+        const auto full = check(MUTEX_ALL_ACCESS); // The access CreateMutexW requests for an existing name.
+        std::printf("Browser mutex %ls found_in_edge_dll=%d sync=%lu read_write=%lu full=%lu\n",
+                    item.name.c_str(), item.found_in_binary, static_cast<unsigned long>(sync),
+                    static_cast<unsigned long>(read_write), static_cast<unsigned long>(full));
+    }
+    return 0;
+}
 
 bool hosted_recipe() {
     const auto expected = [](const wchar_t* name, const wchar_t* value) {
@@ -594,6 +739,8 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     account.launch_succeeded = true;
     SecureZeroMemory(account.password, sizeof(account.password));
     LocalHandle child_process{child.hProcess}, child_thread{child.hThread};
+    report_session("recipe_launcher", GetCurrentProcessId(), GetCurrentProcess());
+    report_session("recipe_child", child.dwProcessId, child.hProcess);
     if (!AssignProcessToJobObject(job.value, child_process.value)) {
         const auto code = failure("AssignProcessToJobObject");
         TerminateProcess(child_process.value, 1);
@@ -794,6 +941,8 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3 && std::wcscmp(argv[1], L"--child") == 0) return child(argv[2]);
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-probe") == 0)
             return edge_probe(static_cast<DWORD>(std::stoul(argv[2])));
+        if (argc == 3 && std::wcscmp(argv[1], L"--edge-startup-diagnostic") == 0)
+            return edge_startup_diagnostic(argv[2]);
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
         if (argc == 5 && std::wcscmp(argv[1], L"--launch-standard") == 0)
             return launch_standard(argv[2], argv[3], argv[4]);

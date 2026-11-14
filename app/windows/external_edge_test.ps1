@@ -17,6 +17,25 @@ if (-not $EdgeExe) {
 if (-not $EdgeExe) { throw 'Edge is not installed on this Windows host.' }
 $EdgeExe = (Resolve-Path -LiteralPath $EdgeExe).Path
 
+# Edge's UserDataDir policy takes precedence over --user-data-dir. Refuse
+# before launch so this probe can never reach a profile selected by policy.
+# Check both registry views without reading or printing the configured path.
+foreach ($hive in @([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryHive]::CurrentUser)) {
+    foreach ($view in @([Microsoft.Win32.RegistryView]::Registry64, [Microsoft.Win32.RegistryView]::Registry32)) {
+        $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, $view)
+        try {
+            $policy = $base.OpenSubKey('SOFTWARE\Policies\Microsoft\Edge', $false)
+            if ($policy) {
+                try {
+                    if ($policy.GetValueNames() -contains 'UserDataDir') {
+                        throw 'Edge sets a profile directory by policy; the isolated recipe refuses to launch.'
+                    }
+                } finally { $policy.Dispose() }
+            }
+        } finally { $base.Dispose() }
+    }
+}
+
 function Require([bool]$Ok, [string]$Message) { if (-not $Ok) { throw $Message } }
 function Wait-Until([scriptblock]$Condition, [string]$Failure, [int]$Milliseconds = 7000) {
     $timer = [Diagnostics.Stopwatch]::StartNew()
@@ -77,6 +96,12 @@ function Select-Editable {
     Require (Eval '(() => { rich.focus(); const r=document.createRange(); r.setStart(rich.firstChild,1); r.collapse(true); const s=getSelection(); s.removeAllRanges(); s.addRange(r); return document.hasFocus() && document.activeElement===rich; })()') 'Edge contenteditable did not receive focus.'
 }
 
+function Log-EdgeStartupEnvironment([string]$phase, [string]$dll) {
+    Write-Output "Edge recipe environment: $phase."
+    & $ProbeExe --edge-startup-diagnostic $dll
+    if ($LASTEXITCODE -ne 0) { Write-Output "Edge startup diagnostic exited with $LASTEXITCODE." }
+}
+
 function Log-EdgeFailure {
     if ($edge) {
         $state = if ($edge.HasExited) { 'exited 0x{0:X8}' -f $edge.ExitCode } else { 'still running' }
@@ -96,6 +121,16 @@ function Log-EdgeFailure {
             Get-Content -LiteralPath $debug -Tail 6 -ErrorAction SilentlyContinue |
                 ForEach-Object { Write-Output ("Edge startup log: " + $_.Substring(0, [Math]::Min($_.Length, 300))) }
         }
+    }
+    if ($HostedRecipe) {
+        $installation = Split-Path -Parent $EdgeExe
+        $version = [regex]::Match([Diagnostics.FileVersionInfo]::GetVersionInfo($EdgeExe).FileVersion, '^\d+\.\d+\.\d+\.\d+')
+        $dll = Join-Path $installation 'msedge.dll'
+        if ($version.Success -and -not (Test-Path -LiteralPath $dll -PathType Leaf)) {
+            $dll = Join-Path (Join-Path $installation $version.Value) 'msedge.dll'
+        }
+        if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { $dll = '-' }
+        Log-EdgeStartupEnvironment 'after the browser failure' $dll
     }
 }
 
@@ -161,6 +196,7 @@ try {
     $browserStart.UseShellExecute = $false
     $browserStart.EnvironmentVariables['TEMP'] = $work
     $browserStart.EnvironmentVariables['TMP'] = $work
+    if ($HostedRecipe) { Log-EdgeStartupEnvironment 'before browser startup' '-' }
     $edge = [Diagnostics.Process]::Start($browserStart)
     Wait-Until {
         if ($edge.HasExited) { throw 'The isolated Edge process exited during startup.' }

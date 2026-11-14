@@ -342,7 +342,7 @@ struct App {
         dpi = GetDpiForWindow(window);
         if (!dpi) dpi = 96;
         banner = control(L"STATIC", L"NoteVive", SS_LEFT | SS_NOPREFIX);
-        subtitle = control(L"STATIC", L"Carnet de dictée · Essai sur données fictives", SS_LEFT | SS_NOPREFIX);
+        subtitle = control(L"STATIC", L"Version 0.4.0 · Essai sur données fictives", SS_LEFT | SS_NOPREFIX);
         local_badge = control(L"STATIC", L"Stockage local · Hors ligne", SS_CENTER | SS_CENTERIMAGE | SS_NOPREFIX);
         new_note = control(L"BUTTON", L"+ &Transcription", WS_TABSTOP | BS_PUSHBUTTON, New);
         new_folder = control(L"BUTTON", L"+ &Dossier", WS_TABSTOP | BS_PUSHBUTTON, NewFolder);
