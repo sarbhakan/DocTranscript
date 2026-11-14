@@ -55,6 +55,53 @@ public static class NvWindow {
         if (Send(combo, 0x014e, new IntPtr(index), IntPtr.Zero) != index) return false; // CB_SETCURSEL
         return Post(parent, 0x0111, new IntPtr((1 << 16) | 113), combo); // WM_COMMAND / CBN_SELCHANGE
     }
+    static IntPtr ListControl(IntPtr parent, int controlId) {
+        IntPtr list = GetDlgItem(parent, controlId);
+        var klass = new StringBuilder(32);
+        if (list == IntPtr.Zero || GetClassName(list, klass, klass.Capacity) == 0 ||
+            !string.Equals(klass.ToString(), "ListBox", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The native NoteVive list box was not found.");
+        return list;
+    }
+    public static string[] ListLabels(IntPtr parent, int controlId) {
+        var list = ListControl(parent, controlId);
+        int count = Send(list, 0x018b, IntPtr.Zero, IntPtr.Zero); // LB_GETCOUNT
+        if (count < 0 || count > 16) throw new InvalidOperationException("Unexpected size of the isolated test list.");
+        var labels = new string[count];
+        for (int i = 0; i < count; ++i) {
+            var index = new IntPtr(i);
+            int length = Send(list, 0x018a, index, IntPtr.Zero); // LB_GETTEXTLEN
+            if (length < 0) return null; // A pending refresh replaced the list; poll again.
+            // Supply room for a full breadcrumb if a pending refresh changes the row.
+            var caption = new StringBuilder(4096);
+            if (length >= caption.Capacity) throw new InvalidOperationException("A native list label exceeded the test buffer.");
+            UIntPtr result;
+            if (ReadBounded(list, 0x0189, index, caption, 0x0022, 2000, out result) == IntPtr.Zero) // LB_GETTEXT
+                throw new TimeoutException("The native NoteVive list did not answer the test.");
+            if (unchecked((int)result.ToUInt64()) != length || caption.Length != length) return null;
+            labels[i] = caption.ToString();
+        }
+        return labels;
+    }
+    public static bool SelectListRow(IntPtr parent, int controlId, string sought, bool noteTitle) {
+        var list = ListControl(parent, controlId);
+        if (!IsWindowEnabled(list)) throw new InvalidOperationException("The native NoteVive list is disabled.");
+        var labels = ListLabels(parent, controlId);
+        if (labels == null) return false;
+        int index = -1;
+        for (int i = 0; i < labels.Length; ++i) {
+            bool match = noteTitle ? labels[i].StartsWith(sought + " · ", StringComparison.Ordinal) :
+                string.Equals(labels[i], sought, StringComparison.Ordinal);
+            if (!match) continue;
+            if (index != -1) throw new InvalidOperationException("The test label is ambiguous in the native list.");
+            index = i;
+        }
+        if (index < 0 || Send(list, 0x0186, new IntPtr(index), IntPtr.Zero) != index || // LB_SETCURSEL
+            Send(list, 0x0188, IntPtr.Zero, IntPtr.Zero) != index) return false; // LB_GETCURSEL
+        // Unlike user input, LB_SETCURSEL does not send LBN_SELCHANGE itself.
+        Send(parent, 0x0111, new IntPtr((1 << 16) | controlId), list); // WM_COMMAND / LBN_SELCHANGE
+        return true;
+    }
     public static int TreeCount(IntPtr tree) {
         return Send(tree, 0x1105, IntPtr.Zero, IntPtr.Zero); // TVM_GETCOUNT
     }
@@ -164,9 +211,6 @@ $idProperty = [System.Windows.Automation.AutomationElement]::AutomationIdPropert
 $nameProperty = [System.Windows.Automation.AutomationElement]::NameProperty
 $classProperty = [System.Windows.Automation.AutomationElement]::ClassNameProperty
 $processProperty = [System.Windows.Automation.AutomationElement]::ProcessIdProperty
-$typeProperty = [System.Windows.Automation.AutomationElement]::ControlTypeProperty
-$listItemType = [System.Windows.Automation.ControlType]::ListItem
-$selection = [System.Windows.Automation.SelectionItemPattern]::Pattern
 $invoke = [System.Windows.Automation.InvokePattern]::Pattern
 $prefix = "NVTEST-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
 $testProfile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) 'NoteVive-Pilote'
@@ -178,6 +222,7 @@ $testChild = "$prefix enfant"
 $testChildRenamed = "$prefix sous-dossier"
 $testRenamed = "$prefix classe"
 $marker = "$prefix marqueur éphémère."
+$savedMarker = "$marker Texte relu."
 $process = $null
 $stage = 'initialisation'
 
@@ -213,10 +258,6 @@ function ById([int]$Control) {
     Wait-For { In-Window $idProperty ([string]$Control) } "find control $Control"
 }
 
-function ByName($Parent, [string]$Name) {
-    Wait-For { $Parent.FindFirst($enumScope, (Condition $nameProperty $Name)) } "find '$Name'"
-}
-
 function Wait-TreePath([string[]]$Path, [switch]$Select) {
     $tree = [NvWindow]::GetDlgItem((Window-Handle $app), 110)
     $labels = @('Toutes les transcriptions') + $Path
@@ -237,12 +278,19 @@ function Wait-Folders([int]$Expected) {
 }
 
 function Test-NoteVisible([string]$Name) {
-    $noteList = ById 106
-    $items = $noteList.FindAll($enumScope, (Condition $typeProperty $listItemType))
-    foreach ($item in $items) {
-        if ($item.Current.Name.StartsWith("$Name · ", [StringComparison]::Ordinal)) { return $item }
+    foreach ($label in @(Sorted-Names)) {
+        if (Note-HasTitle $label $Name) { return $true }
     }
-    return $null
+    return $false
+}
+
+function Note-HasTitle([string]$Label, [string]$Title) {
+    return $Label.StartsWith("$Title · ", [StringComparison]::Ordinal)
+}
+
+function Select-Note([string]$Name) {
+    $handle = Window-Handle $app
+    $null = Wait-For { [NvWindow]::SelectListRow($handle, 106, $Name, $true) } "select the saved note '$Name'"
 }
 
 function Window-Handle($Element) { return [IntPtr]$Element.Current.NativeWindowHandle }
@@ -334,6 +382,7 @@ function Rename-SelectedFolder([string]$Name) {
         }
     } 'find Renommer le dossier in the folder menu'
     Step 'invoke Rename from the folder actions menu'
+    if (-not $item.Current.IsEnabled) { throw 'The visible Rename menu item is disabled.' }
     $item.GetCurrentPattern($invoke).Invoke()
     Step 'confirm the new folder name'
     Folder-Dialog 'Renommer le dossier' $Name
@@ -342,15 +391,16 @@ function Rename-SelectedFolder([string]$Name) {
 function Move-Note([string]$Destination) {
     Click (ById 116)
     $dialog = Find-Dialog 'Classer la transcription'
-    (ByName $dialog $Destination).GetCurrentPattern($selection).Select()
+    $handle = Window-Handle $dialog
+    $null = Wait-For { [NvWindow]::GetDlgItem($handle, 100) -ne [IntPtr]::Zero } 'find the native destination list'
+    $null = Wait-For { [NvWindow]::SelectListRow($handle, 100, $Destination, $false) } "select the destination '$Destination'"
     Confirm-Dialog $dialog
     $null = Wait-For { (Editor-Folder) -ceq $Destination } "move note to '$Destination'"
 }
 
 function Sorted-Names {
-    $list = (ById 106).FindAll($enumScope, (Condition $typeProperty $listItemType))
-    return @($list | Where-Object { $_.Current.Name.StartsWith($prefix, [StringComparison]::Ordinal) } |
-        ForEach-Object { $_.Current.Name })
+    $labels = [NvWindow]::ListLabels((Window-Handle $app), 106)
+    if ($null -ne $labels) { return @($labels) }
 }
 
 try {
@@ -387,15 +437,34 @@ try {
     Input-Text (ById 108) 'Deuxième transcription fictive.'
     Click (ById 103)
     $null = Wait-For { Test-NoteVisible $testNote } 'second note saved'
-    Step 'sort the notes by creation date and title'
+    Step 'verify independent modification, creation and title ordering'
+    # Give the first note a later revision, so modification and creation sort
+    # in opposite directions. Wait for autosave before changing the sort.
+    Select-Note $testOlder
+    $null = Wait-For { [NvWindow]::Text((Window-Handle (ById 108))) -ceq $marker } 'open the older note before editing'
+    Input-Text (ById 108) $savedMarker
+    $null = Wait-For {
+        $names = @(Sorted-Names)
+        $names.Count -eq 2 -and (Note-HasTitle $names[0] $testOlder) -and (Note-HasTitle $names[1] $testNote)
+    } 'newest modification first after editing the oldest note'
     $sort = Window-Handle (ById 113)
     if (-not [NvWindow]::ChooseSort((Window-Handle $app), $sort, 1)) { throw 'Cannot select creation date.' }
-    $null = Wait-For { $names = @(Sorted-Names); $names.Count -eq 2 -and $names[0].StartsWith("$testNote · ") } 'newest creation first'
+    $null = Wait-For {
+        $names = @(Sorted-Names)
+        $names.Count -eq 2 -and (Note-HasTitle $names[0] $testNote) -and (Note-HasTitle $names[1] $testOlder)
+    } 'newest creation first'
     if (-not [NvWindow]::ChooseSort((Window-Handle $app), $sort, 2)) { throw 'Cannot select title order.' }
-    $null = Wait-For { $names = @(Sorted-Names); $names.Count -eq 2 -and $names[0].StartsWith("$testOlder · ") } 'French title order'
+    $null = Wait-For {
+        $names = @(Sorted-Names)
+        $names.Count -eq 2 -and (Note-HasTitle $names[0] $testOlder) -and (Note-HasTitle $names[1] $testNote)
+    } 'French title order'
 
     # Verify closing flushes edits, then reopen and find the saved note by body only.
     Step 'rename the note, close and reopen NoteVive'
+    Select-Note $testNote
+    $null = Wait-For {
+        [NvWindow]::Text((Window-Handle (ById 108))) -ceq 'Deuxième transcription fictive.'
+    } 'open the second note before renaming'
     Input-Text (ById 107) $testRenamed
     End-App
     Begin-App
@@ -403,16 +472,15 @@ try {
     Wait-TreePath @($testFolder, $testChild)
     Step 'search and open the saved note by its body'
     Input-Text (ById 111) 'marqueur ephemere'
-    $note = Wait-For {
+    $null = Wait-For {
         $names = @(Sorted-Names)
-        if ($names.Count -eq 1 -and $names[0].StartsWith("$testOlder · ")) { Test-NoteVisible $testOlder }
+        $names.Count -eq 1 -and (Note-HasTitle $names[0] $testOlder)
     } 'accent-insensitive query of saved body'
-    $note.GetCurrentPattern($selection).Select()
-    $null = Wait-For { [NvWindow]::Text((Window-Handle (ById 108))) -eq $marker } 'open saved body'
+    Select-Note $testOlder
+    $null = Wait-For { [NvWindow]::Text((Window-Handle (ById 108))) -ceq $savedMarker } 'open saved body'
     Step 'select the renamed note and its child folder'
     Input-Text (ById 111) ''
-    $renamed = Wait-For { Test-NoteVisible $testRenamed } 'renamed note persisted on close'
-    $renamed.GetCurrentPattern($selection).Select()
+    Select-Note $testRenamed
     $null = Wait-For {
         $where = [NvWindow]::GetDlgItem((Window-Handle $app), 120)
         [NvWindow]::Text($where).Contains("$testFolder / $testChild")
@@ -430,8 +498,7 @@ try {
     Begin-App
     Wait-Folders 2
     Wait-TreePath @($testFolder, $testChildRenamed)
-    $moved = Wait-For { Test-NoteVisible $testRenamed } 'find the moved note on restart'
-    $moved.GetCurrentPattern($selection).Select()
+    Select-Note $testRenamed
     $null = Wait-For {
         (Editor-Folder) -ceq $testFolder -and [NvWindow]::Text((Window-Handle (ById 108))) -ceq 'Deuxième transcription fictive.'
     } 'new folder and note body persisted after moving'
@@ -453,6 +520,8 @@ try {
             $tree = [NvWindow]::GetDlgItem($handle, 110)
             $details += ", native_tree_items=$([NvWindow]::TreeCount($tree)), main_enabled=$([NvWindow]::IsWindowEnabled($handle))"
             [Console]::Error.WriteLine($details)
+            [Console]::Error.WriteLine("Native note list rows: $(@(Sorted-Names).Count)")
+            [Console]::Error.WriteLine("Native folder popup visible: $([NvWindow]::PopupMenu($process.Id) -ne [IntPtr]::Zero)")
         } else { [Console]::Error.WriteLine($details) }
     } catch {
         [Console]::Error.WriteLine("Additional UI diagnostics unavailable: $($_.Exception.GetType().FullName)")

@@ -35,7 +35,12 @@ def check_fixture(case, recognized):
         r'\b(?:mg|milligrammes?)\s*(?:/|par)\s*(?:ml|millilitres?|litres?)\b',
         recognized, flags=re.IGNORECASE)
     terms = annotated_matches(recognized, case['terms'], words)
-    result = {'critical_span_presence': critical, 'numeric_sequence_equal': signature(actual) == signature(expected),
+    # These three inputs are public fictional fixtures. Retain numbers only so a
+    # failed comparison can distinguish notation issues from changed quantities
+    # without publishing the ASR text. This helper is not used on patients' notes.
+    expected_numbers, actual_numbers = signature(expected), signature(actual)
+    result = {'critical_span_presence': critical, 'numeric_sequence_equal': actual_numbers == expected_numbers,
+              'expected_numeric_sequence': expected_numbers, 'actual_numeric_sequence': actual_numbers,
               'no_added_negation': no_new_negation, 'no_added_concentration': no_concentration,
               'terms': [sum(ok for _, ok in terms), len(terms)]}
     result['passed'] = (all(good == count for good, count in critical.values())
