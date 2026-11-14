@@ -139,6 +139,73 @@ function Log-LaunchHistograms {
     }
 }
 
+function Trace-SyntheticLowBox {
+    # The hosted SDK may have CDB. Trace only a new NoteVive probe process
+    # under this same ordinary account. Do not attach to Edge or the runner.
+    $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Debuggers\x64\cdb.exe'
+    if (-not (Test-Path -LiteralPath $kits -PathType Leaf)) {
+        Write-Output 'Synthetic LowBox trace: x64 SDK debugger absent.'
+        return
+    }
+    $symbols = Join-Path $work 'local-symbols-only'
+    $null = [IO.Directory]::CreateDirectory($symbols)
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $kits
+    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -c "bu kernelbase!CreateAppContainerToken;g" "{1}" --edge-lowbox-trace' -f $symbols, $ProbeExe
+    $start.WorkingDirectory = $work
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $debugger = $null
+    try {
+        $debugger = [Diagnostics.Process]::Start($start)
+        $stdout = $debugger.StandardOutput.ReadToEndAsync()
+        $stderr = $debugger.StandardError.ReadToEndAsync()
+        # The initial command stops at the exported factory. These commands
+        # are consumed at its prompt and after the traced return.
+        $debugger.StandardInput.WriteLine('wt -l 14 -ns -nw -or')
+        $debugger.StandardInput.WriteLine('q')
+        $debugger.StandardInput.Flush()
+        if (-not $debugger.WaitForExit(18000)) {
+            Write-Output 'Synthetic LowBox trace: debugger deadline reached.'
+            $debugger.Kill()
+            $null = $debugger.WaitForExit(1000)
+        }
+        if (-not $stdout.Wait(1500) -or -not $stderr.Wait(1500)) {
+            Write-Output 'Synthetic LowBox trace: debugger stream did not close.'
+            return
+        }
+        # wt prints symbol names and return registers. Exclude command lines,
+        # process paths, registers other than reported returns, and all raw SIDs.
+        $kept = @()
+        foreach ($line in ($stdout.Result -split "`r?`n")) {
+            if ($line -match '^\s*(?:\d+\s+){2}\[\s*\d+\]\s+(?<symbol>(?:ntdll|kernelbase)!(?:Nt[A-Za-z0-9_]{2,64}|Zw[A-Za-z0-9_]{2,64}|CreateAppContainerToken|Basep[A-Za-z0-9_]{2,64}))\b(?<tail>.*)$') {
+                $symbol = $Matches.symbol
+                $tail = $Matches.tail
+                $codes = @([regex]::Matches($tail, '(?i)\b(?:0x)?[0-9a-f]{8}(?:`[0-9a-f]{8})?\b') |
+                    ForEach-Object Value | Select-Object -First 3)
+                $kept += "Synthetic LowBox trace call $symbol returns=$($codes -join ',')"
+            }
+        }
+        $kept | Select-Object -First 50 | Write-Output
+        Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); debugger_exited=$($debugger.HasExited)."
+        if (-not $kept.Count) {
+            $raw = $stdout.Result + $stderr.Result
+            Write-Output "Synthetic LowBox trace state: factory_symbol=$($raw -match 'kernelbase!CreateAppContainerToken'); trace_command=$($raw -match 'wt -l 14'); command_error=$($raw -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
+        }
+    } catch {
+        # Do not print raw debugger command lines/paths.
+        Write-Output "Synthetic LowBox trace: debugger failed ($($_.Exception.GetBaseException().GetType().Name))."
+    } finally {
+        if ($debugger) {
+            if (-not $debugger.HasExited) { $debugger.Kill() }
+            $debugger.Dispose()
+        }
+    }
+}
+
 function Log-EdgeFailure {
     if ($edge) {
         $state = if ($edge.HasExited) { 'exited 0x{0:X8}' -f $edge.ExitCode } else { 'still running' }
@@ -245,7 +312,10 @@ try {
     $browserStart.EnvironmentVariables['TMP'] = $work
     if ($HostedRecipe) {
         & $ProbeExe --edge-startup-preflight
-        Require ($LASTEXITCODE -eq 0) 'The ordinary-user browser preflight could not create a local mutex and both synthetic AppContainer tokens.'
+        if ($LASTEXITCODE -ne 0) {
+            Trace-SyntheticLowBox
+            throw 'The ordinary-user browser preflight could not create a local mutex and both synthetic AppContainer tokens.'
+        }
     }
     $edge = [Diagnostics.Process]::Start($browserStart)
     Wait-Until {

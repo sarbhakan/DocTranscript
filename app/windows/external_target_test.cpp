@@ -207,6 +207,7 @@ struct NamespaceObservation {
 NamespaceObservation observe_namespace(DWORD session);
 void observe_renderer_objects(DWORD session);
 bool observe_lowbox_creation(DWORD session);
+void observe_appcontainer_links(DWORD session);
 
 void observe_self_token_access() {
     // Request handles to this ephemeral account's own token. No privilege is
@@ -289,6 +290,7 @@ int edge_startup_preflight() {
                 in_job != FALSE, static_cast<unsigned long>(result));
     if (!in_job && result != ERROR_SUCCESS) return 1;
     observe_renderer_objects(session);
+    observe_appcontainer_links(session);
     const bool lowbox = observe_lowbox_creation(session);
     const bool mutex = observe_namespace(session).local_mutex == ERROR_SUCCESS;
     std::printf("Edge broker preflight: local_mutex=%d synthetic_lowbox=%d\n", mutex, lowbox);
@@ -590,6 +592,76 @@ void observe_renderer_objects(DWORD session) {
     std::printf("Desktop query (synthetic restricting SID): normal station=%lu desktop=%lu; restricted station=%lu desktop=%lu\n",
                 static_cast<unsigned long>(normal.first), static_cast<unsigned long>(normal.second),
                 static_cast<unsigned long>(limited.first), static_cast<unsigned long>(limited.second));
+}
+
+void observe_appcontainer_links(DWORD session) {
+    // Known names only, for this token and its session. Do not enumerate a
+    // namespace or send an object name/logon SID to the CI logs.
+    if (!session || session == UINT32_MAX) return;
+    const auto directory_api = RecipeNamespace::api();
+    const auto ntdll = GetModuleHandleW(L"ntdll.dll");
+    const auto open_proc = ntdll ? GetProcAddress(ntdll, "NtOpenSymbolicLinkObject") : nullptr;
+    const auto query_proc = ntdll ? GetProcAddress(ntdll, "NtQuerySymbolicLinkObject") : nullptr;
+    if (!directory_api || !open_proc || !query_proc) return;
+    using QueryLink = NTSTATUS (NTAPI*)(HANDLE, PUNICODE_STRING, PULONG);
+    RecipeNamespace::OpenDirectory open_link = nullptr; // Same signature as NtOpenDirectoryObject.
+    QueryLink query_link = nullptr;
+    static_assert(sizeof(open_proc) == sizeof(open_link) && sizeof(query_proc) == sizeof(query_link));
+    std::memcpy(&open_link, &open_proc, sizeof(open_link));
+    std::memcpy(&query_link, &query_proc, sizeof(query_link));
+    std::wstring logon_sid;
+    LocalHandle self;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &self.value)) {
+        DWORD length = 0;
+        GetTokenInformation(self.value, TokenLogonSid, nullptr, 0, &length);
+        std::vector<BYTE> bytes(length && length <= 4096 ? length : 0);
+        if (bytes.size() >= sizeof(TOKEN_GROUPS) &&
+            GetTokenInformation(self.value, TokenLogonSid, bytes.data(), length, &length)) {
+            const auto* groups = reinterpret_cast<const TOKEN_GROUPS*>(bytes.data());
+            LPWSTR local_sid = nullptr;
+            if (groups->GroupCount == 1 && (groups->Groups[0].Attributes & SE_GROUP_LOGON_ID) == SE_GROUP_LOGON_ID &&
+                ConvertSidToStringSidW(groups->Groups[0].Sid, &local_sid)) {
+                logon_sid = local_sid;
+                LocalFree(local_sid);
+            }
+        }
+    }
+    const std::wstring session_root = L"\\Sessions\\" + std::to_wstring(session) + L"\\";
+    const auto app_root = session_root + L"AppContainerNamedObjects";
+    const auto read = [&](const char* role, const std::wstring& leaf) {
+        LocalHandle link, query_handle, create_handle;
+        const auto opened = RecipeNamespace::open(open_link, session, 0x1, link.value, leaf.c_str());
+        const auto visible = RecipeNamespace::open(directory_api, session, 0x3, query_handle.value, leaf.c_str());
+        const auto create = RecipeNamespace::open(directory_api, session, 0xf, create_handle.value, leaf.c_str());
+        const char* link_form = "unavailable";
+        NTSTATUS queried = opened;
+        if (opened >= 0) {
+            wchar_t text[512]{};
+            UNICODE_STRING target{0, static_cast<USHORT>(sizeof(text)), text};
+            queried = query_link(link.value, &target, nullptr);
+            if (queried >= 0 && target.Length && target.Length <= sizeof(text) && target.Length % sizeof(wchar_t) == 0) {
+                const std::wstring result(target.Buffer, target.Length / sizeof(wchar_t));
+                const bool actual_logon = !logon_sid.empty() && result.find(logon_sid) != std::wstring::npos;
+                const auto same = [&](const std::wstring& value) {
+                    return CompareStringOrdinal(result.c_str(), -1, value.c_str(), -1, TRUE) == CSTR_EQUAL;
+                };
+                link_form = actual_logon ? "contains-own-logon-sid" : same(app_root) ? "session-app-root" :
+                    same(L"\\AppContainerNamedObjects") ? "global-app-root" : "other";
+            }
+        }
+        std::printf("AppContainer object route %s: link_open=0x%08lx link_query=0x%08lx target=%s "
+            "directory_read=0x%08lx directory_create_access=0x%08lx\n", role,
+            static_cast<unsigned long>(static_cast<DWORD>(opened)), static_cast<unsigned long>(static_cast<DWORD>(queried)),
+            link_form, static_cast<unsigned long>(static_cast<DWORD>(visible)),
+            static_cast<unsigned long>(static_cast<DWORD>(create)));
+    };
+    read("base-alias", L"BaseNamedObjects\\AppContainerNamedObjects");
+    read("base-restricted-alias", L"BaseNamedObjects\\Restricted\\AppContainerNamedObjects");
+    if (!logon_sid.empty()) {
+        read("own-logon-base", L"BaseNamedObjects\\" + logon_sid);
+        read("own-logon-base-alias", L"BaseNamedObjects\\" + logon_sid + L"\\AppContainerNamedObjects");
+        read("own-logon-under-app", L"AppContainerNamedObjects\\" + logon_sid);
+    }
 }
 
 bool observe_lowbox_creation(DWORD session) {
@@ -1644,6 +1716,11 @@ int wmain(int argc, wchar_t** argv) {
             return edge_probe(static_cast<DWORD>(std::stoul(argv[2])));
         if (argc == 2 && std::wcscmp(argv[1], L"--edge-startup-preflight") == 0)
             return edge_startup_preflight();
+        if (argc == 2 && std::wcscmp(argv[1], L"--edge-lowbox-trace") == 0) {
+            if (!ordinary_token()) return 1;
+            const auto session = report_session("edge_lowbox_trace", GetCurrentProcessId(), GetCurrentProcess());
+            return observe_lowbox_creation(session) ? 0 : 1;
+        }
         if (argc == 2 && std::wcscmp(argv[1], L"--edge-namespace-control") == 0)
             return edge_namespace_control();
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
