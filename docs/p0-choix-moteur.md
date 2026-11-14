@@ -1,10 +1,30 @@
 # P0 · Décision Windows et historique des comparaisons
 
-**Décision actuelle pour la recette Windows 0.3.0 : Whisper Large-v3 Turbo Q5_0 + Silero GGML 6.2, pause de 576 ms.** Le [benchmark élargi](../p0/asr_benchmark.md) compare cinq modèles, des prescriptions humaines, des dictées difficiles et des notes longues. Le pont natif réellement intégré a aussi été rejoué. Le nouveau choix privilégie les doses et les fractions tout en conservant le rendu aux pauses ; il reste insuffisant pour un usage clinique et dépasse l’objectif initial de deux secondes. Le [protocole Windows](windows-recette-030.md) doit encore vérifier le même ZIP sur deux postes, dont un à 8 Go sans GPU dédié.
+**Candidat en recette Windows 0.3.0 : Whisper Large-v3 Turbo Q5_0, whisper.cpp 1.8.5 et Silero VAD GGML 6.2.0, pause de 576 ms.** Le [benchmark élargi sur Mac](../p0/asr_benchmark.md) a comparé cinq modèles sur 89 fichiers audio. Le pont natif à 576 ms y préserve les huit fractions annotées du lot difficile mais commet encore des erreurs de doses, de négations et de termes médicaux. Son P95 estimé de 4,20 s entre la fin de parole et le texte dépasse déjà le seuil de 2 s, sans mesure du micro ni de l’écran. Ce choix reste un candidat Windows, et non un classement établi sous Windows.
+
+## Ce que montrent les premiers tests Windows
+
+Les essais ont rejoué le même [fichier de parole française fictive de 6,44 s](../p0/fixtures/README.md) avec le moteur du ZIP, en CI sur des machines virtuelles de deux cœurs et quatre processeurs logiques. Les temps totaux incluent le démarrage du moteur ; ce ne sont ni une latence d’affichage, ni un P95.
+
+| Compilation et hôte CI | Traitement total AVX2 | Variante SSE2 |
+| --- | ---: | --- |
+| [MSVC, AMD EPYC 7763](https://github.com/sarbhakan/DocTranscript/actions/runs/43606814807) | 35,435 s | Délai de 90 s dépassé |
+| ClangCL, Intel Xeon Platinum 8573C | 38,510 s, dont 36,888 s d’encodage, sans repli du décodeur | Délai de 90 s dépassé |
+| [ClangCL + `GGML_LLAMAFILE`, Intel Xeon Platinum 8573C, 17,17 Go de RAM](https://github.com/sarbhakan/DocTranscript/actions/runs/43609865149) | 30,330 s, dont 28,689 s d’encodage, sans repli du décodeur ; paire « Prozac 20 mg » reconnue | Délai de 90 s dépassé |
+
+L’encodeur représente l’essentiel du temps dans les deux essais instrumentés. Le dernier essai ([commit `940cf2a`](https://github.com/sarbhakan/DocTranscript/commit/940cf2a)) garde les mêmes poids et le même contexte audio complet. Les deux essais sur Xeon ont utilisé le même type de machine virtuelle, sans comparaison sur le même hôte ; on ne peut pas attribuer l’écart au noyau matriciel. Les résultats AMD et Intel ne permettent pas non plus d’isoler l’effet du compilateur. Le prochain essai porte sur OpenBLAS avec le même Turbo et le contexte complet ; aucun résultat n’est disponible.
+
+Le dernier run a aussi exécuté le test automatisé d’interface. Celui-ci s’est arrêté sur `SetFocus` pendant l’actionnement de la fenêtre. Cet échec concerne le test et ne montre pas un plantage de NoteVive ; la recette d’interface reste à confirmer.
+
+**Périmètre CPU du candidat : AVX2.** NoteVive vérifie la prise en charge d’AVX/AVX2 dans Windows et les extensions FMA, F16C, BMI1, BMI2, LZCNT, SSE4.2 et POPCNT. En cas d’incompatibilité, l’application garde l’accès aux notes mais ne charge pas le modèle et n’ouvre pas le micro. Les échecs SSE2 ci-dessus restent des résultats du diagnostic ; sa limite de 90 s demeure. La CI produit ne traite plus SSE2 comme un mode supporté.
+
+L’essai OpenBLAS doit également rejouer les [deux extraits de régression](../p0/fixtures/README.md). Il vérifie les doses et les trois fractions attendues, la même suite de valeurs numériques et l’absence de négation ou de concentration ajoutée. Les mentions de médicaments sont rapportées sans garantie d’association clinique correcte entre nom, dose et prise.
+
+Le [contexte audio réduit](../p0/audio_context_ablation.md) est écarté : il fait perdre 20 éléments critiques reconnus avec le contexte complet et réinsère, dans deux fichiers, une phrase issue d’une autre dictée fictive. Le contexte complet reste la référence. **La 0.3.0 n’est pas publiée tant que les échecs de recette persistent.** La prochaine validation porte sur le paquet lui-même puis sur les [deux PC physiques Windows](windows-recette-030.md), dont celui de 8 Go sans GPU dédié. La qualification clinique reste ouverte, indépendamment de la correction des performances.
 
 ## Historique : premier choix Mac 0.2.0
 
-Les résultats ci-dessous sont conservés comme trace du premier protocole. La décision UltiMed concernait alors la .app Mac et est remplacée, pour Windows, par la décision ci-dessus.
+Les résultats ci-dessous sont conservés comme trace du premier protocole. La décision UltiMed concernait la .app Mac ; le candidat Windows actuel est décrit ci-dessus.
 
 **Décision historique : Parakeet UltiMed INT8 avec filtre de présence de parole Silero est le seul candidat retenu pour l’intégration.** Whisper Turbo reste un témoin du banc. UltiMed reconnaît davantage de noms médicaux et renvoie le texte plus vite sur ce Mac. Les deux moteurs commettent des erreurs numériques graves. Le candidat est intégré au paquet Mac d’essai ; [les résultats de ce paquet](p0-recette-mac-020.md) ne permettent pas de valider un usage clinique.
 

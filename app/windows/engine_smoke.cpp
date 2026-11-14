@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <mutex>
 #include <string>
@@ -64,12 +65,15 @@ bool prozac_20_mg(std::wstring_view text) {
 // Separate console test for controlled WAVs. --speech refers to px-826 only.
 // Prints counts, timings and the expected drug-strength check; never the transcript.
 int wmain(int argc, wchar_t** argv) {
-    if (argc != 4 || (std::wstring(argv[3]) != L"--speech" && std::wstring(argv[3]) != L"--silence")) {
+    static_assert(sizeof(wchar_t) == 2, "Windows UTF-16 required");
+    const bool regression = argc == 5 && std::wstring(argv[3]) == L"--regression";
+    if (!regression && (argc != 4 || (std::wstring(argv[3]) != L"--speech" && std::wstring(argv[3]) != L"--silence"))) {
         std::wcerr << L"Usage : engine-smoke.exe <dossier-runtime> <px-826.wav> --speech\n"
-                      L"        engine-smoke.exe <dossier-runtime> <silence.wav> --silence\n";
+                      L"        engine-smoke.exe <dossier-runtime> <silence.wav> --silence\n"
+                      L"        engine-smoke.exe <dossier-runtime> <fixture.wav> --regression <sortie.txt>\n";
         return 2;
     }
-    const bool speech = std::wstring(argv[3]) == L"--speech";
+    const bool speech = regression || std::wstring(argv[3]) == L"--speech";
     bool terminal = false;
     bool unexpected = false;
     unsigned partials = 0, finals = 0;
@@ -133,9 +137,21 @@ int wmain(int argc, wchar_t** argv) {
         }
         std::cout << "partials_nonempty=" << partials << " finals_nonempty=" << finals
                   << " elapsed_ms=" << elapsed_ms() << '\n';
-        const bool paired = speech && prozac_20_mg(transcript);
-        if (speech) std::cout << "prozac_20_mg=" << (paired ? "true" : "false") << '\n';
-        const bool ok = speech ? paired : (partials == 0 && finals == 0);
+        if (regression) {
+            // Test-only output for licensed fictitious fixtures; never stdout.
+            // UTF-16LE preserves exactly what the Windows UI receives.
+            const std::filesystem::path report(argv[4]);
+            if (std::filesystem::exists(report)) return 2;
+            std::ofstream output(report, std::ios::binary);
+            output.write("\xff\xfe", 2);
+            output.write(reinterpret_cast<const char*>(transcript.data()),
+                         static_cast<std::streamsize>(transcript.size() * sizeof(wchar_t)));
+            output.close();
+            if (!output) return 2;
+        }
+        const bool paired = speech && !regression && prozac_20_mg(transcript);
+        if (speech && !regression) std::cout << "prozac_20_mg=" << (paired ? "true" : "false") << '\n';
+        const bool ok = regression ? finals > 0 : (speech ? paired : (partials == 0 && finals == 0));
         return (!unexpected && ok) ? 0 : 1;
     } catch (...) {
         std::wcerr << L"Impossible d’exécuter le test.\n";

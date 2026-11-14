@@ -22,6 +22,8 @@ public static class NvWindow {
     static extern IntPtr SendBounded(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp, uint flags, uint timeout, out UIntPtr result);
     [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", ExactSpelling = true, CharSet = CharSet.Unicode)]
     static extern IntPtr ReadBounded(IntPtr hwnd, uint msg, IntPtr wp, StringBuilder buf, uint flags, uint timeout, out UIntPtr result);
+    [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    static extern IntPtr WriteBounded(IntPtr hwnd, uint msg, IntPtr wp, string text, uint flags, uint timeout, out UIntPtr result);
     static int Send(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp) {
         UIntPtr result;
         if (SendBounded(hwnd, msg, wp, lp, 0x0002, 2000, out result) == IntPtr.Zero)
@@ -36,10 +38,12 @@ public static class NvWindow {
             throw new TimeoutException("The NoteVive edit control did not answer the native smoke test.");
         return text.ToString();
     }
-    public static void Type(IntPtr hwnd, string text) {
+    public static void ReplaceEditText(IntPtr hwnd, string text) {
         Send(hwnd, 0x00b1, IntPtr.Zero, new IntPtr(-1)); // EM_SETSEL
-        Send(hwnd, 0x0102, new IntPtr(8), new IntPtr(1)); // WM_CHAR: delete selection
-        foreach (char ch in text) Send(hwnd, 0x0102, new IntPtr(ch), new IntPtr(1));
+        UIntPtr result;
+        // EM_REPLACESEL sends EN_CHANGE for both single- and multiline edits.
+        if (WriteBounded(hwnd, 0x00c2, new IntPtr(1), text, 0x0002, 2000, out result) == IntPtr.Zero)
+            throw new TimeoutException("The NoteVive edit control did not accept the replacement message.");
     }
     public static bool ChooseSort(IntPtr parent, IntPtr combo, int index) {
         if (Send(combo, 0x014e, new IntPtr(index), IntPtr.Zero) != index) return false; // CB_SETCURSEL
@@ -79,10 +83,16 @@ $testChildRenamed = "$prefix sous-dossier"
 $testRenamed = "$prefix classe"
 $marker = "$prefix marqueur éphémère."
 $process = $null
+$stage = 'initialisation'
 
 if (Get-Process -Name NoteVive -ErrorAction SilentlyContinue) { throw 'Close all NoteVive instances first.' }
 if (Test-Path -LiteralPath $testProfile) {
     throw "Use a fresh test user. Existing NoteVive storage was not modified: $testProfile"
+}
+
+function Step([string]$Label) {
+    $script:stage = $Label
+    Write-Host "Windows UI smoke: $Label"
 }
 
 function Wait-For([scriptblock]$Predicate, [string]$Description) {
@@ -131,9 +141,10 @@ function Click($Element) {
 
 function Input-Text($Element, [string]$Text) {
     if (-not $Element.Current.IsEnabled) { throw 'Edit control is disabled.' }
-    $Element.SetFocus()
     $handle = Window-Handle $Element
-    [NvWindow]::Type($handle, $Text)
+    if ($handle -eq [IntPtr]::Zero) { throw 'The edit control has no native window.' }
+    # Send edit messages to this HWND; another window can keep the desktop focus.
+    [NvWindow]::ReplaceEditText($handle, $Text)
     if ([NvWindow]::Text($handle) -cne $Text) { throw 'The edit control did not accept the fictitious text.' }
 }
 
@@ -192,9 +203,8 @@ function Editor-Folder {
 }
 
 function Rename-SelectedFolder([string]$Name) {
-    $button = ById 115
-    $button.SetFocus()
-    Click $button
+    Step 'open the folder actions menu'
+    Click (ById 115)
     $item = Wait-For {
         # TrackPopupMenu creates a separate top-level HWND, outside the main UIA tree.
         $popup = [NvWindow]::PopupMenu($process.Id)
@@ -203,7 +213,9 @@ function Rename-SelectedFolder([string]$Name) {
             $menu.FindFirst($enumScope, (Condition $nameProperty 'Renommer le dossier'))
         }
     } 'find Renommer le dossier in the folder menu'
+    Step 'invoke Rename from the folder actions menu'
     $item.GetCurrentPattern($invoke).Invoke()
+    Step 'confirm the new folder name'
     Folder-Dialog 'Renommer le dossier' $Name
 }
 
@@ -222,11 +234,14 @@ function Sorted-Names {
 }
 
 try {
+    Step 'open the editor and find the notes sidebar'
     Begin-App
     $null = ById 110 # Dossiers tree sidebar.
     $null = ById 111 # Search.
+    Step 'create the parent folder'
     Click (ById 114) # New top-level folder.
     Folder-Dialog 'Nouveau dossier' $testFolder
+    Step 'create the child folder'
     $parent = ByName (ById 110) $testFolder
     $parent.GetCurrentPattern($selection).Select()
     Click (ById 114) # Child of selected folder.
@@ -238,6 +253,7 @@ try {
     } 'child nested under the saved parent'
 
     # Type a title first, allow autosave, then verify title and body survive.
+    Step 'create the first note in the child folder and wait for autosave'
     Click (ById 101)
     $null = Wait-For {
         # The empty title alone is already true while the posted click is pending.
@@ -247,12 +263,14 @@ try {
     Input-Text (ById 107) $testOlder
     Input-Text (ById 108) $marker
     $null = Wait-For { Test-NoteVisible $testOlder } 'first note autosaved under child folder'
+    Step 'create and save the second note'
     Click (ById 101)
     $null = Wait-For { [NvWindow]::Text((Window-Handle (ById 107))) -eq '' } 'second editor clear'
     Input-Text (ById 107) $testNote
     Input-Text (ById 108) 'Deuxième transcription fictive.'
     Click (ById 103)
     $null = Wait-For { Test-NoteVisible $testNote } 'second note saved'
+    Step 'sort the notes by creation date and title'
     $sort = Window-Handle (ById 113)
     if (-not [NvWindow]::ChooseSort((Window-Handle $app), $sort, 1)) { throw 'Cannot select creation date.' }
     $null = Wait-For { $names = @(Sorted-Names); $names.Count -eq 2 -and $names[0].StartsWith("$testNote · ") } 'newest creation first'
@@ -260,12 +278,14 @@ try {
     $null = Wait-For { $names = @(Sorted-Names); $names.Count -eq 2 -and $names[0].StartsWith("$testOlder · ") } 'French title order'
 
     # Verify closing flushes edits, then reopen and find the saved note by body only.
+    Step 'rename the note, close and reopen NoteVive'
     Input-Text (ById 107) $testRenamed
     End-App
     Begin-App
     $parent = ByName (ById 110) $testFolder
     $parent.GetCurrentPattern($expand).Expand()
     $null = ByName $parent $testChild
+    Step 'search and open the saved note by its body'
     Input-Text (ById 111) 'marqueur ephemere'
     $note = Wait-For {
         $names = @(Sorted-Names)
@@ -273,6 +293,7 @@ try {
     } 'accent-insensitive query of saved body'
     $note.GetCurrentPattern($selection).Select()
     $null = Wait-For { [NvWindow]::Text((Window-Handle (ById 108))) -eq $marker } 'open saved body'
+    Step 'select the renamed note and its child folder'
     Input-Text (ById 111) ''
     $renamed = Wait-For { Test-NoteVisible $testRenamed } 'renamed note persisted on close'
     $renamed.GetCurrentPattern($selection).Select()
@@ -283,8 +304,11 @@ try {
     (ByName $parent $testChild).GetCurrentPattern($selection).Select()
     Rename-SelectedFolder $testChildRenamed
     $null = Wait-For { (Editor-Folder) -ceq "$testFolder / $testChildRenamed" } 'note remains in the renamed folder'
+    Step 'move the note out of its folder'
     Move-Note 'Sans dossier'
+    Step 'move the note to the parent folder'
     Move-Note $testFolder
+    Step 'reopen NoteVive and verify the renamed folder and moved note'
     End-App
     Begin-App
     $parent = ByName (ById 110) $testFolder
@@ -296,10 +320,16 @@ try {
         (Editor-Folder) -ceq $testFolder -and [NvWindow]::Text((Window-Handle (ById 108))) -ceq 'Deuxième transcription fictive.'
     } 'new folder and note body persisted after moving'
     End-App
+    Step 'count the saved notes and folders'
     $savedCount = @(Get-ChildItem -LiteralPath $records -Filter '*.nvn' -File).Count
     $folderCount = @(Get-ChildItem -LiteralPath $records -Filter '*.nvf' -File).Count
     if ($savedCount -ne 2 -or $folderCount -ne 2) { throw "Expected exactly two notes and folders, found $savedCount / $folderCount." }
     Write-Output 'Windows UI, nested folders, renaming, moving notes, sort, body search, autosave and close/reopen verified with fictitious text.'
+} catch {
+    [Console]::Error.WriteLine("Windows UI smoke failed at '$stage': $($_.Exception.GetType().FullName): $($_.Exception.Message)")
+    [Console]::Error.WriteLine($_.InvocationInfo.PositionMessage)
+    [Console]::Error.WriteLine($_.ScriptStackTrace)
+    throw
 } finally {
     if ($process -and -not $process.HasExited) {
         $process.CloseMainWindow() | Out-Null

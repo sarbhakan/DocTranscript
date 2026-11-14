@@ -24,6 +24,15 @@ SOURCE_ROOT = f"whisper.cpp-{VERSION}"
 CMAKE_PATCH = {"path": "CMakeLists.txt",
                "before_sha256": "14b57729cec1bf09635ea23f551112f51220ad2f22214b42c1f1689b96480d7b",
                "after_sha256": "3d65c6bbe3f6e4f3033fa047e92c6754132a2f385a1e77b126f10a27dc3be74d"}
+OPENBLAS_VERSION = "0.3.34"
+OPENBLAS_SOURCE_URL = ("https://github.com/OpenMathLib/OpenBLAS/releases/download/"
+                      f"v{OPENBLAS_VERSION}/OpenBLAS-{OPENBLAS_VERSION}.tar.gz")
+OPENBLAS_SOURCE_SHA256 = "cd7e129868320cc2d033afa920e31202dfe0b8066a5b66661900ccc0f197dfed"
+OPENBLAS_LICENSE = "LICENSE.OpenBLAS"
+OPENBLAS_LICENSE_SHA256 = "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
+OPENBLAS_PATCH = {"path": "ggml/src/ggml-blas/CMakeLists.txt",
+                  "before_sha256": "dc7028c2c7207e8c334fd61ea4556599a326710cd9b33050bace38833529df71",
+                  "after_sha256": "51bf55eca2ae18fce5b8ed07a7c9bd911a2280b074a669b8a1483607a78c1db1"}
 VARIANT_DLL = {"baseline": "whisper.dll", "avx2": "cpu-avx2/whisper.dll"}
 DLL_NAMES = tuple(VARIANT_DLL.values())
 HEADERS = {
@@ -64,6 +73,18 @@ VARIANT_OPTIONS = {
 # ClangCL's /arch:AVX2 also selects these features, which the NoteVive
 # supervisor does not test. Keep its existing AVX2 selection contract.
 CLANGCL_AVX2_LIMITS = tuple(f"-clang:-mno-{feature}" for feature in ("fsgsbase", "movbe", "pclmul", "xsaveopt"))
+OPENBLAS_OPTIONS = {
+    "CMAKE_BUILD_TYPE": CONFIG,
+    "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
+    "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded",
+    "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+    "CMAKE_C_FLAGS_INIT": " ".join(("/arch:AVX2", *CLANGCL_AVX2_LIMITS)),
+    "BINARY": "64", "TARGET": "HASWELL", "NUM_THREADS": "4",
+    **dict.fromkeys(("BUILD_SINGLE", "BUILD_STATIC_LIBS", "BUILD_WITHOUT_LAPACK", "FIXED_LIBNAME",
+                     "NOFORTRAN", "NO_AVX512", "ONLY_CBLAS", "USE_THREAD"), "ON"),
+    **dict.fromkeys(("BUILD_SHARED_LIBS", "BUILD_DOUBLE", "BUILD_COMPLEX", "BUILD_COMPLEX16",
+                     "BUILD_TESTING", "DYNAMIC_ARCH", "USE_OPENMP", "INTERFACE64"), "OFF"),
+}
 # Windows 11 system DLL names allowed by the import-table audit. In particular
 # VCRUNTIME*, MSVCP*, VCOMP*, libomp*, and any GGML plugin are not allowed.
 SYSTEM_DLLS = {"kernel32.dll", "psapi.dll", "advapi32.dll", "user32.dll", "bcrypt.dll",
@@ -95,6 +116,28 @@ def edit_cmake(path):
         raise ValueError("Empreinte incorrecte pour le correctif CMake de Whisper.")
     path.write_bytes(data)
     return CMAKE_PATCH
+
+
+def edit_blas_cmake(path):
+    # The built-in FindBLAS probes a Fortran symbol and may select a system
+    # library. Our experiment only uses CBLAS from the pinned static build.
+    before = path.read_bytes()
+    marker = b"find_package(BLAS)\n"
+    after = before.replace(marker, b'''if (WIN32 AND GGML_BLAS_VENDOR STREQUAL "OpenBLAS" AND DEFINED NOTEVIVE_OPENBLAS_ROOT)
+    set(BLAS_INCLUDE_DIRS "${NOTEVIVE_OPENBLAS_ROOT}/generated")
+    set(BLAS_LIBRARIES "${NOTEVIVE_OPENBLAS_ROOT}/lib/openblas.lib")
+    if (NOT EXISTS "${BLAS_LIBRARIES}" OR NOT EXISTS "${BLAS_INCLUDE_DIRS}/cblas.h")
+        message(FATAL_ERROR "Pinned static OpenBLAS inputs missing")
+    endif()
+    set(BLAS_FOUND TRUE)
+else()
+    find_package(BLAS)
+endif()
+''', 1)
+    if (before.count(marker) != 1 or hashlib.sha256(before).hexdigest() != OPENBLAS_PATCH["before_sha256"]
+            or hashlib.sha256(after).hexdigest() != OPENBLAS_PATCH["after_sha256"]):
+        raise ValueError("Le correctif BLAS ne correspond pas aux sources Whisper verrouillées.")
+    path.write_bytes(after)
 
 
 def pe_imports(data):
@@ -168,35 +211,40 @@ def valid_compilers(compilers, toolset):
                     for spec in compilers.values()))
 
 
-def variant_options(toolset, variant):
+def variant_options(toolset, variant, openblas=False):
     options = VARIANT_OPTIONS[variant].copy()
     if toolset == "clangcl" and variant == "avx2":
         limits = " ".join(CLANGCL_AVX2_LIMITS)
         # Seed the flags; CMake appends its Windows defaults (including /EHsc).
         options.update(CMAKE_C_FLAGS_INIT=limits, CMAKE_CXX_FLAGS_INIT=limits)
+    if openblas and variant == "avx2":
+        options.update(GGML_BLAS="ON", GGML_BLAS_VENDOR="OpenBLAS", GGML_LLAMAFILE="OFF")
     return options
 
 
-def verify_compilers(build, toolset):
-    # The CMake file API reports the compilers actually selected by the VS generator.
+def read_toolchains(build):
     reply = build / ".cmake/api/v1/reply"
     index = json.loads(find_unique(reply, "index-*.json").read_text(encoding="utf-8"))
     reference = index["reply"]["toolchains-v1"]["jsonFile"]
     data = json.loads((reply / reference).read_text(encoding="utf-8"))
+    return {row["language"]: row["compiler"] for row in data["toolchains"]}
+
+
+def verify_compilers(build, toolset):
     compilers = {}
-    for row in data["toolchains"]:
-        if row["language"] in {"C", "CXX"}:
-            selected = row["compiler"]
-            compilers[row["language"]] = {"id": selected["id"], "version": selected["version"],
-                                           "executable": Path(selected["path"]).name.lower()}
+    for language, selected in read_toolchains(build).items():
+        if language in {"C", "CXX"}:
+            compilers[language] = {"id": selected["id"], "version": selected["version"],
+                                   "executable": Path(selected["path"]).name.lower()}
     if not valid_compilers(compilers, toolset):
         raise ValueError(f"Compilateurs {toolset} attendus, CMake a choisi : {compilers}")
     return compilers
 
 
-def verify_projects(build, variant, toolset):
+def verify_projects(build, variant, toolset, openblas=False):
     _, expected_platform, _, _ = TOOLSETS[toolset]
-    for name in STATIC_CRT_PROJECTS:
+    projects = STATIC_CRT_PROJECTS + (("ggml-blas",) if openblas else ())
+    for name in projects:
         files = list(build.rglob(f"{name}.vcxproj"))
         if len(files) != 1:
             raise ValueError(f"Projet Visual Studio manquant ou dupliqué : {name}")
@@ -259,9 +307,16 @@ def find_unique(directory, filename):
     return files[0]
 
 
-def artifact_spec(directory):
+def artifact_spec(directory, openblas=False):
+    artifacts = ARTIFACTS + ((OPENBLAS_LICENSE,) if openblas else ())
     return {name: {"sha256": digest(directory / name), "bytes": (directory / name).stat().st_size}
-            for name in ARTIFACTS}
+            for name in artifacts}
+
+
+def openblas_metadata(compiler):
+    return {"version": OPENBLAS_VERSION, "source_url": OPENBLAS_SOURCE_URL,
+            "source_sha256": OPENBLAS_SOURCE_SHA256, "variant": "avx2", "generator": "Ninja",
+            "cmake_options": OPENBLAS_OPTIONS, "compiler": compiler, "whisper_patch": OPENBLAS_PATCH}
 
 
 def validate_staged(directory):
@@ -269,19 +324,24 @@ def validate_staged(directory):
     log = json.loads((directory / "attestation.json").read_text(encoding="utf-8"))
     variants = log.get("variants")
     toolset = log.get("toolset")
-    if (log.get("schema") != 3 or log.get("version") != VERSION
+    blas = log.get("openblas")
+    openblas = blas is not None
+    if (log.get("schema") != (4 if openblas else 3) or log.get("version") != VERSION
             or log.get("source_url") != SOURCE_URL or log.get("source_sha256") != SOURCE_SHA256
             or log.get("patch") != CMAKE_PATCH
             or log.get("generator") != GENERATOR or not isinstance(toolset, str) or toolset not in TOOLSETS
             or log.get("cmake_toolset") != TOOLSETS[toolset][0]
             or not valid_compilers(log.get("compilers"), toolset)
             or log.get("config") != CONFIG or log.get("static_crt_projects") != list(STATIC_CRT_PROJECTS)
-            or log.get("artifacts") != artifact_spec(directory)
+            or log.get("artifacts") != artifact_spec(directory, openblas)
             or not isinstance(variants, dict) or variants.keys() != VARIANT_DLL.keys()):
         raise ValueError("La construction Whisper ne correspond pas à son attestation.")
+    if openblas and (toolset != "clangcl" or blas != openblas_metadata(log["compilers"]["C"])
+                     or log["artifacts"][OPENBLAS_LICENSE]["sha256"] != OPENBLAS_LICENSE_SHA256):
+        raise ValueError("La construction OpenBLAS ne correspond pas à l’attestation Whisper.")
     for variant, path in VARIANT_DLL.items():
         spec = variants[variant]
-        if (spec.get("cmake_options") != variant_options(toolset, variant) or spec.get("dll") != f"bin/{path}" or
+        if (spec.get("cmake_options") != variant_options(toolset, variant, openblas) or spec.get("dll") != f"bin/{path}" or
                 spec.get("imports") != verify_runtime(directory / "bin" / path) or
                 not isinstance(spec.get("native_load_checked"), bool) or
                 (variant == "baseline" and not spec["native_load_checked"])):
@@ -299,11 +359,87 @@ def available_avx2():
     return bool(feature(40))  # PF_AVX2_INSTRUCTIONS_AVAILABLE
 
 
-def build_release(source, output, cmake, jobs, toolset=DEFAULT_TOOLSET):
+def toolchain_query(build):
+    query = build / ".cmake/api/v1/query/toolchains-v1"
+    query.parent.mkdir(parents=True)
+    query.touch()
+
+
+def ninja_environment(temp, env):
+    # Ninja needs the Visual Studio SDK environment (Whisper's VS generator
+    # resolves SDK headers and libraries internally). Use the installed tools.
+    vswhere = (Path(env["ProgramFiles(x86)"]) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe")
+    install = subprocess.check_output([vswhere, "-latest", "-products", "*", "-version", "[17.0,18.0)",
+                                       "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                                       "-property", "installationPath", "-utf8"], encoding="utf-8", env=env).strip()
+    vs = Path(install)
+    setup = vs / "VC/Auxiliary/Build/vcvars64.bat"
+    ninja = shutil.which("ninja.exe", path=env.get("PATH"))
+    ninja = Path(ninja) if ninja else vs / "Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
+    if not install or not setup.is_file() or not ninja.is_file():
+        raise ValueError("OpenBLAS nécessite le SDK Visual Studio 2022 x64 et Ninja.")
+    batch = temp / "nv-vcvars.cmd"
+    batch.write_text('@call "%NOTEVIVE_VCVARS64%" >nul && set\n', encoding="ascii")
+    cmd = Path(env["SystemRoot"]) / "System32/cmd.exe"
+    output = subprocess.check_output([cmd, "/d", "/u", "/v:off", "/c", batch.name], cwd=temp, env={
+        **env, "NOTEVIVE_VCVARS64": str(setup),
+    }).decode("utf-16-le")
+    return ({key: value for row in output.splitlines() if not row.startswith("=")
+             for key, sep, value in (row.partition("="),) if sep and key != "NOTEVIVE_VCVARS64"}, ninja)
+
+
+def build_openblas(source, temp, staging, cmake, jobs, env, whisper_compiler):
+    contents = temp / "openblas-source"
+    contents.mkdir()
+    with tarfile.open(source, "r:gz") as archive:
+        archive.extractall(contents, filter="data")
+    tree = contents / f"OpenBLAS-{OPENBLAS_VERSION}"
+    if not (tree / "CMakeLists.txt").is_file() or digest(tree / "LICENSE") != OPENBLAS_LICENSE_SHA256:
+        raise ValueError("Structure inattendue de l’archive OpenBLAS.")
+    clang = Path(whisper_compiler["path"])
+    ninja_env, ninja = ninja_environment(temp, env)
+    build = temp / "openblas-build"
+    toolchain_query(build)
+    flags = [f"-D{k}={v}" for k, v in OPENBLAS_OPTIONS.items()]
+    subprocess.run([cmake, "-S", tree, "-B", build, "-G", "Ninja", *flags,
+                    f"-DCMAKE_MAKE_PROGRAM={ninja.as_posix()}",
+                    f"-DCMAKE_C_COMPILER={clang.as_posix()}", f"-DCMAKE_ASM_COMPILER={clang.as_posix()}"],
+                   check=True, env=ninja_env)
+    compiler = read_toolchains(build).get("C", {})
+    if (Path(compiler.get("path", "")).resolve() != clang.resolve()
+            or compiler.get("id") != "Clang" or compiler.get("version") != whisper_compiler["version"]):
+        raise ValueError("Les compilateurs OpenBLAS et Whisper diffèrent.")
+    config = (build / "config.h").read_text(encoding="ascii")
+    if (not re.search(r"^\s*#\s*define\s+CORE_HASWELL\b", config, re.MULTILINE)
+            or not re.search(r"^\s*#\s*define\s+HAVE_AVX2\b", config, re.MULTILINE)):
+        raise ValueError("Noyau OpenBLAS Haswell AVX2 non confirmé.")
+    commands = json.loads((build / "compile_commands.json").read_text(encoding="utf-8"))
+    c_flags = [set(row["command"].lower().replace('"', '').split())
+               for row in commands if Path(row["file"]).suffix.lower() == ".c"]
+    if not c_flags or any(not {"mt", "arch:avx2", *[flag[1:] for flag in CLANGCL_AVX2_LIMITS]}.issubset(flags)
+                          or flags.intersection({"md", "mdd", "mtd"})
+                          for flags in ({flag.lstrip('/-') for flag in row} for row in c_flags)):
+        raise ValueError("CRT statique /MT ou limites ISA non confirmés pour OpenBLAS.")
+    subprocess.run([cmake, "--build", build, "--parallel", str(jobs), "--target", "openblas_static"],
+                   check=True, env=ninja_env)
+    lib = find_unique(build, "openblas.lib")
+    fixed = build / "lib/openblas.lib"
+    if lib != fixed:
+        fixed.parent.mkdir(exist_ok=True)
+        shutil.copyfile(lib, fixed)
+    shutil.copyfile(build / "openblas_config.h", build / "generated/openblas_config.h")
+    shutil.copyfile(tree / "LICENSE", staging / OPENBLAS_LICENSE)
+    return build, openblas_metadata({"id": "Clang", "executable": clang.name.lower(),
+                                     "version": compiler["version"]})
+
+
+def build_release(source, output, cmake, jobs, toolset=DEFAULT_TOOLSET, openblas_source=None):
     if platform.system() != "Windows" or platform.machine().lower() not in {"amd64", "x86_64"}:
         raise ValueError("Compiler sur Windows x64 avec Visual Studio 2022, le SDK Windows et CMake.")
     if digest(source) != SOURCE_SHA256:
         raise ValueError("Empreinte incorrecte pour l’archive officielle de sources Whisper.")
+    if openblas_source and (toolset != "clangcl" or digest(openblas_source) != OPENBLAS_SOURCE_SHA256):
+        raise ValueError("OpenBLAS exige ClangCL et l’empreinte de l’archive officielle.")
     if output.exists():
         raise ValueError(f"La sortie existe déjà : {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -316,27 +452,34 @@ def build_release(source, output, cmake, jobs, toolset=DEFAULT_TOOLSET):
         changed = edit_cmake(tree / "CMakeLists.txt")
         env = os.environ.copy()
         # These can inject compiler switches or change the chosen SDK/libraries.
-        for var in ("CL", "_CL_", "CFLAGS", "CXXFLAGS", "LINK", "_LINK_", "LDFLAGS", "CMAKE_TOOLCHAIN_FILE"):
+        for var in ("CL", "_CL_", "CFLAGS", "CXXFLAGS", "ASMFLAGS", "CPPFLAGS", "LINK", "_LINK_", "LDFLAGS",
+                    "CMAKE_TOOLCHAIN_FILE", "CC", "CXX", "ASM"):
             env.pop(var, None)
         (staging / "include").mkdir(parents=True)
         (staging / "lib").mkdir()
         variants = {}
         compilers = None
         cmake_toolset = TOOLSETS[toolset][0]
+        blas, baseline_compiler = None, None
         for variant, path in VARIANT_DLL.items():
             build = temp / ("build-" + variant)
-            query = build / ".cmake/api/v1/query/toolchains-v1"
-            query.parent.mkdir(parents=True)
-            query.touch()
-            options = variant_options(toolset, variant)
+            toolchain_query(build)
+            use_blas = bool(openblas_source and variant == "avx2")
+            options = variant_options(toolset, variant, use_blas)
             flags = [f"-D{k}={v}" for k, v in options.items()]
+            if use_blas:
+                blas_build, blas = build_openblas(openblas_source, temp, staging, cmake, jobs, env, baseline_compiler)
+                edit_blas_cmake(tree / OPENBLAS_PATCH["path"])
+                flags.append(f"-DNOTEVIVE_OPENBLAS_ROOT={blas_build.as_posix()}")
             subprocess.run([cmake, "-S", tree, "-B", build, "-G", GENERATOR, "-A", "x64",
                             "-T", cmake_toolset, *flags], check=True, env=env)
             selected = verify_compilers(build, toolset)
+            if variant == "baseline" and openblas_source:
+                baseline_compiler = read_toolchains(build)["C"]
             if compilers is not None and compilers != selected:
                 raise ValueError("Les deux variantes doivent utiliser la même version du compilateur.")
             compilers = selected
-            verify_projects(build, variant, toolset)
+            verify_projects(build, variant, toolset, use_blas)
             subprocess.run([cmake, "--build", build, "--config", CONFIG, "--parallel", str(jobs),
                             "--target", "whisper"], check=True, env=env)
             dll = staging / "bin" / path
@@ -353,12 +496,15 @@ def build_release(source, output, cmake, jobs, toolset=DEFAULT_TOOLSET):
         for file, rel in HEADERS.items():
             shutil.copyfile(tree / rel, staging / "include" / file)
         shutil.copyfile(tree / "LICENSE", staging / "LICENSE")
-        log = {"schema": 3, "version": VERSION, "source_url": SOURCE_URL, "source_sha256": SOURCE_SHA256,
+        log = {"schema": 4 if blas else 3, "version": VERSION,
+               "source_url": SOURCE_URL, "source_sha256": SOURCE_SHA256,
                "patch": changed, "generator": GENERATOR, "toolset": toolset, "cmake_toolset": cmake_toolset,
                "compilers": compilers, "config": CONFIG,
                "cmake_version": subprocess.check_output([cmake, "--version"], text=True).splitlines()[0],
                "variants": variants, "static_crt_projects": list(STATIC_CRT_PROJECTS),
-               "artifacts": artifact_spec(staging)}
+               "artifacts": artifact_spec(staging, bool(blas))}
+        if blas:
+            log["openblas"] = blas
         (staging / "attestation.json").write_text(json.dumps(log, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         validate_staged(staging)
         staging.rename(output)
@@ -368,13 +514,16 @@ def build_release(source, output, cmake, jobs, toolset=DEFAULT_TOOLSET):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, type=Path)
+    parser.add_argument("--openblas-source", type=Path,
+                        help="Archive officielle d’OpenBLAS 0.3.34 pour la variante AVX2 expérimentale.")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--cmake", default="cmake")
     parser.add_argument("--jobs", type=int, default=2, choices=range(1, 9), metavar="1..8")
     parser.add_argument("--toolset", choices=TOOLSETS, default=DEFAULT_TOOLSET,
                         help="Compilateur C/C++ de Whisper (défaut : clangcl ; référence : msvc).")
     args = parser.parse_args()
-    build_release(args.source.resolve(), args.output.resolve(), args.cmake, args.jobs, args.toolset)
+    build_release(args.source.resolve(), args.output.resolve(), args.cmake, args.jobs, args.toolset,
+                  args.openblas_source.resolve() if args.openblas_source else None)
 
 
 if __name__ == "__main__":

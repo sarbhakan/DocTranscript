@@ -15,6 +15,11 @@
 
 namespace {
 void quiet_log(ggml_log_level, const char*, void*) {}
+void backend_log(ggml_log_level level, const char* text, void*) {
+    if (level == GGML_LOG_LEVEL_INFO && text &&
+        std::strcmp(text, "whisper_backend_init: using BLAS backend\n") == 0)
+        std::fputs("nv_accel backend=BLAS\n", stderr);
+}
 void timing_log(ggml_log_level, const char* text, void*) {
     // Upstream timing lines contain numeric counters only. Never forward model
     // logs, input paths, tokens or transcripts through this opt-in diagnostic.
@@ -103,12 +108,13 @@ class Pipeline {
 public:
     Pipeline(const char* model_path, const char* vad_path, unsigned pause_ms) : pauses(pause_ms) {
         if (std::string(whisper_version()) != "1.8.5") throw std::runtime_error("Whisper version mismatch");
-        whisper_log_set(quiet_log, nullptr);
         const auto* metrics = std::getenv("NOTEVIVE_ASR_BENCH_METRICS");
         benchmark_metrics = metrics && std::strcmp(metrics, "1") == 0;
+        whisper_log_set(benchmark_metrics ? backend_log : quiet_log, nullptr);
         ModelFile model(model_path);
         auto params = whisper_context_default_params(); params.use_gpu = false;
         asr.reset(whisper_init_with_params(&model.loader, params));
+        whisper_log_set(quiet_log, nullptr);
         if (!asr) throw std::runtime_error("Whisper initialization failed");
         if (benchmark_metrics) std::fprintf(stderr, "nv_backend %s\n", whisper_print_system_info());
         ModelFile vad_file(vad_path);

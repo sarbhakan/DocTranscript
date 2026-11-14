@@ -59,7 +59,7 @@ def make_resources(path):
 
 
 def stage_inputs(downloads, staging, catalogue, whisper_runtime):
-    validate_staged(whisper_runtime)
+    whisper_attestation = validate_staged(whisper_runtime)
     for name, spec in LOCK["downloads"].items():
         check(downloads / name, spec)
     for name, spec in LOCK["headers"].items():
@@ -89,6 +89,11 @@ def stage_inputs(downloads, staging, catalogue, whisper_runtime):
         shutil.copyfile(notice, notices / notice.name)
     if (notices / "Whisper-cpp-MIT.txt").read_bytes() != (whisper_runtime / "LICENSE").read_bytes():
         raise ValueError("La notice Whisper ne correspond pas aux sources compilées.")
+    if whisper_attestation.get('openblas'):
+        notice = WHISPER_NOTICES / 'OpenBLAS-BSD.txt'
+        if notice.read_bytes() != (whisper_runtime / 'LICENSE.OpenBLAS').read_bytes():
+            raise ValueError('La notice OpenBLAS ne correspond pas aux sources compilées.')
+        shutil.copyfile(notice, notices / notice.name)
     (notices / 'cxx-runtime').mkdir()
     for name, spec in LOCK['runtime_notices'].items():
         source = ROOT / 'app/licences/cxx-runtime' / name
@@ -141,7 +146,8 @@ def compile_bundle(zig, work, package, cache, whisper_runtime):
         "source_commit": os.environ.get("GITHUB_SHA", "local-build"),
         "asr": "whisper.cpp-1.8.5", "model": "large-v3-turbo-q5_0",
         "vad": "silero-6.2.0-ggml", "pause_ms": 576, "asr_threads": 4,
-        "cpu_variants": ["baseline", "avx2"], "audio_queue_seconds": 30,
+        "cpu_required": "AVX2/FMA/F16C/BMI1/BMI2/LZCNT/SSE4.2/POPCNT with OS AVX state",
+        "cpu_variants": ["avx2"], "diagnostic_only_variants": ["baseline"], "audio_queue_seconds": 30,
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     shutil.copyfile(whisper_runtime / "attestation.json", package / "Build/whisper.json")
     inputs = sorted(p for p in (package / "runtime").rglob('*') if p.is_file() and p.name != "catalogue.sqlite")

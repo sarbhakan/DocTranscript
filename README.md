@@ -4,13 +4,15 @@
 
 **Dictée médicale en français, aux pauses et hors ligne.** NoteVive transforme une dictée en brouillon éditable sur Windows. Les phrases reconnues sont ajoutées au fil des pauses. La bibliothèque locale permet de renommer les notes, les classer en dossiers et sous-dossiers, rechercher leur contenu et trier par titre, création ou modification.
 
-**État : version de recette 0.3.0, non signée, réservée aux données fictives.** Le [comparatif reproductible](p0/asr_benchmark.md) retient Whisper Large-v3 Turbo Q5_0 avec Silero 6.2 et une pause de 576 ms. Des erreurs de médicaments, de négations et des ajouts indésirables subsistent. La vitesse et le microphone restent à qualifier sur les deux PC Windows, dont le poste de 8 Go sans GPU dédié.
+**État : candidat Windows 0.3.0 en cours de recette, réservé aux données fictives.** Le [comparatif sur Mac](p0/asr_benchmark.md) a conduit à tester Whisper Large-v3 Turbo Q5_0 avec Silero 6.2 et une pause de 576 ms sous Windows. Des erreurs de médicaments, de négations et des ajouts indésirables subsistent. Le dernier test Windows a traité 6,44 s de parole en 30,33 s, encore trop lent pour la dictée. Le [détail des mesures](docs/p0-choix-moteur.md) explique ce qui bloque la publication. La recette sur deux PC physiques, dont un à 8 Go sans GPU dédié, reste à faire.
 
-## Essayer sur Windows 11 x64
+## Préparer l’essai sur Windows 11 x64
 
-1. Télécharger **[NoteVive-Windows-x64-Essai.zip](https://github.com/sarbhakan/DocTranscript/releases/download/v0.3.0-essai/NoteVive-Windows-x64-Essai.zip)** depuis la [préversion 0.3.0](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.3.0-essai), avec son fichier `.sha256`. La publication est conditionnée à la réussite des tests Windows. Pour une branche en cours de recette, utiliser l’artefact du [workflow réussi](https://github.com/sarbhakan/DocTranscript/actions/workflows/windows.yml), qui demande une connexion GitHub. La Release `v0.1.0-essai` utilise l’ancien moteur. Les archives « Source code » ne contiennent pas l’EXE.
-2. Extraire le ZIP en entier dans un dossier local. Garder `runtime` à côté de `NoteVive.exe`, puis ouvrir l’EXE. Aucun compte, Python, .NET ou téléchargement de modèle n’est nécessaire au lancement.
-3. Cliquer sur **Dicter**, attendre **Micro ouvert**, puis lire : « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Cliquer sur **Arrêter**, relire et renommer la note. Fermer puis rouvrir NoteVive pour vérifier la sauvegarde.
+**Le ZIP 0.3.0 n’est pas publié.** La publication dans les [Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases) reste bloquée tant que les échecs de la recette Windows persistent. La seule préversion actuellement publiée, `v0.1.0-essai`, utilise l’ancien moteur. Les archives « Source code » ne contiennent pas l’EXE.
+
+La dictée dans le candidat 0.3.0 demande un processeur x64 compatible **AVX2** et ses extensions associées, sans GPU dédié. Si le processeur est incompatible, NoteVive le signale avant d’ouvrir le micro et la bibliothèque reste accessible.
+
+Lorsqu’un paquet 0.3.0 est disponible pour un essai autorisé, vérifier son SHA-256 et l’extraire en entier dans un dossier local. Garder `runtime` à côté de `NoteVive.exe`, puis ouvrir l’EXE. Aucun compte, Python, .NET ou téléchargement de modèle n’est nécessaire au lancement. Pour un premier test : cliquer sur **Dicter**, attendre **Micro ouvert**, puis lire « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Cliquer sur **Arrêter**, relire et renommer la note. Fermer puis rouvrir NoteVive pour vérifier la sauvegarde.
 
 [Guide d’essai et dépannage](docs/guide-essai-windows.md) · [Recette 0.3.0 sur deux PC](docs/windows-recette-030.md) · [Résultats comparés](p0/asr_benchmark.md)
 
@@ -37,7 +39,7 @@ Le prototype natif pour **Mac Apple Silicon, macOS 15 ou ultérieur** inclut Ult
 | [Veille des applications et outillage](docs/reemploi.md) | Références GitHub, stratégie de réemploi et rôle de Dev Toolkit Orchestrator. |
 | [Registre de suivi](docs/suivi.md) | Statuts, décisions, risques et compte rendu de chaque boucle. |
 
-Le produit vise **un installateur Windows et une configuration de transcription qualifiée**. Les moteurs du banc P0 restent des comparateurs de développement. Une éventuelle préversion publique sert aux essais fictifs ; une livraison stable demande la qualification Windows, la revue avec des praticiens et la signature de l’artefact. Les modèles et référentiels sont documentés par version, empreinte et conditions d’utilisation. Voir [les licences des composants](app/NOTICE.md). Le dépôt ne déclare pas encore de licence générale pour le code NoteVive.
+Le produit vise **un paquet Windows et une configuration de transcription qualifiée**. Les moteurs du banc P0 restent des comparateurs de développement. Une éventuelle préversion publique sert aux essais fictifs ; une livraison stable demande la qualification Windows, la revue avec des praticiens et la signature de l’artefact. Les modèles et référentiels sont documentés par version, empreinte et conditions d’utilisation. Voir [les licences des composants](app/NOTICE.md). Le dépôt ne déclare pas encore de licence générale pour le code NoteVive.
 
 Pour signaler un problème, utiliser les [Issues GitHub](https://github.com/sarbhakan/DocTranscript/issues) avec un exemple fictif, la version Windows et les étapes de reproduction. Ne joindre ni note ou audio patient, ni copie de la bibliothèque locale.
 

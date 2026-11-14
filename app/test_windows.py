@@ -7,10 +7,12 @@ import os
 from pathlib import Path
 import platform
 import subprocess
+import sys
 import time
 import wave
 from app.build_windows import WIN, ROOT, CXX_FLAGS, LOCK, run
 from app.build_whisper_windows import GENERATOR
+from app.fixture_checks import check_fixture
 
 TOOLSET = 'v143,host=x64'  # Test compiler is independent from the decoder compiler.
 
@@ -115,6 +117,8 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--package', type=Path)
     parser.add_argument('--engine-only', action='store_true', help='Test only the real decoder from --package.')
+    parser.add_argument('--include-unsupported-baseline', action='store_true',
+                        help='Diagnostic explicite SSE2, hors du minimum CPU du produit (peut échouer).')
     parser.add_argument('--build-cache', type=Path)
     parser.add_argument('--compile-only', action='store_true')
     args = parser.parse_args()
@@ -148,6 +152,7 @@ def main():
         return out / name, sources, defines, includes, libraries, wide_main
 
     targets, commands = [], []
+    regressions = {}
     supervisor = None
     if not args.engine_only:
         fixture = out / 'fixture'
@@ -199,6 +204,17 @@ def main():
         speech = out / 'french-prescription.wav'
         speech.write_bytes(audio)
         commands.append([smoke, runtime, speech, '--speech'])
+        for case in json.loads((fixture_dir / 'regressions.json').read_text(encoding='utf-8'))['cases']:
+            packed = (fixture_dir / case['filename']).read_bytes()
+            if hashlib.sha256(packed).hexdigest() != case['gzip_sha256']:
+                raise ValueError('Fixture de régression altérée.')
+            audio = gzip.decompress(packed)
+            if len(audio) != case['wav_bytes'] or hashlib.sha256(audio).hexdigest() != case['wav_sha256']:
+                raise ValueError('WAV de régression altéré.')
+            wave_path = out / (case['id'] + '.wav')
+            wave_path.write_bytes(audio)
+            regressions[wave_path] = case
+            commands.append([smoke, runtime, wave_path, '--regression', out / (case['id'] + '.txt')])
     build('tests', targets)
     (out / 'commands.json').write_text(json.dumps([[str(v) for v in cmd] for cmd in commands], indent=2), encoding='utf-8')
     if args.compile_only:
@@ -206,19 +222,46 @@ def main():
         return
     timings = []
     def execute(cmd, env, is_smoke):
-        label = 'speech-fr' if is_smoke and cmd[-1] == '--speech' else ('silence' if is_smoke else cmd[0].name)
+        regression = is_smoke and cmd[2] in regressions
+        label = cmd[2].stem if regression else ('speech-fr' if is_smoke and cmd[-1] == '--speech' else ('silence' if is_smoke else cmd[0].name))
         requested_cpu = env.get('NOTEVIVE_CPU', 'auto')
         print(f'Test {label}, requested_cpu={requested_cpu}', flush=True)
         start = time.perf_counter()
-        subprocess.run(cmd, check=True, env=env, timeout=120 if is_smoke else 30)
+        measured = cmd
+        if is_smoke:
+            resources = out / f'memory-{label}-{requested_cpu}.json'
+            measured = [sys.executable, '-m', 'p0.windows.measure', '--output', resources, '--', *cmd]
+        completed = subprocess.run(measured, check=False, env=env, timeout=120 if is_smoke else 30)
         result = {'test': label, 'requested_cpu': requested_cpu, 'elapsed_seconds': round(time.perf_counter() - start, 3)}
         if is_smoke:
             with wave.open(str(cmd[2]), 'rb') as audio:
                 result['audio_seconds'] = audio.getnframes() / audio.getframerate()
             result['elapsed_audio_ratio'] = round(result['elapsed_seconds'] / result['audio_seconds'], 3)
+            if resources.exists():
+                sampled = json.loads(resources.read_text(encoding='utf-8'))
+                result['resources'] = {key: sampled[key] for key in (
+                    'interval_ms_requested', 'peak_sampled_private_bytes', 'observed_cpu_seconds',
+                    'observed_mean_cpu_core_equivalents', 'snapshot_errors', 'partial_samples', 'exit_code')}
+                result['resources']['parent_and_worker_observed'] = any(
+                    sample['processes_seen'] >= 2 and sample['processes_read'] >= 2
+                    for sample in sampled['samples'])
+        critical_ok = True
+        if regression and completed.returncode == 0:
+            case = regressions[cmd[2]]
+            recognized = cmd[-1].read_text(encoding='utf-16')
+            result['fixture_checks'] = check_fixture(case, recognized)
+            critical_ok = result['fixture_checks']['passed']
         timings.append(result)
         print(json.dumps(result), flush=True)
+        (out / 'timings.json').write_text(json.dumps(timings, indent=2) + '\n', encoding='utf-8')
+        completed.check_returncode()
+        if is_smoke and not result.get('resources', {}).get('parent_and_worker_observed'):
+            raise ValueError('La mesure des ressources n’a pas observé le moteur enfant.')
+        if not critical_ok:
+            raise ValueError(f'Régression critique dans {label}; consulter le rapport local.')
 
+    baseline_commands = []
+    failures = []
     for cmd in commands:
         env = os.environ.copy()
         is_smoke = cmd[0].name == 'engine-smoke.exe'
@@ -227,11 +270,25 @@ def main():
         elif is_smoke:
             env.pop('NOTEVIVE_CPU', None)
             env['NOTEVIVE_ASR_BENCH_METRICS'] = '1'
-        execute(cmd, env, is_smoke)
-        if is_smoke:
-            env['NOTEVIVE_CPU'] = 'baseline'
+        try:
             execute(cmd, env, is_smoke)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError) as error:
+            failures.append(type(error).__name__)
+            print(f'Échec du contrôle : {type(error).__name__}', flush=True)
+        if args.include_unsupported_baseline and is_smoke and cmd[2] not in regressions:
+            baseline_commands.append(cmd)
+    # Explicit engineering diagnostic, outside the product CPU requirement.
+    # If requested, any failure still fails this invocation. No timeouts change.
+    for cmd in baseline_commands:
+        env = {**os.environ, 'NOTEVIVE_CPU': 'baseline', 'NOTEVIVE_ASR_BENCH_METRICS': '1'}
+        try:
+            execute(cmd, env, True)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError) as error:
+            failures.append(type(error).__name__)
+            print(f'Échec du contrôle SSE2 : {type(error).__name__}', flush=True)
     (out / 'timings.json').write_text(json.dumps(timings, indent=2) + '\n', encoding='utf-8')
+    if failures:
+        raise SystemExit(f'{len(failures)} contrôle(s) Windows en échec.')
     print('Tests Windows isolés : OK')
 
 

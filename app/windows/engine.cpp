@@ -59,7 +59,7 @@ struct Handle {
     }
 };
 
-bool processor_supports_avx2() {
+bool processor_supports_avx2() noexcept {
 #if defined(_M_X64) || defined(__x86_64__)
     // Windows tests both processor instructions and the OS vector state.
     if (!IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE) ||
@@ -86,16 +86,28 @@ bool processor_supports_avx2() {
 #endif
 }
 
-std::wstring execution_directory(const std::wstring& directory) {
+enum class CpuVariant { unsupported, baseline, avx2 };
+
+CpuVariant select_cpu(bool has_avx2, bool use_baseline) noexcept {
+    if (use_baseline) return CpuVariant::baseline;
+    return has_avx2 ? CpuVariant::avx2 : CpuVariant::unsupported;
+}
+
+#if defined(NOTEVIVE_ENGINE_DIAGNOSTICS) && !defined(NOTEVIVE_SUPERVISOR_TEST)
+bool baseline_requested() noexcept {
     wchar_t mode[9]{};
-    if (GetEnvironmentVariableW(L"NOTEVIVE_CPU", mode, std::size(mode)) == 8 &&
-        std::wstring_view(mode, 8) == L"baseline") return directory;
-    if (!processor_supports_avx2()) return directory;
+    return GetEnvironmentVariableW(L"NOTEVIVE_CPU", mode, std::size(mode)) == 8 &&
+        std::wstring_view(mode, 8) == L"baseline";
+}
+#endif
+
+std::wstring execution_directory(const std::wstring& directory, CpuVariant cpu) {
+    if (cpu == CpuVariant::baseline) return directory;
     const auto candidate = directory + L"\\cpu-avx2";
     const DWORD attributes = GetFileAttributesW(candidate.c_str());
-    if (attributes == INVALID_FILE_ATTRIBUTES) return directory; // Allows a baseline-only test worker.
-    if (!(attributes & FILE_ATTRIBUTE_DIRECTORY) || (attributes & FILE_ATTRIBUTE_REPARSE_POINT))
-        fail(L"Le dossier du moteur optimisé est invalide. Réextrayez le paquet complet.");
+    if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY) ||
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT))
+        fail(L"Le dossier du moteur optimisé est absent ou invalide. Réextrayez le paquet complet.");
     return candidate;
 }
 
@@ -104,21 +116,22 @@ std::wstring execution_directory(const std::wstring& directory) {
 struct Child {
     Handle process, job, input, output;
     bool termination_attempted = false, termination_confirmed = false;
-    explicit Child(const std::wstring& directory) {
+    Child(const std::wstring& directory, CpuVariant cpu) {
         const auto root = std::filesystem::path(directory).root_path().wstring();
         const auto drive = GetDriveTypeW(root.c_str());
         if (drive != DRIVE_FIXED && drive != DRIVE_REMOVABLE)
             fail(L"Extrayez NoteVive dans un dossier sur un disque local avant de le lancer.");
-        if (!std::filesystem::path(directory).is_absolute() || directory.find(L'"') != std::wstring::npos ||
-            !verify_worker_file(directory) || !verify_engine_files(directory))
+        if (!std::filesystem::path(directory).is_absolute() || directory.find(L'"') != std::wstring::npos)
+            fail(L"Le dossier du moteur de dictée est invalide. Réextrayez le paquet complet.");
+        const auto execution = execution_directory(directory, cpu);
+        if (!verify_worker_file(directory) || !verify_engine_files(directory))
             fail(L"Le programme de dictée est absent ou altéré. Réextrayez le paquet complet.");
-        const auto execution = execution_directory(directory);
 #ifdef NOTEVIVE_ENGINE_DIAGNOSTICS
         // Test harness only: aggregate hardware/path diagnostics, never notes or audio.
         SYSTEM_INFO system{};
         GetNativeSystemInfo(&system);
-        std::cout << "selected_cpu=" << (execution == directory ? "baseline" : "avx2")
-                  << " compatible_avx2=" << processor_supports_avx2()
+        std::cout << "selected_cpu=" << (cpu == CpuVariant::baseline ? "baseline" : "avx2")
+                  << " compatible_avx2=" << Engine::cpu_supported()
                   << " os_avx=" << IsProcessorFeaturePresent(PF_AVX_INSTRUCTIONS_AVAILABLE)
                   << " os_avx2=" << IsProcessorFeaturePresent(PF_AVX2_INSTRUCTIONS_AVAILABLE)
                   << " logical_processors=" << system.dwNumberOfProcessors << std::endl;
@@ -218,6 +231,9 @@ struct Engine::Impl {
     bool closed = false, capture_blocked = false;
     std::unique_ptr<Child> child;
     std::wstring child_directory;
+#ifdef NOTEVIVE_SUPERVISOR_TEST
+    std::atomic<bool> refuse_cpu{false};
+#endif
     std::thread worker;
     explicit Impl(Callback f) : callback(std::move(f)), worker([this] { run(); }) {}
     ~Impl() { shutdown(); }
@@ -248,11 +264,21 @@ struct Engine::Impl {
     }
     void process(Session& s) {
         if (s.stop.load()) return;
+#ifdef NOTEVIVE_SUPERVISOR_TEST
+        // The fixture is portable. Turning it off exercises the same refusal
+        // as production on a host without the required instructions.
+        const auto cpu = select_cpu(false, !refuse_cpu.load());
+#elif defined(NOTEVIVE_ENGINE_DIAGNOSTICS)
+        const auto cpu = select_cpu(Engine::cpu_supported(), baseline_requested());
+#else
+        const auto cpu = select_cpu(Engine::cpu_supported(), false);
+#endif
+        if (cpu == CpuVariant::unsupported) fail(Engine::cpu_requirement());
         if (!child || child_directory != s.directory || WaitForSingleObject(child->process.h, 0) != WAIT_TIMEOUT) {
             remove_child();
             { std::lock_guard<std::mutex> lock(mutex);
               if (capture_blocked) fail(L"Arrêt du microphone non confirmé. Fermez NoteVive."); }
-            child = std::make_unique<Child>(s.directory); child_directory = s.directory;
+            child = std::make_unique<Child>(s.directory, cpu); child_directory = s.directory;
         }
         // Verification and process startup may take seconds on a cold disk.
         // Do not send a start command if Cancel/lock arrived meanwhile.
@@ -364,6 +390,16 @@ struct Engine::Impl {
 };
 Engine::Engine(Callback callback) : impl_(std::make_unique<Impl>(std::move(callback))) {}
 Engine::~Engine() = default;
+bool Engine::cpu_supported() noexcept {
+    static const bool supported = processor_supports_avx2();
+    return supported;
+}
+const wchar_t* Engine::cpu_requirement() noexcept {
+    return L"Dictée indisponible : ce processeur ne prend pas en charge AVX2 et ses extensions.";
+}
+#ifdef NOTEVIVE_SUPERVISOR_TEST
+void Engine::refuse_cpu_for_test(bool refuse) noexcept { impl_->refuse_cpu.store(refuse); }
+#endif
 bool Engine::start(std::uint64_t generation, std::wstring directory) { return impl_->start(generation, std::move(directory), {}); }
 bool Engine::start_wave(std::uint64_t generation, std::wstring directory, std::wstring wave) {
     return !wave.empty() && impl_->start(generation, std::move(directory), std::move(wave));

@@ -29,6 +29,7 @@ const char* event_name(Kind kind) {
     return "unknown";
 }
 const char* error_code(std::wstring_view text) {
+    if (text == Engine::cpu_requirement()) return "unsupported_cpu";
     if (text.find(L"incomplet") != text.npos) return "truncated";
     if (text.find(L"interrompu") != text.npos) return "child_exit";
     if (text.find(L"inattendue") != text.npos) return "unexpected_response";
@@ -58,7 +59,7 @@ int wmain(int argc, wchar_t** argv) {
     std::string_view test;
     std::vector<Kind> wanted;
     auto run = [&](const char* name, const wchar_t* command, std::initializer_list<Kind> expected,
-                   std::wstring_view expected_error = {}) {
+                   std::wstring_view expected_error = {}, const std::wstring& directory = {}) {
         test = name;
         wanted.assign(expected);
         const bool cancel = std::wstring_view(command) == L"ignore-cancel";
@@ -67,7 +68,8 @@ int wmain(int argc, wchar_t** argv) {
             std::lock_guard<std::mutex> lock(mutex);
             events.clear();
         }
-        if (!engine.start_wave(++generation, runtime, command)) throw std::runtime_error("Start rejected");
+        if (!engine.start_wave(++generation, directory.empty() ? runtime : directory, command))
+            throw std::runtime_error("Start rejected");
         if (cancel || stop) {
             wait([](const auto& e) { return !e.empty(); });
             {
@@ -97,6 +99,12 @@ int wmain(int argc, wchar_t** argv) {
     };
     auto valid = [&] { run("restart", L"valid", {Kind::started, Kind::final, Kind::stopped}); };
     try {
+        engine.refuse_cpu_for_test(true);
+        run("unsupported CPU does not spawn the worker", L"valid", {Kind::error}, Engine::cpu_requirement());
+        run("unsupported CPU is refused before runtime verification", L"valid", {Kind::error}, Engine::cpu_requirement(),
+            (std::filesystem::path(runtime) / L"missing-cpu-guard-test-runtime").wstring());
+        engine.refuse_cpu_for_test(false);
+        valid();
         run("fragmented frame", L"fragmented", {Kind::started, Kind::final, Kind::stopped});
         run("crash after final", L"crash", {Kind::started, Kind::final, Kind::error});
         valid();
@@ -128,6 +136,6 @@ int wmain(int argc, wchar_t** argv) {
         std::cerr << '\n';
         return 1;
     }
-    std::cout << "Partial frames, wrong generation, crash after transcript, watchdog, stop, cancel, restart: OK\n";
+    std::cout << "CPU refusal, partial frames, wrong generation, crash after transcript, watchdog, stop, cancel, restart: OK\n";
     return 0;
 }

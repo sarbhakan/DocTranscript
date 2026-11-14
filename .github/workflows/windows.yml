@@ -31,13 +31,13 @@ jobs:
       - name: Préparer les entrées officielles et vérifier leurs empreintes
         run: python app/prepare_windows.py
       - name: Compiler Whisper CPU sans redistribuable externe
-        run: python app/build_whisper_windows.py --toolset clangcl --source app/private/downloads/whisper-v1.8.5-source.tar.gz --output app/private/whisper-build
+        run: python app/build_whisper_windows.py --toolset clangcl --source app/private/downloads/whisper-v1.8.5-source.tar.gz --openblas-source app/private/downloads/openblas-v0.3.34-source.tar.gz --output app/private/whisper-build
       - name: Compiler le paquet autonome
         run: python app/build_windows.py --zig app/private/toolchain/zig-x86_64-windows-0.15.2/zig.exe
       - name: Extraire le ZIP livré
         id: unzip
         run: Expand-Archive dist/NoteVive-Windows-x64-Essai.zip "$env:RUNNER_TEMP/NoteVive-paquet"
-      - name: Tester le moteur du ZIP en mode automatique et SSE2
+      - name: Tester le moteur du ZIP, les doses et les fractions en AVX2
         run: |
           Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
           Get-CimInstance Win32_ComputerSystem | Select-Object TotalPhysicalMemory | Format-List

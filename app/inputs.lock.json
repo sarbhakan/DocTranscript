@@ -30,6 +30,11 @@
       "url": "https://huggingface.co/ggml-org/whisper-vad/resolve/9ffd54a1e1ee413ddf265af9913beaf518d1639b/ggml-silero-v6.2.0.bin",
       "algorithm": "sha256",
       "hash": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987"
+    },
+    "openblas-v0.3.34-source.tar.gz": {
+      "url": "https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.34/OpenBLAS-0.3.34.tar.gz",
+      "algorithm": "sha256",
+      "hash": "cd7e129868320cc2d033afa920e31202dfe0b8066a5b66661900ccc0f197dfed"
     }
   },
   "headers": {
@@ -44,6 +49,9 @@
     },
     "vendor/whisper-notices/Whisper-OpenAI-MIT.txt": {
       "hash": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d"
+    },
+    "vendor/whisper-notices/OpenBLAS-BSD.txt": {
+      "hash": "190b5a9c8d9723fe958ad33916bd7346d96fab3c5ea90832bb02d854f620fcff"
     }
   },
   "catalogue": {

@@ -4,8 +4,8 @@ NoteVive transcrit dictées et notes en français, sur le PC. Il ne demande ni c
 
 ## 1. Télécharger, vérifier et ouvrir
 
-1. Dans **Paramètres → Système → Informations système**, vérifiez que le système est Windows 11 avec un processeur **x64** Intel ou AMD. Le paquet ne cible pas Windows ARM. Un GPU dédié n’est pas nécessaire.
-2. Dans les [Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases), cherchez la préversion 0.3.0 et son fichier `NoteVive-Windows-x64-Essai.zip`. Si elle n’apparaît pas, sa publication n’est pas disponible : la préversion 0.1.0 utilise un autre moteur. Une fois le bon ZIP téléchargé, calculez son empreinte PowerShell :
+1. Dans **Paramètres → Système → Informations système**, vérifiez que le système est Windows 11 avec un processeur **x64** Intel ou AMD. La dictée exige aussi AVX2 et les extensions associées. NoteVive vérifie ce prérequis avant d’activer le bouton **Dicter**. Aucun GPU dédié n’est nécessaire.
+2. Le ZIP 0.3.0 n’est pas encore publié. Lorsqu’il sera disponible dans les [Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases), prendre le `NoteVive-Windows-x64-Essai.zip` de cette préversion. La 0.1.0 utilise un autre moteur. Une fois le bon ZIP téléchargé, calculez son empreinte PowerShell :
 
    ```powershell
    Get-FileHash -Algorithm SHA256 -LiteralPath '.\NoteVive-Windows-x64-Essai.zip'
@@ -29,6 +29,7 @@ NoteVive transcrit dictées et notes en français, sur le PC. Il ne demande ni c
 
 | Problème | Que vérifier |
 | --- | --- |
+| « Dictée indisponible : ce processeur ne prend pas en charge AVX2 et ses extensions. » | Le micro reste fermé et les notes restent accessibles. Utilisez un autre PC compatible pour tester la dictée. |
 | `F9` n’a pas d’effet | Revenez dans NoteVive et cliquez sur **Dicter**. Certains claviers demandent `Fn+F9`. |
 | Le micro ne s’ouvre pas | Dans **Paramètres → Système → Son → Entrée**, vérifiez le micro par défaut. Vérifiez aussi **Confidentialité et sécurité → Microphone** selon les règles du poste. [Dépannage Microsoft](https://support.microsoft.com/fr-fr/windows/hardware/drivers/fix-microphone-problems). |
 | Le texte tarde | Après une phrase courte, laissez du silence avant de reprendre. Notez le délai et précisez si la phrase apparaît avant ou après **Arrêter**. |
@@ -37,4 +38,4 @@ NoteVive transcrit dictées et notes en français, sur le PC. Il ne demande ni c
 
 ## 4. Comparer les deux postes
 
-Suivez la [recette Windows 0.3.0](windows-recette-030.md) sur le PC de 8 Go sans GPU dédié et sur l’autre PC avec le même ZIP. Elle contient les dictées de contrôle, les chronomètres à relever et les essais de panne, de sauvegarde et de recherche. Consignez une panne avec les étapes, le résultat, le nombre d’occurrences, le SHA-256 du ZIP, la version Windows, le CPU, la mémoire et le type de micro. Partagez uniquement des observations et exemples fictifs.
+Suivez la [recette Windows 0.3.0](windows-recette-030.md) sur deux PC compatibles, dont un à 8 Go sans GPU dédié, avec le même ZIP. Elle contient les dictées de contrôle, les chronomètres à relever et les essais de panne, de sauvegarde et de recherche. Consignez une panne avec les étapes, le résultat, le nombre d’occurrences, le SHA-256 du ZIP, la version Windows, le CPU, la mémoire et le type de micro. Partagez uniquement des observations et exemples fictifs.

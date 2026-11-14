@@ -291,6 +291,7 @@ struct App {
     std::mutex event_mutex;
     std::deque<doct::EngineEvent> pending_events;
     std::unique_ptr<doct::Engine> engine;
+    const bool dictation_cpu_supported = doct::Engine::cpu_supported();
     std::wstring runtime;
     std::wstring idle_status{L"Micro coupé · Prêt à dicter."};
     std::wstring interrupt_status;
@@ -364,7 +365,7 @@ struct App {
         wts_registered = WTSRegisterSessionNotification(window, NOTIFY_FOR_THIS_SESSION) != FALSE;
         if (!wts_registered) idle_status = L"Micro coupé · Dictée indisponible : verrouillage de session non surveillé.";
         if (runtime.empty()) idle_status = L"Micro coupé · Dossier du moteur introuvable.";
-        engine = std::make_unique<doct::Engine>([this, target = window](doct::EngineEvent value) {
+        if (dictation_cpu_supported) engine = std::make_unique<doct::Engine>([this, target = window](doct::EngineEvent value) {
             {
                 std::lock_guard<std::mutex> lock(event_mutex);
                 if (value.kind == doct::EngineEventKind::partial && !pending_events.empty()
@@ -505,7 +506,7 @@ struct App {
         EnableWindow(vocab, idle && !runtime.empty());
         EnableWindow(title, store_ready);
         EnableWindow(body, store_ready);
-        EnableWindow(dictate, !close_requested && store_ready && wts_registered && !runtime.empty() && !microphone_unconfirmed
+        EnableWindow(dictate, dictation_cpu_supported && !close_requested && store_ready && wts_registered && !runtime.empty() && !microphone_unconfirmed
             && (phase == Phase::idle || phase == Phase::listening || phase == Phase::preparing));
         const wchar_t* button_text = L"&Dicter (F9)";
         const wchar_t* status = idle_status.c_str();
@@ -528,6 +529,7 @@ struct App {
             status = cancel_requested ? L"Micro coupé · Dictée interrompue." : L"Micro coupé · Finalisation du texte…";
             break;
         }
+        if (!dictation_cpu_supported) status = doct::Engine::cpu_requirement();
         if (microphone_unconfirmed) status = L"Arrêt du microphone non confirmé. Fermez l’application.";
         SetWindowTextW(dictate, button_text);
         SetWindowTextW(mic_status, status);
@@ -954,7 +956,7 @@ struct App {
     }
 
     void start_or_stop() {
-        if (session_locked || masked || shutting_down || close_requested || active_dialog || !store_ready || !wts_registered || runtime.empty()
+        if (!dictation_cpu_supported || session_locked || masked || shutting_down || close_requested || active_dialog || !store_ready || !wts_registered || runtime.empty()
                 || microphone_unconfirmed) return;
         if (phase == Phase::listening) {
             phase = Phase::stopping;
