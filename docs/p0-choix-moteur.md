@@ -1,6 +1,12 @@
-# P0 · Choix du moteur de dictée, 14 novembre 2026
+# P0 · Décision Windows et historique des comparaisons
 
-**Décision : Parakeet UltiMed INT8 avec filtre de présence de parole Silero est le seul candidat retenu pour l’intégration.** Whisper Turbo reste un témoin du banc. UltiMed reconnaît davantage de noms médicaux et renvoie le texte plus vite sur ce Mac. Les deux moteurs commettent des erreurs numériques graves. Ce choix oriente le développement ; le moteur de l’application livrée reste inchangé jusqu’à qualification.
+**Décision actuelle pour la recette Windows 0.3.0 : Whisper Large-v3 Turbo Q5_0 + Silero GGML 6.2, pause de 576 ms.** Le [benchmark élargi](../p0/asr_benchmark.md) compare cinq modèles, des prescriptions humaines, des dictées difficiles et des notes longues. Le pont natif réellement intégré a aussi été rejoué. Le nouveau choix privilégie les doses et les fractions tout en conservant le rendu aux pauses ; il reste insuffisant pour un usage clinique et dépasse l’objectif initial de deux secondes. Le [protocole Windows](windows-recette-030.md) doit encore vérifier le même ZIP sur deux postes, dont un à 8 Go sans GPU dédié.
+
+## Historique : premier choix Mac 0.2.0
+
+Les résultats ci-dessous sont conservés comme trace du premier protocole. La décision UltiMed concernait alors la .app Mac et est remplacée, pour Windows, par la décision ci-dessus.
+
+**Décision historique : Parakeet UltiMed INT8 avec filtre de présence de parole Silero est le seul candidat retenu pour l’intégration.** Whisper Turbo reste un témoin du banc. UltiMed reconnaît davantage de noms médicaux et renvoie le texte plus vite sur ce Mac. Les deux moteurs commettent des erreurs numériques graves. Le candidat est intégré au paquet Mac d’essai ; [les résultats de ce paquet](p0-recette-mac-020.md) ne permettent pas de valider un usage clinique.
 
 ## Essai apparié
 

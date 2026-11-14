@@ -1,34 +1,43 @@
 # Essayer NoteVive sur Mac
 
-**NoteVive 0.1.3 : Mac Apple Silicon (puce série M), macOS 15 ou ultérieur.** Le modèle français est inclus et fonctionne hors ligne. Cette version corrige un défaut d’affichage qui pouvait réduire la fenêtre à une bande de 1 × 32 points au lancement. La bibliothèque locale est conservée. Le paquet est signé localement, sans certificat Apple Developer ID ni notarisation. Utilisez uniquement des phrases fictives pour l’essai.
+**NoteVive 0.2.1, essai local sur Mac Apple Silicon (puce série M), macOS 15 ou ultérieur.** L’application contient UltiMed INT8 pour le français médical et Silero pour détecter les pauses. Elle n’a besoin ni d’un compte, ni d’un accès Internet, ni d’un téléchargement de modèle. Le paquet est signé localement, sans certificat Apple Developer ID ni notarisation.
 
-1. Utilisez une seule copie. Dans le Finder, placez `NoteVive-Mac.zip` dans `~/Applications` ou un autre dossier local hors iCloud, extrayez l’archive, puis ouvrez `NoteVive.app`. Ne lancez pas une copie extraite dans le dossier du projet s’il est synchronisé. Si une ancienne copie tourne, quittez-la avec `⌘Q` avant de lancer la nouvelle. Si une règle du poste refuse le lancement, demandez une version signée et approuvée plutôt que de modifier les protections du poste.
-2. Cliquez sur **+ Nouvelle transcription** (`⌘N`), puis saisissez un titre. Cliquez sur **Dicter** (`⌘D`). Au premier essai, macOS demande votre autorisation d’accès au micro. Attendez **Micro ouvert** puis dites : « Pas de douleur de la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. » Si l’autorisation a été refusée, ouvrez **Réglages Système → Confidentialité et sécurité → Microphone**.
-3. Pendant la dictée, le texte provisoire apparaît séparément. Les segments terminés rejoignent **Brouillon à relire** et sont sauvegardés. Cliquez sur **Arrêter**, attendez la fin du traitement puis corrigez « pas », « droite », « gauche » et « cinq » si nécessaire. Le changement de note attend la fin de la dictée pour éviter d’écrire dans le mauvais brouillon.
-4. Dans **Bibliothèque**, les transcriptions sont regroupées par date de dernière modification. La recherche porte sur le titre et le texte. Cliquez sur l’icône à côté de **Dossiers** pour en créer un, puis glissez-y une note. Le menu dossier sous le titre et le clic droit **Déplacer vers** donnent la même possibilité. Vous pouvez revenir à **Sans dossier** ou renommer le dossier via son menu.
-5. La sauvegarde est automatique. Attendez **Enregistré sur ce Mac** ou utilisez `⌘S`, puis fermez et relancez l’application pour retrouver la note. **Exporter le texte…** produit une copie TXT si vous en avez besoin.
+**Utilisez des dictées fictives.** Le moteur peut changer une dose, une fraction ou une négation. Un exemple connu est « 400 mg » rendu comme « quatre milligrammes ». Le texte n’est pas corrigé automatiquement : le brouillon reste éditable.
 
-Arrêtez la dictée avant de quitter. Réduire la fenêtre, passer à une autre application ou changer de périphérique audio interrompt la capture. Le provisoire peut alors être perdu ; le texte déjà transféré reste dans le brouillon. Le micro ne se rouvre que sur demande. Aucune capture audio n’est conservée et aucune donnée n’est envoyée par l’application.
+1. Si NoteVive est déjà dans `~/Applications`, ouvrez cette copie depuis le Finder. Pour installer depuis le ZIP, quittez d’abord l’ancienne application avec `⌘Q`, extrayez le ZIP en entier hors des dossiers synchronisés, puis ouvrez `NoteVive.app`. Utilisez une seule copie pour conserver les mêmes repères et la même bibliothèque. Si les règles du poste refusent le lancement, demandez une version signée et approuvée.
+2. Cliquez sur **+ Nouvelle transcription** (`⌘N`), donnez-lui un titre puis cliquez sur **Dicter** (`⌘D`). Au premier essai, autorisez le microphone lorsque macOS le demande. Si nécessaire : **Réglages Système → Confidentialité et sécurité → Microphone**.
+3. Attendez **Micro ouvert**. Dites « Pas de douleur à la cheville droite », marquez une pause d’environ une seconde, puis dites « La gêne concerne la cheville gauche ». Après chaque pause, le texte rejoint **Brouillon à relire**. Cliquez sur **Arrêter** pour traiter la dernière phrase même sans pause. Relisez le brouillon, surtout les doses, unités, fractions et négations.
+4. Les notes sont regroupées par date de dernière modification. Vous pouvez chercher par titre ou texte, créer des dossiers, puis y déplacer les notes par glisser-déposer, par le menu sous le titre ou par clic droit.
+5. Attendez **Enregistré sur ce Mac** ou appuyez sur `⌘S`. Fermez et relancez l’application pour retrouver la note. **Exporter le texte…** produit une copie TXT.
 
-La bibliothèque et sa copie de secours précédente restent dans le conteneur local de l’application. Le logiciel ne chiffre pas ces fichiers lui-même. En cas d’échec de sauvegarde, gardez NoteVive ouvert et utilisez **Réessayer** ou exportez le brouillon avant de fermer. Les exports TXT ne sont pas chiffrés non plus. La version Mac n’intègre pas le catalogue médical consultable de Windows.
+**Aide lexicale (essai)** propose 14 profils par spécialité. **Consulter le lexique…** permet de chercher dans le catalogue complet même lorsque l’aide est coupée. Le profil actif propose au moteur une liste prioritaire de termes pendant la dictée. Dans ce profil, l’étoile donne la priorité à un terme du catalogue pour les prochaines dictées. Les favoris restent sur ce Mac. Le profil s’applique à la dictée qui démarre ; il est figé jusqu’à l’arrêt. La dictée démarre par défaut **Sans aide lexicale**. Voir [les contenus et les mesures avec et sans aide](../../docs/p0-recette-lexique-mac.md).
+
+Réduire la fenêtre, passer à une autre application ou changer de périphérique interrompt la capture. Les passages terminés rejoignent la note ; le dernier passage inachevé peut être perdu. Le micro ne se rouvre que sur demande. L’audio n’est pas enregistré. Les notes et la copie de secours restent dans le conteneur local ; l’application ne chiffre pas elle-même ces fichiers. En cas d’échec de sauvegarde, gardez NoteVive ouvert et utilisez **Réessayer** ou exportez le brouillon. La version Mac n’intègre pas le catalogue médical de Windows.
 
 ## Refaire le paquet
 
-Sur un Mac Apple Silicon avec Xcode et Python 3.11+, préparer les poids et notices ONNX dans `app/private/downloads/`, suivant les noms, liens et empreintes du [verrou des dépendances](../inputs.lock.json) : `encoder.onnx`, `decoder.onnx`, `joiner.onnx`, `tokens.txt`, `ONNX-LICENSE`, `ONNX-ThirdPartyNotices.txt`. Préparer aussi le [runtime Sherpa-ONNX macOS arm64 2.0.1](https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-v2.0.1-osx-arm64-shared-no-tts.tar.bz2) sous le nom `sherpa-macos-smoke.tar.bz2` ; son empreinte est dans le script de compilation. Les deux bibliothèques et les modèles sont copiés dans l’application. Aucun téléchargement ne se produit à la compilation ou à l’exécution.
+Sur un Mac Apple Silicon avec Xcode et Python 3.11+, préparer ces fichiers sous `app/private/ultimed-macos/` (ou passer `--assets`). Le script contrôle toutes les empreintes avant de compiler et ne télécharge rien :
+
+- `model/` : `config.json`, `vocab.txt` et `nemo128.onnx` à la racine de la révision UltiMed, et les deux poids `encoder-model.int8.onnx` et `decoder_joint-model.int8.onnx` dans son dossier `int8/`. Ajouter `silero_vad.onnx` depuis la révision Silero du [verrou P0](../../p0/packs/ultimed-int8.lock.json). L’empreinte du prétraitement `nemo128.onnx` est épinglée dans le script.
+- `notices/` : les `README.md` des mêmes révisions sous les noms `UltiMed-README.md` et `Silero-README.md` ; le `LICENSE.txt` Silero sous le nom `Silero-LICENSE.txt` ; le [texte de la licence CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode.txt) sous le nom `CC-BY-4.0.txt`.
+- À la racine des ressources : [onnxruntime-osx-arm64-1.32.0.tgz](https://github.com/microsoft/onnxruntime/releases/download/v1.32.0/onnxruntime-osx-arm64-1.32.0.tgz).
 
 ```sh
-python3 app/macos/build_macos.py --zip
+python3 app/macos/build_macos.py --lexicon /chemin/lexiques \
+  --output /private/tmp/notevive-build/NoteVive.app --zip
 ```
 
-Cette commande produit `dist/NoteVive-Mac.app`, `dist/NoteVive-Mac.zip` et l’empreinte du ZIP. Si les sorties existent, choisir un nouveau chemin `--output` ou mettre à part les précédentes. Après extraction hors d’un dossier synchronisé, vérifier la signature et rejouer la reconnaissance locale avec un WAV de test fictif ou public (PCM 16 bits, mono, jusqu’à 20 Mio) :
+Le script produit une `.app`, son ZIP et l’empreinte SHA-256 du ZIP au même endroit. Choisissez un chemin de sortie libre. Le script extrait le ZIP et contrôle la signature du paquet obtenu. `--lexicon` attend `profiles.json` et `SOURCES.md`, produits par [le générateur de profils](../../lexique/PROFILS.md#reproduction-hors-ligne), et les intègre dans le paquet. Sans cette option, le moteur fonctionne sans lexique. Voir [les composants et licences](NOTICE.md).
+
+## Rejouer les contrôles
 
 ```sh
-codesign --verify --deep --strict /chemin/NoteVive-Mac.app
-/chemin/NoteVive-Mac.app/Contents/MacOS/NoteVive --self-test < /chemin/essai.wav
-/chemin/NoteVive-Mac.app/Contents/MacOS/NoteVive --self-test-audio
+codesign --verify --deep --strict /chemin/NoteVive.app
+/chemin/NoteVive.app/Contents/MacOS/NoteVive --self-test < /chemin/essai.wav
+/chemin/NoteVive.app/Contents/MacOS/NoteVive --self-test-audio
 ```
 
-Le premier test transmet un fichier au moteur et indique le nombre d’hypothèses et le texte final. Le second reproduit les rappels Core Audio sur un signal synthétique, sans microphone physique. Ils ne mesurent pas la fidélité médicale. Pour les contrôles de sauvegarde :
+Le premier test transmet un WAV fictif ou public (PCM 16 bits mono, 20 Mio et cinq minutes maximum) au traitement de l’application. Il sépare les résultats reçus pendant la dictée (`pause`) et à l’arrêt (`arret`). `audio_ms` est la position dans l’audio fourni en accéléré, pas un temps d’affichage. Le second test exerce les rappels Core Audio sans ouvrir le micro physique. Voir [les résultats du paquet 0.2.0](../../docs/p0-recette-mac-020.md).
 
 ```sh
 xcrun swiftc -swift-version 6 -o /private/tmp/notevive-library-tests \
@@ -36,10 +45,8 @@ xcrun swiftc -swift-version 6 -o /private/tmp/notevive-library-tests \
 /private/tmp/notevive-library-tests
 ```
 
-Pour vérifier le démarrage graphique, ouvrez l’application extraite depuis le Finder puis, tant que sa fenêtre est à l’écran, lancez la commande suivante. Elle vérifie les dimensions auprès de macOS : un processus actif ou un titre accessible ne suffit pas. Répétez le contrôle après avoir rouvert l’application.
+Pour vérifier le démarrage graphique, ouvrez l’application dans le Finder puis contrôlez les dimensions de sa fenêtre. Répétez après relance :
 
 ```sh
 xcrun swift -module-cache-path /private/tmp/notevive-geometry-cache app/macos/tests/CheckWindow.swift
 ```
-
-Voir [les composants et licences](NOTICE.md).

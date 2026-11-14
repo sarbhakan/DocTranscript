@@ -1,6 +1,6 @@
 # Essai P0/P3 : effet d’un lexique sur un seul moteur de dictée
 
-Statut : protocole prêt pour une future campagne ; les modes lexicaux ne sont pas exécutables avec l’adaptateur P0 de base. Voir [ce qui est documenté pour chaque moteur](../docs/adaptation-lexicale.md). Aucun résultat de reconnaissance ni seuil clinique n’est revendiqué.
+Statut : protocole de qualification Windows ; les modes lexicaux ne sont pas exécutables avec l’adaptateur P0 de base. Pour le banc distinct de la `.app` Mac, voir [l’essai de NoteVive 0.2.1](../docs/p0-recette-lexique-mac.md). Voir [ce qui est documenté pour chaque moteur](../docs/adaptation-lexicale.md).
 
 ## 1. Figer les entrées
 

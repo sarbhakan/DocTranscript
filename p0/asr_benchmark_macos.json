@@ -1,0 +1,2472 @@
+{
+  "device": {
+    "os": "macOS 27.2 (26B123)",
+    "processor": "Apple M1 Pro",
+    "memory_bytes": 17179869184,
+    "gpu_for_inference": false
+  },
+  "schema": 1,
+  "cases_unique_full": 89,
+  "passes_per_variant": 1,
+  "reference_absence_is_not_validation": true,
+  "results": {
+    "ultimed-pause.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "macos",
+        "model": null,
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "default",
+        "profile": ""
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              8,
+              11
+            ],
+            "negation": [
+              6,
+              6
+            ],
+            "latéralité": [
+              2,
+              2
+            ],
+            "fraction": [
+              2,
+              3
+            ],
+            "quantité": [
+              0,
+              2
+            ]
+          },
+          "terms": [
+            6,
+            10
+          ],
+          "word_changes": [
+            95,
+            1062
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            26,
+            51
+          ],
+          "strength": [
+            47,
+            49
+          ],
+          "drug_strength": [
+            25,
+            49
+          ],
+          "px_posology": {
+            "administered": [
+              34,
+              49
+            ],
+            "duration": [
+              41,
+              43
+            ],
+            "fraction": [
+              2,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 258.87,
+            "p95": 412.463792,
+            "n": 71
+          },
+          "speech_rtf": {
+            "p50": 0.02900641593137255,
+            "p95": 0.03220561823770492,
+            "n": 67
+          },
+          "decode_ms_per_segment": {
+            "p50": 158.202834,
+            "p95": 301.734666,
+            "n": 95
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            71,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              14,
+              26
+            ],
+            "negation": [
+              20,
+              22
+            ],
+            "latéralité": [
+              4,
+              4
+            ],
+            "fraction": [
+              7,
+              8
+            ],
+            "quantité": [
+              0,
+              2
+            ],
+            "délai": [
+              1,
+              2
+            ]
+          },
+          "terms": [
+            25,
+            66
+          ],
+          "word_changes": [
+            117,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 321.597209,
+            "p95": 943.854208,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.030798204839217358,
+            "p95": 0.03212154512377921,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": 152.726292,
+            "p95": 367.869458,
+            "n": 71
+          },
+          "pause_estimate_synth_ms": {
+            "p50": 882.053625,
+            "p95": 1138.48625,
+            "n": 32
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": 882.0536250000005,
+            "p95": 1138.48625,
+            "n": 32
+          },
+          "pause_estimate_missing": [
+            0,
+            32
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        },
+        "corti": {
+          "critical": {
+            "laterality": [
+              1,
+              4
+            ],
+            "quantity": [
+              1,
+              1
+            ],
+            "dose": [
+              3,
+              4
+            ],
+            "duration": [
+              4,
+              5
+            ],
+            "negation": [
+              6,
+              12
+            ],
+            "vitals": [
+              2,
+              2
+            ],
+            "scale": [
+              1,
+              1
+            ]
+          },
+          "terms": [
+            48,
+            63
+          ],
+          "word_changes": [
+            150,
+            728
+          ],
+          "control_nonempty": [
+            0,
+            0
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 2586.386625,
+            "p95": 3859.835667,
+            "n": 4
+          },
+          "speech_rtf": {
+            "p50": 0.02999002103275733,
+            "p95": 0.032621257877996,
+            "n": 4
+          },
+          "decode_ms_per_segment": {
+            "p50": 343.568959,
+            "p95": 939.048709,
+            "n": 28
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            4,
+            4
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": 2050211840,
+        "batch_wall_seconds": 43.57
+      }
+    },
+    "whisper-turbo.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "whisper",
+        "model": "ggml-large-v3-turbo-q5_0.bin",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "default",
+        "profile": "",
+        "cohort": null
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              11,
+              11
+            ],
+            "negation": [
+              6,
+              6
+            ],
+            "latéralité": [
+              2,
+              2
+            ],
+            "fraction": [
+              1,
+              3
+            ],
+            "quantité": [
+              0,
+              2
+            ]
+          },
+          "terms": [
+            4,
+            10
+          ],
+          "word_changes": [
+            121,
+            1062
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            15,
+            51
+          ],
+          "strength": [
+            49,
+            49
+          ],
+          "drug_strength": [
+            15,
+            49
+          ],
+          "px_posology": {
+            "administered": [
+              34,
+              49
+            ],
+            "duration": [
+              41,
+              43
+            ],
+            "fraction": [
+              1,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 3179.3654159992,
+            "p95": 3349.421582999639,
+            "n": 71
+          },
+          "speech_rtf": {
+            "p50": 0.3533663238259679,
+            "p95": 0.604573102323194,
+            "n": 67
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            71,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              24,
+              26
+            ],
+            "negation": [
+              19,
+              22
+            ],
+            "latéralité": [
+              4,
+              4
+            ],
+            "fraction": [
+              6,
+              8
+            ],
+            "quantité": [
+              0,
+              2
+            ],
+            "délai": [
+              1,
+              2
+            ]
+          },
+          "terms": [
+            25,
+            66
+          ],
+          "word_changes": [
+            105,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 3300.7582910067867,
+            "p95": 3825.9640830219723,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.24415159237184533,
+            "p95": 0.39118299083310987,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        },
+        "corti": {
+          "critical": {
+            "laterality": [
+              1,
+              4
+            ],
+            "quantity": [
+              1,
+              1
+            ],
+            "dose": [
+              3,
+              4
+            ],
+            "duration": [
+              4,
+              5
+            ],
+            "negation": [
+              7,
+              12
+            ],
+            "vitals": [
+              2,
+              2
+            ],
+            "scale": [
+              1,
+              1
+            ]
+          },
+          "terms": [
+            47,
+            63
+          ],
+          "word_changes": [
+            118,
+            728
+          ],
+          "control_nonempty": [
+            0,
+            0
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 11235.885125002824,
+            "p95": 18288.51608300465,
+            "n": 4
+          },
+          "speech_rtf": {
+            "p50": 0.14171458458970979,
+            "p95": 0.1432681734259751,
+            "n": 4
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            4,
+            4
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": 1456898048,
+        "batch_wall_seconds": 326.99
+      }
+    },
+    "whisper-large.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "whisper",
+        "model": "ggml-large-v3-q5_0.bin",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "default",
+        "profile": ""
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              11,
+              11
+            ],
+            "negation": [
+              6,
+              6
+            ],
+            "latéralité": [
+              2,
+              2
+            ],
+            "fraction": [
+              1,
+              3
+            ],
+            "quantité": [
+              2,
+              2
+            ]
+          },
+          "terms": [
+            4,
+            10
+          ],
+          "word_changes": [
+            132,
+            1062
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            12,
+            51
+          ],
+          "strength": [
+            49,
+            49
+          ],
+          "drug_strength": [
+            12,
+            49
+          ],
+          "px_posology": {
+            "administered": [
+              36,
+              49
+            ],
+            "duration": [
+              41,
+              43
+            ],
+            "fraction": [
+              1,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 3863.483749999432,
+            "p95": 4536.508666002192,
+            "n": 71
+          },
+          "speech_rtf": {
+            "p50": 0.44192347724242304,
+            "p95": 0.7106974609371264,
+            "n": 67
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            71,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              24,
+              26
+            ],
+            "negation": [
+              18,
+              22
+            ],
+            "latéralité": [
+              4,
+              4
+            ],
+            "fraction": [
+              6,
+              8
+            ],
+            "quantité": [
+              2,
+              2
+            ],
+            "délai": [
+              2,
+              2
+            ]
+          },
+          "terms": [
+            32,
+            66
+          ],
+          "word_changes": [
+            93,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 4400.238041009288,
+            "p95": 6857.3475839802995,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.30717467900180595,
+            "p95": 0.4804204559948222,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        },
+        "corti": {
+          "critical": {
+            "laterality": [
+              1,
+              4
+            ],
+            "quantity": [
+              1,
+              1
+            ],
+            "dose": [
+              3,
+              4
+            ],
+            "duration": [
+              4,
+              5
+            ],
+            "negation": [
+              6,
+              12
+            ],
+            "vitals": [
+              2,
+              2
+            ],
+            "scale": [
+              1,
+              1
+            ]
+          },
+          "terms": [
+            46,
+            63
+          ],
+          "word_changes": [
+            151,
+            728
+          ],
+          "control_nonempty": [
+            0,
+            0
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 27626.319791015703,
+            "p95": 30276.807833986823,
+            "n": 4
+          },
+          "speech_rtf": {
+            "p50": 0.26443331820546323,
+            "p95": 0.38187158351664213,
+            "n": 4
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            4,
+            4
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": 2144157696,
+        "batch_wall_seconds": 467.5
+      }
+    },
+    "turbo-pause.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "whisper",
+        "model": "ggml-large-v3-turbo-q5_0.bin",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "pause",
+        "profile": "",
+        "cohort": "stress"
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              11,
+              11
+            ],
+            "negation": [
+              5,
+              6
+            ],
+            "latéralité": [
+              2,
+              2
+            ],
+            "fraction": [
+              3,
+              3
+            ],
+            "quantité": [
+              0,
+              2
+            ]
+          },
+          "terms": [
+            4,
+            10
+          ],
+          "word_changes": [
+            37,
+            290
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            3,
+            7
+          ],
+          "strength": [
+            7,
+            7
+          ],
+          "drug_strength": [
+            3,
+            7
+          ],
+          "px_posology": {
+            "administered": [
+              3,
+              7
+            ],
+            "duration": [
+              4,
+              5
+            ],
+            "fraction": [
+              3,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 3236.7227920040023,
+            "p95": 12474.387333990308,
+            "n": 18
+          },
+          "speech_rtf": {
+            "p50": 0.35496908632204177,
+            "p95": 0.8381533946170902,
+            "n": 14
+          },
+          "decode_ms_per_segment": {
+            "p50": 3120.6158330023754,
+            "p95": 3248.9275420084596,
+            "n": 25
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            18,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              22,
+              26
+            ],
+            "negation": [
+              15,
+              22
+            ],
+            "latéralité": [
+              4,
+              4
+            ],
+            "fraction": [
+              8,
+              8
+            ],
+            "quantité": [
+              0,
+              2
+            ],
+            "délai": [
+              1,
+              2
+            ]
+          },
+          "terms": [
+            25,
+            66
+          ],
+          "word_changes": [
+            131,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 6319.123416004004,
+            "p95": 12928.401209006552,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.4439471829323982,
+            "p95": 0.7425230555946611,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": 3167.1102499822155,
+            "p95": 3326.575540995691,
+            "n": 71
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": null,
+        "batch_wall_seconds": 232.12
+      }
+    },
+    "ultimed-extended.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "ultimed",
+        "model": "Model",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "extended",
+        "profile": "",
+        "cohort": null,
+        "startup_plus_warmup_ms": 2306.360082991887,
+        "binary_sha256": "74fda63fe60a43efa007fc0bb353705ad42e89c4a5af528bd0ba8db89994cba0",
+        "whisper_weights_sha256": null
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              7,
+              11
+            ],
+            "negation": [
+              6,
+              6
+            ],
+            "latéralité": [
+              2,
+              2
+            ],
+            "fraction": [
+              3,
+              3
+            ],
+            "quantité": [
+              2,
+              2
+            ]
+          },
+          "terms": [
+            6,
+            10
+          ],
+          "word_changes": [
+            90,
+            1062
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            25,
+            51
+          ],
+          "strength": [
+            44,
+            49
+          ],
+          "drug_strength": [
+            22,
+            49
+          ],
+          "px_posology": {
+            "administered": [
+              37,
+              49
+            ],
+            "duration": [
+              41,
+              43
+            ],
+            "fraction": [
+              3,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 288.69687498081475,
+            "p95": 477.74849997949786,
+            "n": 71
+          },
+          "speech_rtf": {
+            "p50": 0.031231536054683345,
+            "p95": 0.033461873600108,
+            "n": 67
+          },
+          "decode_ms_per_segment": {
+            "p50": 260.04037499660626,
+            "p95": 426.753124978859,
+            "n": 67
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            71,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              18,
+              26
+            ],
+            "negation": [
+              20,
+              22
+            ],
+            "latéralité": [
+              4,
+              4
+            ],
+            "fraction": [
+              8,
+              8
+            ],
+            "quantité": [
+              2,
+              2
+            ],
+            "délai": [
+              2,
+              2
+            ]
+          },
+          "terms": [
+            29,
+            66
+          ],
+          "word_changes": [
+            97,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 348.6217919853516,
+            "p95": 982.5067920028232,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.03109639668281841,
+            "p95": 0.03313142404822617,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": 311.6537499881815,
+            "p95": 877.6725839998107,
+            "n": 30
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        },
+        "corti": {
+          "critical": {
+            "laterality": [
+              1,
+              4
+            ],
+            "quantity": [
+              1,
+              1
+            ],
+            "dose": [
+              3,
+              4
+            ],
+            "duration": [
+              4,
+              5
+            ],
+            "negation": [
+              6,
+              12
+            ],
+            "vitals": [
+              2,
+              2
+            ],
+            "scale": [
+              1,
+              1
+            ]
+          },
+          "terms": [
+            49,
+            63
+          ],
+          "word_changes": [
+            145,
+            728
+          ],
+          "control_nonempty": [
+            0,
+            0
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 2658.833667024737,
+            "p95": 3907.706915982999,
+            "n": 4
+          },
+          "speech_rtf": {
+            "p50": 0.030559608305805286,
+            "p95": 0.03353500898447915,
+            "n": 4
+          },
+          "decode_ms_per_segment": {
+            "p50": 647.0537089917343,
+            "p95": 979.56875001546,
+            "n": 19
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            4,
+            4
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": 2010906624,
+        "batch_wall_seconds": 45.91
+      }
+    },
+    "zipformer.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "zipformer",
+        "model": "downloads",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 2,
+        "mode": "default",
+        "profile": "",
+        "cohort": null,
+        "startup_plus_warmup_ms": 15726.210833003279,
+        "binary_sha256": "c22a786ff19cb13c25cbc421cfe7b2d0a757d3108a28b120a13f15eb22130366",
+        "whisper_weights_sha256": null
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              5,
+              11
+            ],
+            "negation": [
+              1,
+              6
+            ],
+            "latéralité": [
+              1,
+              2
+            ],
+            "fraction": [
+              0,
+              3
+            ],
+            "quantité": [
+              0,
+              2
+            ]
+          },
+          "terms": [
+            2,
+            10
+          ],
+          "word_changes": [
+            380,
+            1062
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            10,
+            51
+          ],
+          "strength": [
+            31,
+            49
+          ],
+          "drug_strength": [
+            5,
+            49
+          ],
+          "px_posology": {
+            "administered": [
+              7,
+              49
+            ],
+            "duration": [
+              40,
+              43
+            ],
+            "fraction": [
+              0,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 372.23141599679366,
+            "p95": 657.9288330103736,
+            "n": 71
+          },
+          "speech_rtf": {
+            "p50": 0.03908036361240013,
+            "p95": 0.041015829443090804,
+            "n": 67
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            71,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              5,
+              26
+            ],
+            "negation": [
+              2,
+              22
+            ],
+            "latéralité": [
+              2,
+              4
+            ],
+            "fraction": [
+              0,
+              8
+            ],
+            "quantité": [
+              0,
+              2
+            ],
+            "délai": [
+              1,
+              2
+            ]
+          },
+          "terms": [
+            2,
+            66
+          ],
+          "word_changes": [
+            534,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 494.47666699416004,
+            "p95": 1171.610084013082,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.039031426023151246,
+            "p95": 0.03977078757595243,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        },
+        "corti": {
+          "critical": {
+            "laterality": [
+              1,
+              4
+            ],
+            "quantity": [
+              1,
+              1
+            ],
+            "dose": [
+              1,
+              4
+            ],
+            "duration": [
+              3,
+              5
+            ],
+            "negation": [
+              3,
+              12
+            ],
+            "vitals": [
+              2,
+              2
+            ],
+            "scale": [
+              1,
+              1
+            ]
+          },
+          "terms": [
+            28,
+            63
+          ],
+          "word_changes": [
+            234,
+            728
+          ],
+          "control_nonempty": [
+            0,
+            0
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 3116.692875017179,
+            "p95": 4966.076125012478,
+            "n": 4
+          },
+          "speech_rtf": {
+            "p50": 0.039309839070347095,
+            "p95": 0.039696604846661473,
+            "n": 4
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            4,
+            4
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": 451280896,
+        "batch_wall_seconds": 72.08
+      }
+    },
+    "whisper-small.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "whisper",
+        "model": "ggml-small-q5_1.bin",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "default",
+        "profile": "",
+        "cohort": null,
+        "pause_ms_requested": null,
+        "startup_plus_warmup_ms": 2049.184207979124,
+        "binary_sha256": null,
+        "whisper_weights_sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb"
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              10,
+              11
+            ],
+            "negation": [
+              5,
+              6
+            ],
+            "latéralité": [
+              2,
+              2
+            ],
+            "fraction": [
+              2,
+              3
+            ],
+            "quantité": [
+              0,
+              2
+            ]
+          },
+          "terms": [
+            1,
+            10
+          ],
+          "word_changes": [
+            237,
+            1062
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            10,
+            51
+          ],
+          "strength": [
+            49,
+            49
+          ],
+          "drug_strength": [
+            10,
+            49
+          ],
+          "px_posology": {
+            "administered": [
+              18,
+              49
+            ],
+            "duration": [
+              41,
+              43
+            ],
+            "fraction": [
+              3,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 837.3501670139376,
+            "p95": 1027.7845420059748,
+            "n": 71
+          },
+          "speech_rtf": {
+            "p50": 0.09971278714912042,
+            "p95": 0.1498303375969002,
+            "n": 67
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            71,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              17,
+              26
+            ],
+            "negation": [
+              16,
+              22
+            ],
+            "latéralité": [
+              2,
+              4
+            ],
+            "fraction": [
+              4,
+              8
+            ],
+            "quantité": [
+              0,
+              2
+            ],
+            "délai": [
+              1,
+              2
+            ]
+          },
+          "terms": [
+            5,
+            66
+          ],
+          "word_changes": [
+            255,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 984.4011669920292,
+            "p95": 1829.148917022394,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.06706380066319492,
+            "p95": 0.10560945222070721,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        },
+        "corti": {
+          "critical": {
+            "laterality": [
+              1,
+              4
+            ],
+            "quantity": [
+              1,
+              1
+            ],
+            "dose": [
+              1,
+              4
+            ],
+            "duration": [
+              3,
+              5
+            ],
+            "negation": [
+              3,
+              12
+            ],
+            "vitals": [
+              1,
+              2
+            ],
+            "scale": [
+              1,
+              1
+            ]
+          },
+          "terms": [
+            27,
+            63
+          ],
+          "word_changes": [
+            238,
+            728
+          ],
+          "control_nonempty": [
+            0,
+            0
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 4679.873249988304,
+            "p95": 7993.589208985213,
+            "n": 4
+          },
+          "speech_rtf": {
+            "p50": 0.05945570970221674,
+            "p95": 0.06210831993555144,
+            "n": 4
+          },
+          "decode_ms_per_segment": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            4,
+            4
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": 876085248,
+        "batch_wall_seconds": 111.44
+      }
+    },
+    "turbo-native.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "whisper-native",
+        "model": "ggml-large-v3-turbo-q5_0.bin",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "default",
+        "profile": "",
+        "cohort": "stress",
+        "startup_plus_warmup_ms": 3936.9959169998765,
+        "binary_sha256": "fff6a800463946a97bcdb906ff1527c6f8909fca41bcb3a9ac69327bf7d8058a",
+        "whisper_weights_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              11,
+              11
+            ],
+            "negation": [
+              5,
+              6
+            ],
+            "latéralité": [
+              2,
+              2
+            ],
+            "fraction": [
+              3,
+              3
+            ],
+            "quantité": [
+              0,
+              2
+            ]
+          },
+          "terms": [
+            4,
+            10
+          ],
+          "word_changes": [
+            32,
+            290
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            3,
+            7
+          ],
+          "strength": [
+            7,
+            7
+          ],
+          "drug_strength": [
+            3,
+            7
+          ],
+          "px_posology": {
+            "administered": [
+              3,
+              7
+            ],
+            "duration": [
+              4,
+              5
+            ],
+            "fraction": [
+              3,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 3261.336958996253,
+            "p95": 12637.589000019943,
+            "n": 18
+          },
+          "speech_rtf": {
+            "p50": 0.35464410964272197,
+            "p95": 0.8485616853544571,
+            "n": 14
+          },
+          "decode_ms_per_segment": {
+            "p50": 3104.15425,
+            "p95": 3316.523875,
+            "n": 26
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            18,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              22,
+              26
+            ],
+            "negation": [
+              15,
+              22
+            ],
+            "latéralité": [
+              4,
+              4
+            ],
+            "fraction": [
+              8,
+              8
+            ],
+            "quantité": [
+              0,
+              2
+            ],
+            "délai": [
+              1,
+              2
+            ]
+          },
+          "terms": [
+            25,
+            66
+          ],
+          "word_changes": [
+            126,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 6352.732416999061,
+            "p95": 13091.311041993322,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.4505852129277197,
+            "p95": 0.7859934311213413,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": 3172.644292,
+            "p95": 3393.817041,
+            "n": 72
+          },
+          "pause_estimate_synth_ms": {
+            "p50": 3893.212208,
+            "p95": 4195.8998329999995,
+            "n": 32
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": 3906.5062500000004,
+            "p95": 4195.8998329999995,
+            "n": 32
+          },
+          "pause_estimate_missing": [
+            0,
+            32
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": null,
+        "batch_wall_seconds": null
+      }
+    },
+    "turbo-native-1200.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "whisper-native",
+        "model": "ggml-large-v3-turbo-q5_0.bin",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "default",
+        "profile": "",
+        "cohort": "stress",
+        "pause_ms_requested": 1200,
+        "startup_plus_warmup_ms": 4261.377666989574,
+        "binary_sha256": "5b697560d6ebf9d9ee0b54c8e5e9687d0af34efb6312c17348639de4d08cc798",
+        "whisper_weights_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
+      },
+      "cohorts": {
+        "p0": {
+          "critical": {
+            "dose": [
+              11,
+              11
+            ],
+            "negation": [
+              5,
+              6
+            ],
+            "latéralité": [
+              2,
+              2
+            ],
+            "fraction": [
+              0,
+              3
+            ],
+            "quantité": [
+              0,
+              2
+            ]
+          },
+          "terms": [
+            4,
+            10
+          ],
+          "word_changes": [
+            37,
+            290
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            3,
+            7
+          ],
+          "strength": [
+            7,
+            7
+          ],
+          "drug_strength": [
+            3,
+            7
+          ],
+          "px_posology": {
+            "administered": [
+              3,
+              7
+            ],
+            "duration": [
+              4,
+              5
+            ],
+            "fraction": [
+              1,
+              3
+            ]
+          },
+          "elapsed_ms": {
+            "p50": 3280.3962499892805,
+            "p95": 9621.41474999953,
+            "n": 18
+          },
+          "speech_rtf": {
+            "p50": 0.31631783064762825,
+            "p95": 0.5727032589285435,
+            "n": 14
+          },
+          "decode_ms_per_segment": {
+            "p50": 3248.283583,
+            "p95": 3450.35775,
+            "n": 17
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            18,
+            71
+          ]
+        },
+        "stress": {
+          "critical": {
+            "dose": [
+              24,
+              26
+            ],
+            "negation": [
+              17,
+              22
+            ],
+            "latéralité": [
+              4,
+              4
+            ],
+            "fraction": [
+              5,
+              8
+            ],
+            "quantité": [
+              0,
+              2
+            ],
+            "délai": [
+              1,
+              2
+            ]
+          },
+          "terms": [
+            26,
+            66
+          ],
+          "word_changes": [
+            109,
+            1064
+          ],
+          "control_nonempty": [
+            0,
+            4
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 3332.2474579908885,
+            "p95": 9950.288624997484,
+            "n": 32
+          },
+          "speech_rtf": {
+            "p50": 0.3032503445545273,
+            "p95": 0.42753240854371866,
+            "n": 28
+          },
+          "decode_ms_per_segment": {
+            "p50": 3298.471458,
+            "p95": 6726.208416,
+            "n": 33
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            32,
+            32
+          ],
+          "covered": [
+            32,
+            32
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": 1411088384,
+        "batch_wall_seconds": 123.62
+      }
+    },
+    "turbo-native-corti.ndjson": {
+      "meta": {
+        "manifest": "02c4a3bda01dde0654b5bda9a36c84382118b50011f95ada111f10822b101b57",
+        "engine": "whisper-native",
+        "model": "ggml-large-v3-turbo-q5_0.bin",
+        "runtime": "macOS-27.2-arm64-arm-64bit",
+        "threads": 4,
+        "mode": "default",
+        "profile": "",
+        "cohort": "corti",
+        "pause_ms_requested": 576,
+        "startup_plus_warmup_ms": 4021.788708982058,
+        "binary_sha256": "5b697560d6ebf9d9ee0b54c8e5e9687d0af34efb6312c17348639de4d08cc798",
+        "whisper_weights_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
+      },
+      "cohorts": {
+        "corti": {
+          "critical": {
+            "laterality": [
+              1,
+              4
+            ],
+            "quantity": [
+              1,
+              1
+            ],
+            "dose": [
+              3,
+              4
+            ],
+            "duration": [
+              4,
+              5
+            ],
+            "negation": [
+              7,
+              12
+            ],
+            "vitals": [
+              2,
+              2
+            ],
+            "scale": [
+              1,
+              1
+            ]
+          },
+          "terms": [
+            48,
+            63
+          ],
+          "word_changes": [
+            149,
+            728
+          ],
+          "control_nonempty": [
+            0,
+            0
+          ],
+          "drug": [
+            0,
+            0
+          ],
+          "strength": [
+            0,
+            0
+          ],
+          "drug_strength": [
+            0,
+            0
+          ],
+          "px_posology": {},
+          "elapsed_ms": {
+            "p50": 23396.97487500962,
+            "p95": 39856.31279199151,
+            "n": 4
+          },
+          "speech_rtf": {
+            "p50": 0.2211423044597674,
+            "p95": 0.3096742353927734,
+            "n": 4
+          },
+          "decode_ms_per_segment": {
+            "p50": 3302.43975,
+            "p95": 6789.987542,
+            "n": 29
+          },
+          "pause_estimate_synth_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_synth_with_serial_queue_ms": {
+            "p50": null,
+            "p95": null,
+            "n": 0
+          },
+          "pause_estimate_missing": [
+            0,
+            0
+          ],
+          "covered": [
+            4,
+            4
+          ]
+        }
+      },
+      "resources": {
+        "peak_rss_bytes_os_reported": 1035436032,
+        "batch_wall_seconds": 108.61
+      }
+    }
+  }
+}

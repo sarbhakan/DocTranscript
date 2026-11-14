@@ -101,6 +101,65 @@ void Run() {
         Check(entry.path().extension() != L".stage", "failed stage removed");
     Check(library.Save(note, error) && note.modified > lastSavedDate, "successful retry");
 
+    notes::Folder top;
+    top.title = L"Cardiologie fictive";
+    Check(library.SaveFolder(top, error) && top.id.size() == 36 && top.created == top.modified,
+          "save encrypted top-level folder");
+    notes::Folder child;
+    child.title = L"Consultations fictives";
+    child.parent_id = top.id;
+    Check(library.SaveFolder(child, error), "save nested folder");
+    const auto folderFile = temp.path / (child.id + L".nvf");
+    const auto folderBytes = ReadBytes(folderFile);
+    Check(!Contains(folderBytes, reinterpret_cast<const char*>(child.title.data()), child.title.size() * sizeof(wchar_t)),
+          "folder title not stored in cleartext");
+    notes::Folder cycle = top;
+    cycle.parent_id = child.id;
+    Check(!library.SaveFolder(cycle, error), "prevent folder cycle");
+    const auto beforeMove = note.modified;
+    note.folder_id = child.id;
+    Check(library.Save(note, error) && note.created == originalDate && note.modified > beforeMove,
+          "moving legacy note preserves creation date");
+
+    notes::Store reopened;
+    notes::StoreTestAccess::SetDirectory(reopened, temp.path.wstring());
+    std::vector<notes::Folder> folders;
+    Check(reopened.ListFolders(folders, error) && folders.size() == 2 &&
+          notes::FolderPath(folders, child.id) == L"Cardiologie fictive / Consultations fictives",
+          "reopen folder hierarchy");
+    notes::Note moved;
+    Check(reopened.Load(note.id, moved, error) && moved.text == note.text && moved.folder_id == child.id,
+          "reopen file with folder and original text");
+    notes::Query query{L"DEUXIEME ligne", top.id, true, true, notes::Sort::CreatedNewest};
+    Check(reopened.List(query, entries, error) && entries.size() == 1 && entries[0].id == note.id &&
+          entries[0].text.empty(), "accent-insensitive body search in descendants without returning text");
+    query.include_descendants = false;
+    Check(reopened.List(query, entries, error) && entries.empty(), "direct folder excludes descendants");
+    auto oldFolder = child;
+    child.title += L" relues";
+    child.parent_id.clear();
+    const auto folderCreation = child.created;
+    Check(reopened.SaveFolder(child, error) && child.modified > oldFolder.modified && child.created == folderCreation,
+          "rename and move folder preserve creation date");
+    Check(!library.SaveFolder(oldFolder, error), "reject stale folder revision");
+    {
+        std::ofstream corrupt(folderFile, std::ios::binary | std::ios::trunc);
+        Check(static_cast<bool>(corrupt), "open isolated corrupt folder fixture");
+        corrupt << "not DPAPI";
+    }
+    Check(!reopened.ListFolders(folders, error) && folders.size() == 1 && folders[0].id == top.id,
+          "corrupt folder leaves other folders readable");
+    Check(library.Load(note.id, moved, error) && moved.folder_id == child.id && moved.text == note.text,
+          "orphan note still readable with original folder reference");
+    query = {};
+    query.filter_folder = true;
+    Check(!reopened.List(query, entries, error) && entries.size() == 1 && entries[0].id == note.id,
+          "orphan note is visible when browsing unfiled");
+    moved.folder_id.clear();
+    Check(library.Save(moved, error) && moved.created == originalDate,
+          "orphan note can safely be moved to unfiled");
+    note = std::move(moved);
+
     notes::Note untouched;
     untouched.title = L"sentinelle";
     Check(!library.Load(L"..\\outside", untouched, error) && untouched.title == L"sentinelle", "reject invalid ID");

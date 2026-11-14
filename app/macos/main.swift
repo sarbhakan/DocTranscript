@@ -7,8 +7,8 @@ import SwiftUI
     private var window: NSWindow?
     private var sleepObserver: NSObjectProtocol?
 
-    init(model: URL) {
-        let dictation = Dictation(model: model)
+    init(model: URL, lexiconFile: URL) {
+        let dictation = Dictation(model: model, lexiconFile: lexiconFile)
         self.dictation = dictation
         self.workspace = TranscriptWorkspace(library: TranscriptLibrary(), dictation: dictation)
     }
@@ -141,41 +141,139 @@ import SwiftUI
     }
 }
 
-private func selfTest(model: URL) throws {
-    let recognizer = try Recognizer(model: model)
-    try recognizer.start()
-    // The caller opens the file and passes bytes on stdin; the sandbox stays in force.
-    let limit = 20 * 1024 * 1024
-    guard let data = try FileHandle.standardInput.read(upToCount: limit + 1),
-          data.count <= limit,
-          let wave = data.withUnsafeBytes({ bytes in
-              SherpaOnnxReadWaveFromBinaryData(bytes.bindMemory(to: CChar.self).baseAddress, Int32(bytes.count))
-          }) else { throw NoteViveError.audio }
-    defer { SherpaOnnxFreeWave(wave) }
-    guard let samples = wave.pointee.samples, wave.pointee.sample_rate > 0 else { throw NoteViveError.audio }
-    let step = Int(wave.pointee.sample_rate / 10)
-    guard step > 0 else { throw NoteViveError.audio }
-    let count = Int(wave.pointee.num_samples)
-    var committed: [String] = []
-    var updates = 0
-    for first in stride(from: 0, to: count, by: step) {
-        let slice = UnsafeBufferPointer(start: samples + first, count: min(step, count - first))
-        if let update = recognizer.accept(slice, rate: wave.pointee.sample_rate) {
-            if !update.committed.isEmpty { committed.append(update.committed) }
-            if !update.draft.isEmpty { updates += 1 }
-        }
+private let maxWAVBytes = 20 * 1024 * 1024
+
+private func readTestWAV() throws -> Data {
+    // The caller opens the file; passing bytes on stdin keeps the sandbox in force.
+    var data = Data()
+    while let chunk = try FileHandle.standardInput.read(upToCount: 65_536), !chunk.isEmpty {
+        guard chunk.count <= maxWAVBytes - data.count else { throw NoteViveError.audio }
+        data.append(chunk)
     }
-    let last = recognizer.stop(flush: true)
-    if !last.isEmpty { committed.append(last) }
-    print("hypotheses=\(updates)")
-    print("texte=\(committed.joined(separator: " "))")
+    return data
 }
 
-let model = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/Model", isDirectory: true)
+private func decodeWAV(_ data: Data) throws -> (samples: [Float], rate: Int32) {
+    return try data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+        func word(_ offset: Int) -> UInt16 {
+            UInt16(littleEndian: bytes.loadUnaligned(fromByteOffset: offset, as: UInt16.self))
+        }
+        func dword(_ offset: Int) -> UInt32 {
+            UInt32(littleEndian: bytes.loadUnaligned(fromByteOffset: offset, as: UInt32.self))
+        }
+        guard bytes.count >= 12, dword(0) == 0x46464952, dword(8) == 0x45564157 else {
+            throw NoteViveError.audio
+        }
+        let end = Int(dword(4)) + 8
+        guard (12...bytes.count).contains(end) else { throw NoteViveError.audio }
+        var position = 12
+        var rate: Int32?
+        var payload: Range<Int>?
+        while end - position >= 8 {
+            let length = Int(dword(position + 4))
+            let start = position + 8
+            guard length <= end - start else { throw NoteViveError.audio }
+            switch dword(position) {
+            case 0x20746d66: // fmt
+                guard length >= 16, rate == nil, word(start) == 1, word(start + 2) == 1,
+                      word(start + 12) == 2, word(start + 14) == 16,
+                      (8_000...192_000).contains(dword(start + 4)) else { throw NoteViveError.audio }
+                rate = Int32(dword(start + 4))
+            case 0x61746164: // data
+                guard payload == nil, length >= 2, length.isMultiple(of: 2) else { throw NoteViveError.audio }
+                payload = start..<(start + length)
+            default: break
+            }
+            position = start + length + (length & 1)
+            guard position <= end else { throw NoteViveError.audio }
+        }
+        guard position == end, let rate, let payload, payload.count / 2 <= Int(rate) * 300 else {
+            throw NoteViveError.audio
+        }
+        let samples = stride(from: payload.lowerBound, to: payload.upperBound, by: 2)
+            .map { Float(Int16(bitPattern: word($0))) / 32_768 }
+        return (samples, rate)
+    }
+}
+
+private func selfTest(model: URL) throws {
+    let (samples, rate) = try decodeWAV(readTestWAV())
+    let result = try replayDictation(worker: RecognitionWorker(model: model), samples: samples, rate: rate)
+    let paused = result.pause.filter { !$0.text.isEmpty }
+    let stopped = result.stop.filter { !$0.text.isEmpty }
+    print("segments_pause=\(paused.count)")
+    for (index, phrase) in paused.enumerated() {
+        print("pause[\(index + 1)]=\(phrase.text)")
+        print("audio_ms[\(index + 1)]=\(phrase.audio_ms ?? 0)")
+    }
+    print("segments_arret=\(stopped.count)")
+    for (index, phrase) in stopped.enumerated() { print("arret[\(index + 1)]=\(phrase.text)") }
+    print("texte=\((paused + stopped).map(\.text).joined(separator: " "))")
+}
+
+private func benchmark(model: URL, lexiconFile: URL) throws {
+    struct Failure: Encodable { let error: String }
+    let input = FileHandle.standardInput
+    let output = FileHandle.standardOutput
+    let encoder = JSONEncoder()
+    let worker = RecognitionWorker(model: model)
+    let lexicon = try MedicalLexicon.load(from: lexiconFile)
+
+    func exact(_ size: Int) throws -> Data {
+        var data = Data()
+        data.reserveCapacity(size)
+        while data.count < size {
+            guard let chunk = try input.read(upToCount: min(65_536, size - data.count)), !chunk.isEmpty else {
+                throw NoteViveError.audio
+            }
+            data.append(chunk)
+        }
+        return data
+    }
+
+    func write<T: Encodable>(_ object: T) throws {
+        var bytes = try encoder.encode(object)
+        bytes.append(10)
+        try output.write(contentsOf: bytes)
+    }
+
+    while true {
+        var idBytes = Data()
+        while true {
+            guard let byte = try input.read(upToCount: 1)?.first else {
+                if idBytes.isEmpty { return }
+                throw NoteViveError.lexicon
+            }
+            if byte == 10 { break }
+            guard idBytes.count < 53 else { throw NoteViveError.lexicon }
+            idBytes.append(byte)
+        }
+        let size = Int(try exact(4).withUnsafeBytes { UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self)) })
+        guard size <= maxWAVBytes else { throw NoteViveError.audio }
+        let bytes = try exact(size)
+        do {
+            guard let id = String(data: idBytes, encoding: .utf8) else { throw NoteViveError.lexicon }
+            let full = id.hasPrefix("full:")
+            let profile = lexicon.profile(full ? String(id.dropFirst(5)) : id)
+            guard id.isEmpty || profile != nil else { throw NoteViveError.lexicon }
+            let selecting = DispatchTime.now().uptimeNanoseconds
+            let phrases = (full ? profile?.entries.filter(MedicalLexicon.canFavor) : profile?.active) ?? []
+            let selectionMS = Double(DispatchTime.now().uptimeNanoseconds - selecting) / 1e6
+            let (samples, rate) = try decodeWAV(bytes)
+            try write(replayDictation(worker: worker, samples: samples, rate: rate, profile: id,
+                                      phrases: phrases, selectionMS: selectionMS))
+        } catch { try write(Failure(error: error.localizedDescription)) }
+    }
+}
+
+let resources = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources", isDirectory: true)
+let model = resources.appendingPathComponent("Model", isDirectory: true)
+let lexiconFile = resources.appendingPathComponent("Lexique/profiles.json")
 let arguments = Array(CommandLine.arguments.dropFirst())
-if arguments == ["--self-test"] || arguments == ["--self-test-audio"] {
+if arguments == ["--self-test"] || arguments == ["--self-test-audio"] || arguments == ["--lexicon-bench"] {
     do {
         if arguments == ["--self-test-audio"] { try audioCallbackRegression(model: model) }
+        else if arguments == ["--lexicon-bench"] { try benchmark(model: model, lexiconFile: lexiconFile) }
         else { try selfTest(model: model) }
     }
     catch {
@@ -185,7 +283,7 @@ if arguments == ["--self-test"] || arguments == ["--self-test-audio"] {
 } else {
     MainActor.assumeIsolated {
         let app = NSApplication.shared
-        let delegate = Application(model: model)
+        let delegate = Application(model: model, lexiconFile: lexiconFile)
         app.setActivationPolicy(.regular)
         app.delegate = delegate
         withExtendedLifetime(delegate) { app.run() }

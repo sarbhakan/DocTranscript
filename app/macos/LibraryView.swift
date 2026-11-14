@@ -93,6 +93,7 @@ struct LibraryView: View {
     @State private var folderName = ""
     @State private var renamingFolder: UUID?
     @State private var folderNameRejected = false
+    @State private var showLexicon = false
     @FocusState private var titleFocused: Bool
 
     init(workspace: TranscriptWorkspace) {
@@ -362,24 +363,30 @@ struct LibraryView: View {
                 Text(note.createdAt, format: .dateTime.day().month(.wide).year())
             }
             .foregroundStyle(.secondary).font(.callout)
+            if dictation.lexicon.profiles.isEmpty {
+                Text(dictation.lexiconStatus).font(.footnote).foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 10) {
+                    Picker("Aide lexicale (essai)", selection: Binding(get: { dictation.profileID }, set: dictation.selectProfile)) {
+                        Text("Sans aide lexicale").tag("")
+                        ForEach(dictation.lexicon.profiles) { profile in Text(profile.label).tag(profile.id) }
+                    }
+                    .fixedSize()
+                    .accessibilityIdentifier("profil-lexical")
+                    Spacer()
+                    Button("Consulter le lexique…", systemImage: "text.book.closed") { showLexicon = true }
+                }
+                .disabled(!dictation.canSwitchNote)
+                .sheet(isPresented: $showLexicon) { MedicalLexiconView(dictation: dictation) }
+            }
             Label(dictation.status, systemImage: recording ? "mic.fill" : "mic.slash")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(recording ? Color.red : Color.secondary)
                 .accessibilityIdentifier("etat-micro")
             VStack(alignment: .leading, spacing: 6) {
-                Text("Texte provisoire").font(.headline)
-                ScrollView {
-                    Text(dictation.draft.isEmpty ? "Le texte apparaît ici pendant la dictée." : dictation.draft)
-                        .foregroundStyle(dictation.draft.isEmpty ? .secondary : .primary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(height: 42)
-                .padding(9)
-                .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
-            }
-            VStack(alignment: .leading, spacing: 6) {
                 Text("Brouillon à relire").font(.headline)
+                Text("Relisez les doses, les unités, les fractions et les négations.")
+                    .font(.callout).foregroundStyle(.secondary)
                 TextEditor(text: Binding(get: { dictation.note }, set: workspace.editBody))
                     .font(.system(size: 15)).padding(5).frame(minHeight: 140)
                     .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(.quaternary) }
@@ -454,6 +461,70 @@ struct LibraryView: View {
     private func move(_ note: TranscriptNote, to folderID: UUID?) {
         guard workspace.canSwitch, library.canEdit else { return }
         library.moveNote(note.id, to: folderID)
+    }
+}
+
+private struct MedicalLexiconView: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var dictation: Dictation
+    @State private var browsingID = ""
+    @State private var query = ""
+
+    private var profile: MedicalLexicon.Profile? {
+        dictation.lexicon.profile(browsingID) ?? dictation.profile ?? dictation.lexicon.profiles.first
+    }
+
+    var body: some View {
+        if let profile {
+            let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let matches = search.isEmpty ? profile.entries : profile.entries.filter { $0.localizedStandardContains(search) }
+            let favorites = dictation.favorites[profile.id] ?? []
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Lexique médical local").font(.title2.bold())
+                    Spacer()
+                    Button("Fermer") { dismiss() }.keyboardShortcut(.cancelAction)
+                }
+                Picker("Spécialité", selection: Binding(get: { self.profile?.id ?? "" }, set: { browsingID = $0 })) {
+                    ForEach(dictation.lexicon.profiles) { Text($0.label).tag($0.id) }
+                }
+                TextField("Rechercher un terme", text: $query).textFieldStyle(.roundedBorder)
+                Text("\(profile.entries.count.formatted()) entrées · \(profile.active.count.formatted()) termes proposés au moteur pour cette spécialité")
+                    .foregroundStyle(.secondary)
+                if dictation.profileID == profile.id {
+                    Text("Ajoutez jusqu’à \(MedicalLexicon.maxFavorites) favoris pour les prioriser lors de la prochaine dictée.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                if matches.isEmpty { Text("Aucun terme trouvé.").foregroundStyle(.secondary) }
+                List(matches.prefix(200), id: \.self) { term in
+                    HStack {
+                        Text(term).textSelection(.enabled)
+                        Spacer()
+                        if dictation.profileID == profile.id, MedicalLexicon.canFavor(term) {
+                            let marked = favorites.contains(term)
+                            Button {
+                                dictation.toggleFavorite(term, in: profile)
+                            } label: {
+                                Image(systemName: marked ? "star.fill" : "star")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(!marked && favorites.count >= MedicalLexicon.maxFavorites)
+                            .accessibilityLabel(marked ? "Retirer des favoris" : "Ajouter aux favoris")
+                        }
+                    }
+                }
+                if matches.count > 200 {
+                    Text("\(matches.count.formatted()) résultats. Les 200 premiers sont affichés ; précisez votre recherche.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                if let source = dictation.lexicon.sources?.first(where: { $0.id == "hpo" }), let edition = source.edition {
+                    Text("Ce produit utilise Human Phenotype Ontology (\(edition)).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(22)
+            .frame(width: 600, height: 490)
+        }
     }
 }
 

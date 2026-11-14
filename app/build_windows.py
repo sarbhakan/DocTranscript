@@ -9,16 +9,20 @@ import shutil
 import sqlite3
 import struct
 import subprocess
-import tarfile
 import tempfile
 import zipfile
+
+if __package__:
+    from .build_whisper_windows import validate_staged, DLL_NAMES
+else:
+    from build_whisper_windows import validate_staged, DLL_NAMES
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WIN = ROOT / "app/windows"
 LOCK = json.loads((ROOT / "app/inputs.lock.json").read_text(encoding="utf-8"))
 PUBLIC_CATALOGUE_MANIFEST = ROOT / "lexique/manifest-essai-public.json"
-SHERPA_NOTICES = ROOT / "app/licences/sherpa"
+WHISPER_NOTICES = WIN / "vendor/whisper-notices"
 BASE_FLAGS = ["-target", "x86_64-windows-gnu", "-O2", "-DUNICODE", "-D_UNICODE"]
 CXX_FLAGS = [*BASE_FLAGS, "-std=c++17", "-Wall", "-Wextra"]
 
@@ -54,7 +58,8 @@ def make_resources(path):
                      + resource(3, 1, icon, 0x1010) + resource(14, 1, group, 0x1030))
 
 
-def stage_inputs(downloads, staging, catalogue):
+def stage_inputs(downloads, staging, catalogue, whisper_runtime):
+    validate_staged(whisper_runtime)
     for name, spec in LOCK["downloads"].items():
         check(downloads / name, spec)
     for name, spec in LOCK["headers"].items():
@@ -71,28 +76,19 @@ def stage_inputs(downloads, staging, catalogue):
     with zipfile.ZipFile(downloads / "sqlite-amalgamation.zip") as sqlite_zip:
         for name in ("sqlite3.c", "sqlite3.h"):
             (work / name).write_bytes(sqlite_zip.read(f"sqlite-amalgamation-3540100/{name}"))
-    with tarfile.open(downloads / "sherpa-windows.tar.bz2", "r:bz2") as tar:
-        folder = "sherpa-onnx-v2.0.1-win-x64-shared-MT-Release-no-tts/lib/"
-        for name in ("sherpa-onnx-c-api.dll", "onnxruntime.dll", "onnxruntime_providers_shared.dll"):
-            info = tar.getmember(folder + name)
-            if not info.isfile():
-                raise ValueError(f"Entrée Sherpa non régulière : {name}")
-            with tar.extractfile(info) as source, (runtime / name).open("wb") as target:
-                shutil.copyfileobj(source, target)
-    for name in ("encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"):
+    for name in DLL_NAMES:
+        (runtime / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(whisper_runtime / "bin" / name, runtime / name)
+    for name in ("ggml-large-v3-turbo-q5_0.bin", "ggml-silero-v6.2.0.bin"):
         shutil.copyfile(downloads / name, runtime / name)
     shutil.copyfile(catalogue, runtime / "catalogue.sqlite")
-    shutil.copyfile(WIN / "vendor/sherpa-onnx/LICENSE", notices / "Sherpa-et-modele-Apache-2.0.txt")
-    shutil.copyfile(downloads / "ONNX-LICENSE", notices / "ONNX-Runtime-MIT.txt")
-    shutil.copyfile(downloads / "ONNX-ThirdPartyNotices.txt", notices / "ONNX-ThirdPartyNotices.txt")
-    third_party = [*sorted(SHERPA_NOTICES.glob("*.txt")), SHERPA_NOTICES / "README.md"]
-    if len(third_party) != 11:
-        raise ValueError("Les notices des dépendances Sherpa sont absentes")
-    (notices / "Sherpa-Tiers").mkdir()
-    for notice in third_party:
+    for name in ("Whisper-cpp-MIT.txt", "Whisper-OpenAI-MIT.txt", "Silero-VAD-MIT.txt"):
+        notice = WHISPER_NOTICES / name
         if not notice.is_file() or not notice.stat().st_size:
-            raise ValueError(f"Notice Sherpa absente ou vide : {notice}")
-        shutil.copyfile(notice, notices / "Sherpa-Tiers" / notice.name)
+            raise ValueError(f"Notice Whisper/Silero absente ou vide : {notice}")
+        shutil.copyfile(notice, notices / notice.name)
+    if (notices / "Whisper-cpp-MIT.txt").read_bytes() != (whisper_runtime / "LICENSE").read_bytes():
+        raise ValueError("La notice Whisper ne correspond pas aux sources compilées.")
     shutil.copyfile(ROOT / "app/NOTICE.md", notices / "Composants.md")
     for source in lex["sources"]:
         del source["file"]
@@ -128,18 +124,35 @@ def run(zig, args, cache):
     subprocess.run([str(zig), *map(str, args)], check=True, cwd=ROOT, env=env)
 
 
-def compile_bundle(zig, work, package, cache):
+def compile_bundle(zig, work, package, cache, whisper_runtime):
     make_resources(work / "notevive.res")
     spec = LOCK["catalogue"]
     (work / "catalogue_integrity.h").write_text(
         f'#define NOTEVIVE_CATALOGUE_SIZE {spec["bytes"]}\n'
         f'#define NOTEVIVE_CATALOGUE_SHA256 "{spec["hash"]}"\n', encoding="ascii")
+    (package / "Build").mkdir()
+    shutil.copyfile(whisper_runtime / "attestation.json", package / "Build/whisper.json")
+    inputs = sorted(p for p in (package / "runtime").rglob('*') if p.is_file() and p.name != "catalogue.sqlite")
+    runtime_header = 'constexpr Expected kEngine[] = {\n' + ''.join(
+        f'    {{L"{path.relative_to(package / "runtime").as_posix()}", {path.stat().st_size}, "{digest(path)}"}},\n' for path in inputs) + '};\n'
+    (work / "runtime_integrity.h").write_text(runtime_header, encoding="ascii")
+    (package / "Build/runtime_integrity.h").write_text(runtime_header, encoding="ascii")
+    child = package / "runtime/NoteVive-ASR.exe"
+    run(zig, ["c++", *CXX_FLAGS, "-municode", "-DNOTEVIVE_WORKER_BUILD", "-I", work, "-s",
+              "-I", whisper_runtime / "include", "-DWHISPER_SHARED",
+              *(WIN / f for f in ("worker_main.cpp", "local_engine.cpp", "integrity.cpp")),
+              ROOT / "app/native/WhisperBridge.cpp", whisper_runtime / "lib/whisper.lib",
+              "-lwinmm", "-lbcrypt", "-o", child], cache)
+    shutil.copyfile(child, package / "runtime/cpu-avx2/NoteVive-ASR.exe")
+    (work / "worker_integrity.h").write_text(
+        f'#define NOTEVIVE_WORKER_SIZE {child.stat().st_size}\n'
+        f'#define NOTEVIVE_WORKER_SHA256 "{digest(child)}"\n', encoding="ascii")
     run(zig, ["cc", *BASE_FLAGS, "-DNDEBUG", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_OMIT_LOAD_EXTENSION",
               "-DSQLITE_OMIT_DEPRECATED", "-c", work / "sqlite3.c", "-o", work / "sqlite3.obj"], cache)
     run(zig, ["c++", *CXX_FLAGS, "-municode", "-Wl,--subsystem,windows", "-I", work, "-s",
               *(WIN / f for f in ("main.cpp", "engine.cpp", "notes.cpp", "catalogue.cpp", "integrity.cpp")),
               work / "sqlite3.obj", work / "notevive.res", "-luser32", "-lgdi32", "-lwtsapi32", "-lwinmm",
-              "-lcrypt32", "-lole32", "-lshell32", "-luuid", "-lbcrypt", "-o", package / "NoteVive.exe"], cache)
+              "-lcrypt32", "-lole32", "-lshell32", "-luuid", "-lbcrypt", "-lcomctl32", "-o", package / "NoteVive.exe"], cache)
     check_windows_gui(package / "NoteVive.exe")
 
 
@@ -171,6 +184,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--zig", type=Path, required=True)
     parser.add_argument("--downloads", type=Path, default=ROOT / "app/private/downloads")
+    parser.add_argument("--whisper-runtime", type=Path, default=ROOT / "app/private/whisper-build")
     parser.add_argument("--catalogue", type=Path, default=ROOT / "lexique/private/catalogue-essai-public.sqlite")
     parser.add_argument("--build-cache", type=Path, default=ROOT / "app/private/build-cache")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/NoteVive-Windows-x64-Essai.zip")
@@ -185,8 +199,8 @@ def main():
     if subprocess.check_output([str(args.zig.resolve()), "version"], text=True).strip() != LOCK["zig"]["version"]:
         parser.error("Version Zig différente de celle déclarée dans le verrou")
     with tempfile.TemporaryDirectory(prefix="notevive-", dir=cache) as tmp:
-        work, package = stage_inputs(args.downloads.resolve(), Path(tmp), args.catalogue.resolve())
-        compile_bundle(args.zig.resolve(), work, package, cache)
+        work, package = stage_inputs(args.downloads.resolve(), Path(tmp), args.catalogue.resolve(), args.whisper_runtime.resolve())
+        compile_bundle(args.zig.resolve(), work, package, cache, args.whisper_runtime.resolve())
         publish(package, output)
     print(output)
 

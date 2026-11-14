@@ -16,25 +16,41 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 APP = HERE.parent
-LOCK = json.loads((APP / "inputs.lock.json").read_text(encoding="utf-8"))
-RUNTIME_FOLDER = "sherpa-onnx-v2.0.1-osx-arm64-shared-no-tts"
-RUNTIME_HASH = "4fcc6c77c8d8d2e2f04cfdc17c6fd224c01469b78529370eb9d8e0e5ec97ac79"
-MODEL_NAMES = ("encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt")
-NOTICE_NAMES = ("ONNX-LICENSE", "ONNX-ThirdPartyNotices.txt")
-LIB_NAMES = ("libsherpa-onnx-c-api.dylib", "libonnxruntime.dylib")
+LOCK = json.loads((ROOT / "p0/packs/ultimed-int8.lock.json").read_text(encoding="utf-8"))
+RUNTIME_FOLDER = "onnxruntime-osx-arm64-1.32.0"
+RUNTIME_HASH = "8ddca23f532b9d4fbb279ba9b08dab6c0ac94fdc9aec2eb44a1db7049216c043"
+RUNTIME_LIB = "libonnxruntime.1.32.0.dylib"
+BUNDLE_LIB = "libonnxruntime.1.dylib"  # The LC_ID_DYLIB in the upstream binary.
+MODEL_FILES = {
+    **LOCK["files"],
+    **LOCK["optional_speech_gate"]["files"],
+    "nemo128.onnx": {
+        "bytes": 139764,
+        "sha256": "a9fde1486ebfcc08f328d75ad4610c67835fea58c73ba57e3209a6f6cf019e9f",
+    },
+}
+NOTICE_HASHES = {
+    "CC-BY-4.0.txt": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+    "UltiMed-README.md": "ad9acfc23f80865a054eea247dbb8b6839d346ccf7e49f273762d5ea718bf488",
+    "Silero-LICENSE.txt": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b",
+    "Silero-README.md": "39c6c9b7dce6ac255dcaf269a113af426946fd6290fe1ad4a92ffbbde1781b95",
+}
+SWIFT_TARGET = "arm64-apple-macosx15.0"
 
 
 def run(*args):
     subprocess.run(args, check=True, cwd=ROOT)
 
 
-def digest(path, algorithm="sha256"):
+def digest(path):
     with path.open("rb") as file:
-        return hashlib.file_digest(file, algorithm).hexdigest()
+        return hashlib.file_digest(file, "sha256").hexdigest()
 
 
-def check(path, spec):
-    if digest(path, spec.get("algorithm", "sha256")) != spec["hash"]:
+def check(path, sha256, size=None):
+    if not path.is_file():
+        raise FileNotFoundError(f"Fichier requis : {path}")
+    if (size is not None and path.stat().st_size != size) or digest(path) != sha256:
         raise ValueError(f"Empreinte différente de la référence : {path}")
 
 
@@ -54,12 +70,23 @@ def make_icon(build, resources):
     shutil.copyfile(logo, resources / "Logo.png")
 
 
-def stage(bundle, downloads, runtime, build):
-    for name in (*MODEL_NAMES, *NOTICE_NAMES):
-        check(downloads / name, LOCK["downloads"][name])
-    for name, spec in LOCK["headers"].items():
-        check(APP / "windows" / name, spec)
-    check(runtime, {"hash": RUNTIME_HASH})
+def extract_file(archive, item, destination):
+    if not item.isfile():
+        raise ValueError(f"Fichier régulier attendu dans ONNX Runtime : {item.name}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with archive.extractfile(item) as source, destination.open("wb") as target:
+        shutil.copyfileobj(source, target)
+
+
+def stage(bundle, assets, build, lexicon):
+    model_source = assets / "model"
+    notices_source = assets / "notices"
+    runtime = assets / f"{RUNTIME_FOLDER}.tgz"
+    for name, spec in MODEL_FILES.items():
+        check(model_source / name, spec["sha256"], spec["bytes"])
+    for name, sha256 in NOTICE_HASHES.items():
+        check(notices_source / name, sha256)
+    check(runtime, RUNTIME_HASH)
 
     contents = bundle / "Contents"
     frameworks = contents / "Frameworks"
@@ -67,25 +94,45 @@ def stage(bundle, downloads, runtime, build):
     notices = contents / "Resources/Licences"
     for p in (frameworks, model, notices, contents / "MacOS"):
         p.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(runtime, "r:bz2") as source:
-        for name in LIB_NAMES:
-            item = source.getmember(f"{RUNTIME_FOLDER}/lib/{name}")
-            if not item.isfile():
-                raise ValueError(f"Bibliothèque attendue : {name}")
-            with source.extractfile(item) as library, (frameworks / name).open("wb") as target:
-                shutil.copyfileobj(library, target)
-            run("/usr/bin/lipo", "-verify_arch", "arm64", frameworks / name)
-    for name in MODEL_NAMES:
-        shutil.copyfile(downloads / name, model / name)
+    library = frameworks / BUNDLE_LIB
+    with tarfile.open(runtime, "r:gz") as source:
+        # Iterate once: seeking independently to each member re-decompresses the archive.
+        mappings = {
+            f"{RUNTIME_FOLDER}/lib/{RUNTIME_LIB}": library,
+            f"{RUNTIME_FOLDER}/LICENSE": notices / "ONNX-Runtime-LICENSE.txt",
+            f"{RUNTIME_FOLDER}/ThirdPartyNotices.txt": notices / "ONNX-Runtime-ThirdPartyNotices.txt",
+        }
+        prefix = f"{RUNTIME_FOLDER}/include/"
+        for item in source:
+            if item.name in mappings:
+                extract_file(source, item, mappings.pop(item.name))
+            elif item.name.startswith(prefix) and not item.isdir():
+                relative = Path(item.name[len(prefix):])
+                if relative.is_absolute() or ".." in relative.parts:
+                    raise ValueError(f"Chemin invalide dans ONNX Runtime : {item.name}")
+                extract_file(source, item, build / "include" / relative)
+        if mappings:
+            raise ValueError(f"Fichiers manquants dans ONNX Runtime : {', '.join(mappings)}")
+    library.chmod(0o755)
+    run("/usr/bin/lipo", "-verify_arch", "arm64", library)
+    for name in MODEL_FILES:
+        shutil.copyfile(model_source / name, model / name)
     (model / "SHA256.json").write_text(
-        json.dumps({name: LOCK["downloads"][name]["hash"] for name in MODEL_NAMES},
+        json.dumps({name: spec["sha256"] for name, spec in MODEL_FILES.items()},
                    indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    for name in NOTICE_NAMES:
-        shutil.copyfile(downloads / name, notices / name)
-    shutil.copyfile(APP / "windows/vendor/sherpa-onnx/LICENSE", notices / "Apache-2.0.txt")
-    shutil.copytree(APP / "licences/sherpa", notices / "Sherpa-et-dependances", copy_function=shutil.copyfile)
+    for name in NOTICE_HASHES:
+        shutil.copyfile(notices_source / name, notices / name)
+    if lexicon is not None:
+        lexicon_dir = contents / "Resources/Lexique"
+        lexicon_dir.mkdir()
+        profiles = lexicon / "profiles.json"
+        attribution = lexicon / "SOURCES.md"
+        if profiles.stat().st_size > 16 * 1024 * 1024 or attribution.stat().st_size > 256 * 1024:
+            raise ValueError("Le paquet de lexique dépasse la taille admise")
+        shutil.copyfile(profiles, lexicon_dir / profiles.name)
+        shutil.copyfile(attribution, notices / "Lexique-SOURCES.md")
     shutil.copyfile(HERE / "NOTICE.md", notices / "Composants.md")
     shutil.copyfile(HERE / "Info.plist", contents / "Info.plist")
     run("/usr/bin/plutil", "-lint", contents / "Info.plist", HERE / "NoteVive.entitlements")
@@ -93,23 +140,30 @@ def stage(bundle, downloads, runtime, build):
     return contents
 
 
-def build_macos(bundle, downloads, runtime, work):
-    contents = stage(bundle, downloads, runtime, work)
+def build_macos(bundle, assets, work, lexicon):
+    contents = stage(bundle, assets, work, lexicon)
     executable = contents / "MacOS/NoteVive"
-    frameworks = contents / "Frameworks"
+    library = contents / "Frameworks" / BUNDLE_LIB
+    objects = []
+    for source in sorted((HERE / "native").glob("*.cpp")):
+        obj = work / f"{source.stem}.o"
+        run(
+            "/usr/bin/xcrun", "clang++", "-std=c++17", "-O2", "-Wall", "-Wextra",
+            "-target", SWIFT_TARGET, "-I", work / "include", "-c", source, "-o", obj,
+        )
+        objects.append(obj)
     run(
-        "/usr/bin/xcrun", "swiftc", "-O", "-swift-version", "6", "-target", "arm64-apple-macosx15.0",
-        "-module-cache-path", work / "swift-cache", "-import-objc-header", HERE / "SherpaBridge.h",
-        "-L", frameworks, "-lsherpa-onnx-c-api", "-Xlinker", "-rpath",
+        "/usr/bin/xcrun", "swiftc", "-O", "-swift-version", "6", "-target", SWIFT_TARGET,
+        "-module-cache-path", work / "swift-cache", "-import-objc-header", HERE / "RecognitionBridge.h",
+        *objects, library, "-lc++", "-Xlinker", "-rpath",
         "-Xlinker", "@executable_path/../Frameworks",
         *(HERE / name for name in ("Recognition.swift", "Dictation.swift", "AudioRegression.swift",
-                                   "Library.swift", "LibraryView.swift", "main.swift")),
+                                   "Library.swift", "LibraryView.swift", "MedicalLexicon.swift", "main.swift")),
         "-o", executable,
     )
     # File-provider metadata from the development folder must not enter the bundle.
     run("/usr/bin/xattr", "-cr", bundle)
-    for name in LIB_NAMES:
-        run("/usr/bin/codesign", "--force", "--sign", "-", "--timestamp=none", frameworks / name)
+    run("/usr/bin/codesign", "--force", "--sign", "-", "--timestamp=none", library)
     run("/usr/bin/codesign", "--force", "--sign", "-", "--timestamp=none", "--entitlements",
         HERE / "NoteVive.entitlements", bundle)
     run("/usr/bin/codesign", "--verify", "--deep", "--strict", bundle)
@@ -117,8 +171,10 @@ def build_macos(bundle, downloads, runtime, work):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--downloads", type=Path, default=APP / "private/downloads")
-    parser.add_argument("--runtime", type=Path, default=APP / "private/downloads/sherpa-macos-smoke.tar.bz2")
+    parser.add_argument("--assets", type=Path, default=APP / "private/ultimed-macos",
+                        help="Répertoire contenant les modèles, les notices et l’archive ONNX Runtime")
+    parser.add_argument("--lexicon", type=Path,
+                        help="Répertoire avec le lexique local profiles.json et sa notice SOURCES.md")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/NoteVive-Mac.app")
     parser.add_argument("--zip", action="store_true", help="Ajoute une archive transportable et son empreinte")
     args = parser.parse_args()
@@ -135,12 +191,12 @@ def main():
     with tempfile.TemporaryDirectory(prefix="notevive-build-", dir="/private/tmp") as directory:
         work = Path(directory)
         bundle = work / output.name
-        build_macos(bundle, args.downloads.resolve(), args.runtime.resolve(), work)
+        build_macos(bundle, args.assets.resolve(), work, args.lexicon.resolve() if args.lexicon else None)
         if args.zip:
             temporary_archive = work / archive.name
             # Write only the signed bundle's file bytes and POSIX permissions.
             # This leaves Finder metadata and AppleDouble entries out of the ZIP.
-            with zipfile.ZipFile(temporary_archive, "x", zipfile.ZIP_DEFLATED, compresslevel=5) as packed:
+            with zipfile.ZipFile(temporary_archive, "x", zipfile.ZIP_DEFLATED, compresslevel=1) as packed:
                 for path in sorted(bundle.rglob("*")):
                     if path.is_symlink():
                         raise ValueError(f"Lien inattendu dans l’application : {path.name}")

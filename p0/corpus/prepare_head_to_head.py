@@ -132,7 +132,7 @@ def main():
                     "-c:a", "pcm_s16le", "-f", "wav", "pipe:1",
                 ])
                 add(cid, "speech", spoken, read_pcm(io.BytesIO(wave_bytes)))
-        aiff.unlink()
+        (root / "synth.aiff").unlink(missing_ok=True)
     for cid, (seconds, mode) in sorted(CONTROLS.items()):
         add(cid, "silence" if mode == "silence" else "noise", "", control_pcm(seconds, mode))
     manifest = root / "cases.csv"

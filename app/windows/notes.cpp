@@ -1,4 +1,5 @@
 #include "notes.h"
+#include "notes_model.h"
 
 #include <windows.h>
 #include <objbase.h>
@@ -10,17 +11,18 @@
 #include <cstdint>
 #include <cstring>
 #include <cwchar>
+#include <unordered_set>
 #include <utility>
 
 namespace notes {
 namespace {
 
 static_assert(sizeof(wchar_t) == 2, "Windows UTF-16 required");
-constexpr DWORD kMaxBlob = 1024 * 1024;
-constexpr size_t kDateSize = 24;
-constexpr size_t kIdSize = 36;
+using model::kMaxBlob;
+using model::kDateSize;
+using model::kIdSize;
+using model::IsId;
 constexpr size_t kHashSize = 32;
-constexpr BYTE kSignature[]{'N', 'V', 'N', '1'};
 constexpr DWORD kOpenFlags = FILE_FLAG_OPEN_REPARSE_POINT;
 
 struct Handle {
@@ -66,19 +68,6 @@ bool Fail(std::wstring& error, const wchar_t* message) {
     return false;
 }
 
-bool IsId(const std::wstring& id) {
-    if (id.size() != kIdSize) return false;
-    for (size_t i = 0; i < id.size(); ++i) {
-        const wchar_t ch = id[i];
-        if (i == 8 || i == 13 || i == 18 || i == 23) {
-            if (ch != L'-') return false;
-        } else if (!((ch >= L'0' && ch <= L'9') || (ch >= L'a' && ch <= L'f'))) {
-            return false;
-        }
-    }
-    return true;
-}
-
 std::wstring NewId() {
     GUID guid{};
     wchar_t text[39]{};
@@ -86,18 +75,6 @@ std::wstring NewId() {
     std::wstring id(text + 1, kIdSize);
     for (auto& ch : id) if (ch >= L'A' && ch <= L'F') ch += L'a' - L'A';
     return id;
-}
-
-bool IsUnicode(const std::wstring& text, bool multiline) {
-    for (size_t i = 0; i < text.size(); ++i) {
-        const auto ch = static_cast<std::uint16_t>(text[i]);
-        if ((ch < 32 && !(multiline && (ch == 9 || ch == 10 || ch == 13))) ||
-            (ch >= 0x7f && ch <= 0x9f)) return false;
-        if (ch >= 0xd800 && ch <= 0xdbff) {
-            if (++i == text.size() || text[i] < 0xdc00 || text[i] > 0xdfff) return false;
-        } else if (ch >= 0xdc00 && ch <= 0xdfff) return false;
-    }
-    return true;
 }
 
 std::uint64_t Ticks(const FILETIME& time) {
@@ -174,8 +151,11 @@ std::wstring LocalDirectory(const std::wstring& path) {
     return finalPath;
 }
 
-std::wstring NotePath(const std::wstring& directory, const std::wstring& id) {
-    return directory + L"\\" + id + L".nvn";
+std::wstring RecordPath(const std::wstring& directory, std::wstring_view id, std::wstring_view suffix) {
+    std::wstring result = directory + L"\\";
+    result.append(id);
+    result.append(suffix);
+    return result;
 }
 
 HANDLE LockWriter(const std::wstring& directory) {
@@ -203,85 +183,49 @@ bool Hash(const BYTE* bytes, size_t size, BYTE* digest) {
         out == kHashSize;
 }
 
-void Encode(std::vector<BYTE>& out, const std::wstring& value) {
-    const auto length = static_cast<std::uint32_t>(value.size());
-    for (unsigned shift = 0; shift < 32; shift += 8) out.push_back(static_cast<BYTE>(length >> shift));
-    if (!value.empty()) {
-        const auto* bytes = reinterpret_cast<const BYTE*>(value.data());
-        out.insert(out.end(), bytes, bytes + value.size() * sizeof(wchar_t));
-    }
-}
-
-bool Decode(const BYTE*& cursor, const BYTE* end, std::wstring& value, size_t maxSize) {
-    if (end - cursor < 4) return false;
-    std::uint32_t length = 0;
-    for (unsigned shift = 0; shift < 32; shift += 8) length |= static_cast<std::uint32_t>(*cursor++) << shift;
-    if (length > maxSize || static_cast<size_t>(end - cursor) / sizeof(wchar_t) < length) return false;
-    value.resize(length);
-    if (length) std::memcpy(value.data(), cursor, length * sizeof(wchar_t));
-    cursor += length * sizeof(wchar_t);
-    return true;
-}
-
-bool DecodeNote(const Blob& plain, const std::wstring& id, bool keepText, Note& result) {
-    const BYTE* start = plain.data.pbData;
-    const size_t size = plain.data.cbData;
-    if (!start || size <= sizeof(kSignature) + kHashSize || size > kMaxBlob ||
-        std::memcmp(start, kSignature, sizeof(kSignature)) != 0) return false;
-    const BYTE* end = start + size - kHashSize;
+bool ReadRecord(const std::wstring& path, Blob& plain, std::wstring& error) {
+    Handle file(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
+                            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | kOpenFlags, nullptr));
+    LARGE_INTEGER size{};
+    if (!file.valid()) return Fail(error, L"Élément introuvable ou lecture impossible.");
+    if (!PlainFile(file.value) || !GetFileSizeEx(file.value, &size) || size.QuadPart <= 0 ||
+        static_cast<std::uint64_t>(size.QuadPart) > kMaxBlob)
+        return Fail(error, L"Le fichier de bibliothèque est invalide.");
+    std::vector<BYTE> bytes(static_cast<size_t>(size.QuadPart));
+    DWORD read = 0;
+    if (!ReadFile(file.value, bytes.data(), static_cast<DWORD>(bytes.size()), &read, nullptr) || read != bytes.size())
+        return Fail(error, L"Lecture de la bibliothèque incomplète.");
+    DATA_BLOB encrypted{static_cast<DWORD>(bytes.size()), bytes.data()};
+    if (!CryptUnprotectData(&encrypted, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &plain.data) ||
+        !plain.data.pbData || plain.data.cbData <= kHashSize || plain.data.cbData > kMaxBlob)
+        return Fail(error, L"Élément illisible avec ce compte Windows ou fichier endommagé.");
     std::array<BYTE, kHashSize> digest{};
-    if (!Hash(start, static_cast<size_t>(end - start), digest.data()) ||
-        std::memcmp(digest.data(), end, kHashSize) != 0) return false;
-    const BYTE* cursor = start + sizeof(kSignature);
-    std::uint64_t created = 0, modified = 0;
-    Note note;
-    if (!Decode(cursor, end, note.id, kIdSize) || note.id != id ||
-        !Decode(cursor, end, note.created, kDateSize) || !ParseDate(note.created, created) ||
-        !Decode(cursor, end, note.modified, kDateSize) || !ParseDate(note.modified, modified) || modified < created ||
-        !Decode(cursor, end, note.title, kMaxTitle) || !IsUnicode(note.title, false)) return false;
-    const bool textOk = Decode(cursor, end, note.text, kMaxText) && cursor == end && IsUnicode(note.text, true);
-    if ((!keepText || !textOk) && !note.text.empty()) {
-        SecureZeroMemory(note.text.data(), note.text.size() * sizeof(wchar_t));
-        note.text.clear();
-    }
-    if (!textOk) return false;
-    result = std::move(note);
+    const auto sizeWithoutHash = plain.data.cbData - kHashSize;
+    if (!Hash(plain.data.pbData, sizeWithoutHash, digest.data()) ||
+        std::memcmp(digest.data(), plain.data.pbData + sizeWithoutHash, kHashSize) != 0)
+        return Fail(error, L"Élément illisible avec ce compte Windows ou fichier endommagé.");
     return true;
 }
 
 bool ReadNote(const std::wstring& directory, const std::wstring& id, bool keepText,
               Note& result, std::wstring& error) {
-    Handle file(CreateFileW(NotePath(directory, id).c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
-                            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | kOpenFlags, nullptr));
-    LARGE_INTEGER size{};
-    if (!file.valid()) return Fail(error, L"Note introuvable ou lecture impossible.");
-    if (!PlainFile(file.value) || !GetFileSizeEx(file.value, &size) || size.QuadPart <= 0 || size.QuadPart > kMaxBlob)
-        return Fail(error, L"Le fichier de note est invalide.");
-    std::vector<BYTE> bytes(static_cast<size_t>(size.QuadPart));
-    DWORD read = 0;
-    if (!ReadFile(file.value, bytes.data(), static_cast<DWORD>(bytes.size()), &read, nullptr) || read != bytes.size())
-        return Fail(error, L"Lecture de la note incomplète.");
-    DATA_BLOB encrypted{static_cast<DWORD>(bytes.size()), bytes.data()};
     Blob plain;
-    if (!CryptUnprotectData(&encrypted, nullptr, nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &plain.data) ||
-        !DecodeNote(plain, id, keepText, result))
-        return Fail(error, L"La note est illisible avec ce compte Windows ou son fichier est endommagé.");
-    return true;
+    if (!ReadRecord(RecordPath(directory, id, L".nvn"), plain, error)) return false;
+    return model::DecodeNote(plain.data.pbData, plain.data.cbData - kHashSize, id, result, keepText) ||
+        Fail(error, L"La note est endommagée ou sa version est incompatible.");
 }
 
-bool Encrypt(const Note& note, const std::wstring& id, const std::wstring& created,
-             const std::wstring& modified, Blob& encrypted) {
-    Plaintext plain;
+bool ReadFolder(const std::wstring& directory, const std::wstring& id, Folder& result, std::wstring& error) {
+    Blob plain;
+    if (!ReadRecord(RecordPath(directory, id, L".nvf"), plain, error)) return false;
+    return model::DecodeFolder(plain.data.pbData, plain.data.cbData - kHashSize, id, result) ||
+        Fail(error, L"Le dossier est endommagé ou sa version est incompatible.");
+}
+
+bool Encrypt(Plaintext& plain, Blob& encrypted) {
     auto& bytes = plain.bytes;
-    bytes.reserve(sizeof(kSignature) + kHashSize + 5 * sizeof(std::uint32_t) +
-                  (id.size() + created.size() + modified.size() + note.title.size() + note.text.size()) * sizeof(wchar_t));
-    bytes.insert(bytes.end(), kSignature, kSignature + sizeof(kSignature));
-    Encode(bytes, id);
-    Encode(bytes, created);
-    Encode(bytes, modified);
-    Encode(bytes, note.title);
-    Encode(bytes, note.text);
     const size_t length = bytes.size();
+    if (length > kMaxBlob - kHashSize) return false;
     bytes.resize(length + kHashSize);
     if (!Hash(bytes.data(), length, bytes.data() + length)) return false;
     DATA_BLOB input{static_cast<DWORD>(bytes.size()), bytes.data()};
@@ -289,12 +233,11 @@ bool Encrypt(const Note& note, const std::wstring& id, const std::wstring& creat
         encrypted.data.cbData && encrypted.data.cbData <= kMaxBlob;
 }
 
-bool Commit(const std::wstring& directory, const std::wstring& id, const Blob& encrypted,
+bool Commit(const std::wstring& directory, const std::wstring& destination, const Blob& encrypted,
             bool replace, std::wstring& error) {
     const auto tempId = NewId();
-    if (tempId.empty()) return Fail(error, L"Impossible de préparer l’enregistrement de la note.");
+    if (tempId.empty()) return Fail(error, L"Impossible de préparer l’enregistrement.");
     const auto stage = directory + L"\\" + tempId + L".stage";
-    const auto destination = NotePath(directory, id);
     Handle file(CreateFileW(stage.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
                             FILE_ATTRIBUTE_NORMAL | kOpenFlags, nullptr));
     if (!file.valid()) return Fail(error, L"Impossible de créer le fichier temporaire chiffré.");
@@ -305,12 +248,56 @@ bool Commit(const std::wstring& directory, const std::wstring& id, const Blob& e
     const DWORD moveFlags = MOVEFILE_WRITE_THROUGH | (replace ? MOVEFILE_REPLACE_EXISTING : 0);
     if (!ready || !MoveFileExW(stage.c_str(), destination.c_str(), moveFlags)) {
         DeleteFileW(stage.c_str());
-        return Fail(error, L"Enregistrement interrompu. La note précédente n’a pas été remplacée.");
+        return Fail(error, L"Enregistrement interrompu. Le fichier précédent n’a pas été remplacé.");
     }
     return true;
 }
 
+template <typename Visitor>
+bool VisitRecords(const std::wstring& directory, const std::wstring& suffix, Visitor visit) {
+    WIN32_FIND_DATAW info{};
+    Finder found{FindFirstFileW((directory + L"\\*" + suffix).c_str(), &info)};
+    if (found.value == INVALID_HANDLE_VALUE) return GetLastError() == ERROR_FILE_NOT_FOUND;
+    bool complete = true;
+    do {
+        const std::wstring filename(info.cFileName);
+        if (filename.size() != kIdSize + suffix.size() || filename.compare(kIdSize, suffix.size(), suffix) != 0)
+            continue;
+        const auto id = filename.substr(0, kIdSize);
+        if (IsId(id) && !visit(id)) complete = false;
+    } while (FindNextFileW(found.value, &info));
+    return GetLastError() == ERROR_NO_MORE_FILES && complete;
+}
+
+bool ReadFolders(const std::wstring& directory, std::vector<Folder>& folders) {
+    std::size_t attempted = 0;
+    return VisitRecords(directory, L".nvf", [&](const std::wstring& id) {
+        // Cap the runtime view and the number of decryptions even if the
+        // folder has been populated by a different version or process.
+        if (attempted == kMaxFolders) return false;
+        ++attempted;
+        Folder folder;
+        std::wstring detail;
+        if (!ReadFolder(directory, id, folder, detail)) return false;
+        folders.push_back(std::move(folder));
+        return true;
+    });
+}
+
 } // namespace
+
+std::wstring FolderPath(const std::vector<Folder>& folders, const std::wstring& id) {
+    return model::ViewPath(folders, id);
+}
+
+bool Matches(const Query& query, const Note& note, const std::vector<Folder>& folders) {
+    return (!query.filter_folder || model::MatchFolder(query, note, model::FolderIndex(folders))) &&
+        model::MatchText(model::Fold(query.text), note);
+}
+
+void SortNotes(std::vector<Note>& notes, Sort sort) {
+    model::OrderNotes(notes, sort);
+}
 
 bool Store::Open(std::wstring& error) {
     error.clear();
@@ -333,31 +320,50 @@ bool Store::Open(std::wstring& error) {
 }
 
 bool Store::List(std::vector<Note>& out, std::wstring& error) const {
+    return List(Query{}, out, error);
+}
+
+bool Store::List(const Query& query, std::vector<Note>& out, std::wstring& error) const {
     error.clear();
     out.clear();
     if (directory_.empty()) return Fail(error, L"La bibliothèque de notes est fermée.");
-    WIN32_FIND_DATAW info{};
-    Finder found{FindFirstFileW((directory_ + L"\\*.nvn").c_str(), &info)};
-    if (found.value == INVALID_HANDLE_VALUE) {
-        if (GetLastError() == ERROR_FILE_NOT_FOUND) return true;
-        return Fail(error, L"Impossible de lire la bibliothèque de notes.");
-    }
-    bool complete = true;
-    do {
-        const std::wstring name(info.cFileName);
-        if (name.size() != kIdSize + 4 || name.compare(kIdSize, 4, L".nvn") != 0) continue;
-        const auto id = name.substr(0, kIdSize);
-        if (!IsId(id)) continue;
+    if (query.filter_folder && !query.folder_id.empty() && !IsId(query.folder_id))
+        return Fail(error, L"Identifiant de dossier invalide.");
+    const auto needle = model::Fold(query.text);
+    std::vector<Folder> folders;
+    std::wstring foldersError;
+    const bool complete = !query.filter_folder || (query.folder_id.empty() && query.include_descendants) ||
+        ListFolders(folders, foldersError);
+    const model::FolderIndex index(folders);
+    const bool notesComplete = VisitRecords(directory_, L".nvn", [&](const std::wstring& id) {
         Note note;
         std::wstring detail;
-        if (ReadNote(directory_, id, false, note, detail)) out.push_back(std::move(note));
-        else complete = false;
-    } while (FindNextFileW(found.value, &info));
-    if (GetLastError() != ERROR_NO_MORE_FILES) complete = false;
-    std::sort(out.begin(), out.end(), [](const Note& a, const Note& b) {
-        return a.modified == b.modified ? a.id < b.id : a.modified > b.modified;
+        if (!ReadNote(directory_, id, !needle.empty(), note, detail)) return false;
+        const bool include = model::MatchFolder(query, note, index) && model::MatchText(needle, note);
+        if (!note.text.empty()) {
+            SecureZeroMemory(note.text.data(), note.text.size() * sizeof(wchar_t));
+            note.text.clear();
+        }
+        if (include) out.push_back(std::move(note));
+        return true;
     });
-    return complete || Fail(error, L"Une partie de la bibliothèque est illisible. Les notes lisibles restent disponibles.");
+    model::OrderNotes(out, query.sort);
+    if (!notesComplete) return Fail(error, L"Une partie de la bibliothèque est illisible. Les notes lisibles restent disponibles.");
+    if (!complete) error = std::move(foldersError);
+    return complete;
+}
+
+bool Store::ListFolders(std::vector<Folder>& out, std::wstring& error) const {
+    error.clear();
+    out.clear();
+    if (directory_.empty()) return Fail(error, L"La bibliothèque de notes est fermée.");
+    const bool read = ReadFolders(directory_, out);
+    const bool valid = model::RepairFolderView(out);
+    std::sort(out.begin(), out.end(), [](const Folder& a, const Folder& b) {
+        const auto ta = model::Fold(a.title), tb = model::Fold(b.title);
+        return ta == tb ? a.id < b.id : ta < tb;
+    });
+    return (read && valid) || Fail(error, L"Une partie des dossiers est illisible ou mal rattachée. Les éléments lisibles restent disponibles.");
 }
 
 bool Store::Load(const std::wstring& id, Note& out, std::wstring& error) const {
@@ -371,33 +377,108 @@ bool Store::Save(Note& inout, std::wstring& error) const {
     error.clear();
     if (directory_.empty()) return Fail(error, L"La bibliothèque de notes est fermée.");
     if (inout.title.size() > kMaxTitle || inout.text.size() > kMaxText ||
-        !IsUnicode(inout.title, false) || !IsUnicode(inout.text, true))
+        !model::IsUnicode(inout.title, false) || !model::IsUnicode(inout.text, true))
         return Fail(error, L"Le titre ou le texte dépasse la limite ou contient un caractère invalide.");
+    if (!inout.folder_id.empty() && !IsId(inout.folder_id)) return Fail(error, L"Identifiant de dossier invalide.");
     const bool create = inout.id.empty();
     auto id = create ? NewId() : inout.id;
     if (!IsId(id)) return Fail(error, L"Identifiant de note invalide.");
     Handle lock(LockWriter(directory_));
     if (!lock.valid() || !PlainFile(lock.value))
         return Fail(error, L"La bibliothèque est momentanément indisponible. Réessayez.");
-    std::wstring created;
+    Note current;
     std::uint64_t previous = 0;
     if (!create) {
-        Note current;
         if (!ReadNote(directory_, id, false, current, error)) return false;
         if (current.modified != inout.modified || !ParseDate(current.modified, previous))
             return Fail(error, L"Cette note a changé depuis son ouverture. Rechargez-la avant de l’enregistrer.");
-        created = std::move(current.created);
+    }
+    if (!inout.folder_id.empty() && inout.folder_id != current.folder_id) {
+        // Read only the ancestry of the destination, not every folder. A
+        // missing folder cannot attach a new/moved note, but a note already
+        // in a damaged folder stays editable and can be moved back to root.
+        std::unordered_set<std::wstring> ancestry;
+        auto folderId = inout.folder_id;
+        while (!folderId.empty()) {
+            if (ancestry.size() == kMaxFolderDepth || !ancestry.insert(folderId).second)
+                return Fail(error, L"Le rattachement du dossier est invalide.");
+            Folder folder;
+            if (!ReadFolder(directory_, folderId, folder, error))
+                return Fail(error, L"Le dossier de destination est inaccessible.");
+            folderId = std::move(folder.parent_id);
+        }
     }
     auto modified = NowAfter(previous);
     if (modified.empty()) return Fail(error, L"Impossible de dater l’enregistrement.");
-    if (create) created = modified;
+    auto created = create ? modified : std::move(current.created);
+    Plaintext plain;
+    plain.bytes.reserve(4 + kHashSize + 6 * sizeof(std::uint32_t) +
+        (id.size() + created.size() + modified.size() + inout.title.size() + inout.text.size() + inout.folder_id.size()) * 2);
+    model::EncodeNote(plain.bytes, inout, id, created, modified);
     Blob encrypted;
-    if (!Encrypt(inout, id, created, modified, encrypted))
+    if (!Encrypt(plain, encrypted))
         return Fail(error, L"Impossible de chiffrer la note avec ce compte Windows.");
-    if (!Commit(directory_, id, encrypted, !create, error)) return false;
+    if (!Commit(directory_, RecordPath(directory_, id, L".nvn"), encrypted, !create, error)) return false;
     inout.id = std::move(id);
     inout.created = std::move(created);
     inout.modified = std::move(modified);
+    return true;
+}
+
+bool Store::SaveFolder(Folder& inout, std::wstring& error) const {
+    error.clear();
+    if (directory_.empty()) return Fail(error, L"La bibliothèque de notes est fermée.");
+    if (!model::FolderTitle(inout.title))
+        return Fail(error, L"Choisissez un nom de dossier valide (120 caractères maximum).");
+    if (!inout.parent_id.empty() && !IsId(inout.parent_id))
+        return Fail(error, L"Identifiant de dossier parent invalide.");
+    const bool create = inout.id.empty();
+    auto id = create ? NewId() : inout.id;
+    if (!IsId(id)) return Fail(error, L"Identifiant de dossier invalide.");
+    Handle lock(LockWriter(directory_));
+    if (!lock.valid() || !PlainFile(lock.value))
+        return Fail(error, L"La bibliothèque est momentanément indisponible. Réessayez.");
+
+    Folder current;
+    std::uint64_t previous = 0;
+    if (!create) {
+        if (!ReadFolder(directory_, id, current, error)) return false;
+        if (current.modified != inout.modified || !ParseDate(current.modified, previous))
+            return Fail(error, L"Ce dossier a changé depuis son ouverture. Rechargez-le avant de l’enregistrer.");
+    }
+    Folder pending{id, inout.title, inout.parent_id, {}, {}};
+    if (create || current.parent_id != pending.parent_id) {
+        std::vector<Folder> folders;
+        // A move must validate all descendants. If some encrypted folder
+        // files are unreadable a move cannot prove its resulting depth, and
+        // a creation cannot prove that the directory has space available.
+        const bool complete = ReadFolders(directory_, folders);
+        if (create && folders.size() >= kMaxFolders)
+            return Fail(error, L"La bibliothèque a atteint sa limite de dossiers.");
+        if (!complete)
+            return Fail(error, L"Organisation des dossiers impossible tant que certains dossiers sont illisibles.");
+        switch (model::CheckFolderMove(pending, folders)) {
+        case model::MoveResult::Ok: break;
+        case model::MoveResult::MissingParent:
+            return Fail(error, L"Le dossier parent est introuvable ou mal rattaché.");
+        case model::MoveResult::Cycle:
+            return Fail(error, L"Un dossier ne peut pas être placé dans lui-même ou dans un de ses sous-dossiers.");
+        case model::MoveResult::TooDeep:
+            return Fail(error, L"Cette action dépasserait 32 niveaux de dossiers.");
+        }
+    }
+    pending.modified = NowAfter(previous);
+    if (pending.modified.empty()) return Fail(error, L"Impossible de dater l’enregistrement.");
+    pending.created = create ? pending.modified : std::move(current.created);
+    Plaintext plain;
+    plain.bytes.reserve(4 + kHashSize + 5 * sizeof(std::uint32_t) +
+        (pending.id.size() + pending.created.size() + pending.modified.size() + pending.title.size() + pending.parent_id.size()) * 2);
+    model::EncodeFolder(plain.bytes, pending);
+    Blob encrypted;
+    if (!Encrypt(plain, encrypted))
+        return Fail(error, L"Impossible de chiffrer le dossier avec ce compte Windows.");
+    if (!Commit(directory_, RecordPath(directory_, id, L".nvf"), encrypted, !create, error)) return false;
+    inout = std::move(pending);
     return true;
 }
 
