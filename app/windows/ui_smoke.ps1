@@ -203,6 +203,60 @@ public static class NvWindow {
                 return popup;
         } while (true);
     }
+    [DllImport("user32.dll")] static extern int GetMenuItemCount(IntPtr menu);
+    [DllImport("user32.dll", EntryPoint = "GetMenuStringW", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    static extern int GetMenuString(IntPtr menu, uint index, StringBuilder text, int max, uint flags);
+    [DllImport("user32.dll")] static extern uint GetMenuState(IntPtr menu, uint index, uint flags);
+
+    static char MenuMnemonic(string caption) {
+        for (int i = 0; i + 1 < caption.Length; ++i) {
+            if (caption[i] != '&') continue;
+            if (caption[i + 1] != '&') return char.ToLowerInvariant(caption[i + 1]);
+            ++i; // A doubled ampersand is literal text.
+        }
+        return '\0';
+    }
+    public static bool ChoosePopupItem(IntPtr ownerWindow, uint processId, string wantedCaption) {
+        // Read the native popup independently of the accessibility provider.
+        // https://learn.microsoft.com/windows/win32/winmsg/mn-gethmenu
+        IntPtr popup = PopupMenu(processId);
+        if (popup == IntPtr.Zero) return false;
+        uint ownerPid, popupPid;
+        uint ownerThread = GetWindowThreadProcessId(ownerWindow, out ownerPid);
+        uint popupThread = GetWindowThreadProcessId(popup, out popupPid);
+        if (ownerThread == 0 || popupThread != ownerThread || ownerPid != processId || popupPid != processId) return false;
+        var menu = new IntPtr(unchecked((long)SendRaw(popup, 0x01e1, IntPtr.Zero, IntPtr.Zero).ToUInt64())); // MN_GETHMENU
+        if (menu == IntPtr.Zero) return false;
+        int count = GetMenuItemCount(menu);
+        if (count == -1) return false;
+        if (count < 1 || count > 16) throw new InvalidOperationException("Unexpected size of the folder actions menu.");
+        const uint byPosition = 0x0400; // MF_BYPOSITION
+        char key = MenuMnemonic(wantedCaption);
+        if (key == '\0') throw new ArgumentException("The requested folder action needs a keyboard mnemonic.");
+        int selected = -1, sameMnemonic = 0;
+        var caption = new StringBuilder(256);
+        for (uint i = 0; i < (uint)count; ++i) {
+            caption.Clear();
+            int length = GetMenuString(menu, i, caption, caption.Capacity, byPosition);
+            if (length == 0) return false;
+            if (length >= caption.Capacity - 1 || caption.Length != length)
+                throw new InvalidOperationException("A native menu label exceeded the test buffer.");
+            string label = caption.ToString();
+            if (MenuMnemonic(label) == key) ++sameMnemonic;
+            if (string.Equals(label, wantedCaption, StringComparison.Ordinal)) selected = (int)i;
+        }
+        if (selected < 0) return false;
+        uint state = GetMenuState(menu, (uint)selected, byPosition);
+        if (sameMnemonic != 1 || state == uint.MaxValue || (state & 0x0003) != 0) // MF_GRAYED | MF_DISABLED
+            throw new InvalidOperationException("The folder action is ambiguous or disabled.");
+        if (!IsWindowVisible(popup)) return false;
+        // Queue the mnemonic to the popup's own thread. TrackPopupMenu handles
+        // WM_CHAR and returns the selected item, as during keyboard navigation.
+        // https://learn.microsoft.com/windows/win32/inputdev/wm-char
+        if (!Post(popup, 0x0102, new IntPtr(key), new IntPtr(0x10000001))) // WM_CHAR, active menu, repeat count 1
+            throw new InvalidOperationException("Cannot send the mnemonic to the visible folder menu.");
+        return true;
+    }
 }
 '@
 $root = [System.Windows.Automation.AutomationElement]::RootElement
@@ -211,7 +265,6 @@ $idProperty = [System.Windows.Automation.AutomationElement]::AutomationIdPropert
 $nameProperty = [System.Windows.Automation.AutomationElement]::NameProperty
 $classProperty = [System.Windows.Automation.AutomationElement]::ClassNameProperty
 $processProperty = [System.Windows.Automation.AutomationElement]::ProcessIdProperty
-$invoke = [System.Windows.Automation.InvokePattern]::Pattern
 $prefix = "NVTEST-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
 $testProfile = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) 'NoteVive-Pilote'
 $records = Join-Path $testProfile 'notes'
@@ -373,17 +426,7 @@ function Editor-Folder {
 function Rename-SelectedFolder([string]$Name) {
     Step 'open the folder actions menu'
     Click (ById 115)
-    $item = Wait-For {
-        # TrackPopupMenu creates a separate top-level HWND, outside the main UIA tree.
-        $popup = [NvWindow]::PopupMenu($process.Id)
-        if ($popup -ne [IntPtr]::Zero) {
-            $menu = [System.Windows.Automation.AutomationElement]::FromHandle($popup)
-            $menu.FindFirst($enumScope, (Condition $nameProperty 'Renommer le dossier'))
-        }
-    } 'find Renommer le dossier in the folder menu'
-    Step 'invoke Rename from the folder actions menu'
-    if (-not $item.Current.IsEnabled) { throw 'The visible Rename menu item is disabled.' }
-    $item.GetCurrentPattern($invoke).Invoke()
+    $null = Wait-For { [NvWindow]::ChoosePopupItem((Window-Handle $app), $process.Id, '&Renommer le dossier') } 'find and select Renommer le dossier in the native folder menu'
     Step 'confirm the new folder name'
     Folder-Dialog 'Renommer le dossier' $Name
 }

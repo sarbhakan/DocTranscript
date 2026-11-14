@@ -45,6 +45,10 @@ class FixtureChecksTest(unittest.TestCase):
         self.assertTrue(check_fixture(case, ref)['passed'])
         self.assertFalse(check_fixture(case, ref.replace('1 demi soir', '1,5 soir'))['passed'])
         self.assertFalse(check_fixture(case, ref.replace('1 demi soir', '1 demi le matin'))['passed'])
+        changed = check_fixture(case, ref.replace('1 demi soir', '1,5 soir'))
+        self.assertIn('½', changed['expected_numeric_sequence'])
+        self.assertIn('1,5', changed['actual_numeric_sequence'])
+        self.assertNotEqual(changed['expected_numeric_sequence'], changed['actual_numeric_sequence'])
 
 
 if __name__ == '__main__':

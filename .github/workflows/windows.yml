@@ -4,6 +4,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      compare_ct2:
+        description: 'Comparer le moteur candidat à CTranslate2 et aux deux dictées Corti (banc, hors paquet)'
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -39,8 +45,14 @@ jobs:
         run: Expand-Archive dist/NoteVive-Windows-x64-Essai.zip "$env:RUNNER_TEMP/NoteVive-paquet"
       - name: Tester le moteur du ZIP, les doses et les fractions en AVX2
         run: |
-          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
-          Get-CimInstance Win32_ComputerSystem | Select-Object TotalPhysicalMemory | Format-List
+          $inventory = [ordered]@{
+            schema_version = 1
+            cpu = @(Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors)
+            memory_total_bytes = [uint64](Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
+            os_version = [Environment]::OSVersion.VersionString
+          }
+          $inventory | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/NoteVive-environment.json"
+          Get-Content "$env:RUNNER_TEMP/NoteVive-environment.json"
           python -m app.test_windows --compiler msvc --engine-only --output "$env:RUNNER_TEMP/NoteVive-engine-tests" --package "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Tester la fenêtre et le parcours des notes sans micro
@@ -49,7 +61,7 @@ jobs:
         run: ./app/windows/ui_smoke.ps1 -Executable "$env:RUNNER_TEMP/NoteVive-paquet/NoteVive/NoteVive.exe"
       - name: Comparer CTranslate2 INT8 sur le même hôte Windows
         id: ct2
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.compare_ct2 }}
         run: |
           Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
           $py = "$env:RUNNER_TEMP/ct2-venv/Scripts/python.exe"
@@ -86,6 +98,7 @@ jobs:
         with:
           name: Mesures-Windows
           path: |
+            ${{ runner.temp }}/NoteVive-environment.json
             ${{ runner.temp }}/NoteVive-engine-tests/timings.json
             ${{ runner.temp }}/ct2-metrics-*.json
             ${{ runner.temp }}/ct2-memory-*.json
