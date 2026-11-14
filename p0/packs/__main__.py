@@ -25,7 +25,17 @@ def read_pack(root):
         raise ValueError("pack.json doit être local")
     cfg = json.loads(config_path.read_text(encoding="utf-8-sig"))
     mode = cfg["adapter"]
-    if mode not in PACK_FILES or set(cfg["files"]) != PACK_FILES[mode]:
+    if "final_only" in cfg and (mode != "whisper" or type(cfg["final_only"]) is not bool):
+        raise ValueError("final_only doit être un booléen dans un pack Whisper")
+    if cfg.get("final_only") and ("step_ms" in cfg or "window_ms" in cfg):
+        raise ValueError("le décodage Whisper final exclut les réglages de fenêtres")
+    if mode not in PACK_FILES:
+        raise ValueError("type de pack inconnu")
+    file_keys = set(cfg["files"])
+    expected = PACK_FILES[mode]
+    if cfg.get("final_only") and "vad_model" in file_keys:
+        expected = expected | {"vad_model"}
+    if file_keys != expected:
         raise ValueError("fichiers attendus différents du type de pack")
     paths = {}
     for key, name in cfg["files"].items():

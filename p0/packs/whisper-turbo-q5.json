@@ -1,0 +1,6 @@
+{
+  "id": "whisper-large-v3-turbo-q5_0-fr-final",
+  "adapter": "whisper",
+  "final_only": true,
+  "files": {"model": "ggml-large-v3-turbo-q5_0.bin"}
+}

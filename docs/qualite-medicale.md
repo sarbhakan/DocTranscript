@@ -1,6 +1,6 @@
 # Français médical : vocabulaire, fidélité et protocole d’évaluation
 
-Veille consultée le 13 novembre 2026. Les résultats publiés ci-dessous proviennent des auteurs des outils ou corpus ; aucun moteur n’a encore été mesuré par DocTranscript.
+Veille consultée le 13 novembre 2026. Les résultats cités dans cette page proviennent des auteurs des outils ou corpus. Les premiers essais internes sont consignés dans le [compte rendu P0 Mac](p0-macos-dictee.md).
 
 La première cible est la dictée en français par un professionnel de santé après une consultation fictive de médecine générale. Le résultat est un brouillon à relire. La priorité est de préserver ce qui a été dit, notamment les négations, les doses, les unités et le degré d’incertitude. La ponctuation et la mise en forme viennent après. Les packs de spécialité seront validés un par un ; l’ampleur d’un dictionnaire ne prouve pas qu’une spécialité est couverte.
 

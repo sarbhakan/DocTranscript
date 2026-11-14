@@ -10,6 +10,22 @@ python3 -m p0.bench --cases /tmp/notevive-controles/cas-controles.csv --wav-dir 
 
 Le simulateur est marqué `simulation_only` dans les résultats. Il ignore le signal audio et vérifie uniquement le protocole et les artefacts du banc. Aucun résultat de ce simulateur ne mesure une reconnaissance vocale. Voir le guide Windows du projet pour préparer le worker et lancer le même banc avec un moteur et des poids locaux.
 
+## Candidat Whisper : décodage en fin de phrase
+
+Sur le poste de préparation connecté, récupérer le [modèle Whisper Large v3 Turbo multilingue quantifié `q5_0`](https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-turbo-q5_0.bin), vérifier son SHA-256 `394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2` publié avec la [révision d’origine](https://huggingface.co/ggerganov/whisper.cpp/commit/98aa99a0a9db05ae2342309f5096248665f7cba3) et joindre la [licence des poids](https://github.com/openai/whisper#license). Dans un dossier de pack séparé, placer `ggml-large-v3-turbo-q5_0.bin` et copier `p0/packs/whisper-turbo-q5.json` sous le nom `pack.json`. Sceller avec `python3 -m p0.packs seal /chemin/du/pack`, puis vérifier sur le poste de mesure avec `python3 -m p0.packs verify /chemin/du/pack`. Le worker réel utilise `pywhispercpp==1.5.1` et ses dépendances locales ; ne pas télécharger pendant l’essai.
+
+Préparer un manifeste distinct de phrases courtes et ne retenir que des WAV de **30 s maximum**, silence compris. Rejouer les mêmes fichiers et paramètres pour les comparateurs :
+
+```sh
+python3 -m p0.bench --cases /chemin/cas-courts.csv --wav-dir /chemin/wav \
+  --output /chemin/resultats-turbo --mode realtime -- \
+  python3 -m p0.adapters whisper --pack /chemin/du/pack --threads 4
+```
+
+Le pack met `final_only` à `true` : le worker français sur CPU accumule l’audio, refuse un cas dépassant 30 s et ne lance le décodage qu’à `end`, sans texte provisoire. Le manifeste indique `mode: final-only` et `max_audio_ms: 30000`. Comparer la fidélité du texte final et le délai entre `end` et le résultat ; exclure ce mode du classement du délai d’affichage en direct. Pour isoler l’effet du modèle et éviter de confondre celui-ci avec le changement de découpage, comparer à un pack `whisper-small-q5` séparé, également en `final_only` (`step_ms` et `window_ms` retirés, identifiant distinct), puis rescellé. Le pack Whisper Small historique conserve son mode par fenêtres et le corpus long reste couvert par le banc initial.
+
+Pour mesurer l’effet de la **détection de parole (VAD)**, conserver le pack Turbo de référence et créer un second dossier avec les mêmes poids Whisper et un nouvel identifiant (p. ex. `whisper-large-v3-turbo-q5_0-fr-final-vad`). Ajouter `"vad_model": "ggml-silero-v6.2.0.bin"` à l’objet `files` du nouveau `pack.json`. Placer le [modèle Silero GGML v6.2.0](https://huggingface.co/ggml-org/whisper-vad/blob/main/ggml-silero-v6.2.0.bin) dans ce dossier, avec sa [licence MIT](https://github.com/snakers4/silero-vad/blob/master/LICENSE), et vérifier le [SHA-256 publié](https://huggingface.co/ggml-org/whisper-vad/commit/9ffd54a1e1ee413ddf265af9913beaf518d1639b) : `2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987`. Sceller et vérifier ce second pack, puis rejouer le même manifeste dans un dossier de résultats distinct. Le champ `vad` indique quelle variante Whisper a été utilisée. Vérifier les sorties sur silence et bruit **ainsi que** les mots omis sur parole brève, faible ou en bord de segment ; une sortie vide sur les contrôles ne suffit pas à valider la VAD.
+
 ## Entrées et sorties
 
 - `--cases` : CSV UTF-8 (`id,partition,kind,reference` obligatoires), `--wav-dir` : WAV nommés `<id>.wav`, PCM16 little endian, mono, 16 kHz. Les types pris en charge sont `speech`, `silence` et `noise` ; les deux derniers ont une référence vide. Les identifiants de cas sont limités à 128 caractères ASCII alphanumériques, tirets et underscores, avec premier caractère alphanumérique. Les champs facultatifs `speech_start_ms,speech_end_ms` sont renseignés ensemble, à partir de l’origine WAV, après écoute et annotation. Le banc les exige pour inclure un cas de parole dans les percentiles de latence.

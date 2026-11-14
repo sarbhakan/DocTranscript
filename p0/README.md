@@ -4,6 +4,7 @@ Ce lot compare le délai de réponse des **moteurs**, leur consommation et leur 
 
 - [Procédure sur deux PC Windows](../docs/p0-windows.md) : inventaire, conditions de mesure, essais, traces réseau et recette indépendante.
 - [Contrat et métriques du banc](bench/README.md) : protocole du worker, options, fichiers et règles de calcul.
+- [Essai du micro sur Mac](bench/macos-smoke.md) : affichage en direct, fidélité médicale et sauvegarde après relance. Voir aussi [les résultats Mac et le comparatif local](../docs/p0-macos-dictee.md).
 - [Corpus fictif](corpus/README.md) : scripts, attributs à relire, génération des contrôles, constitution du jeu inédit.
 - [Portes de validation des lots suivants](../docs/recette-iterative.md) : interface, interaction, intégrité de la base et transfert.
 

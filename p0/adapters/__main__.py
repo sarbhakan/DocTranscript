@@ -14,6 +14,8 @@ from p0.packs.__main__ import read_sealed
 
 RATE = 16000
 MAX_PCM = RATE * 2 * 20 * 60
+WHISPER_FINAL_MAX_MS = 30_000
+WHISPER_FINAL_MAX_PCM = min(MAX_PCM, RATE * 2 * WHISPER_FINAL_MAX_MS // 1000)
 ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
 RUNTIMES = {"sherpa": ("sherpa-onnx", "2.0.1"), "sherpa-final": ("sherpa-onnx", "2.0.1"),
             "whisper": ("pywhispercpp", "1.5.1")}
@@ -75,15 +77,19 @@ class Whisper:
     # periodically. Boundary artifacts are part of this baseline, not repaired.
     def __init__(self, cfg, files, threads):
         from pywhispercpp.model import Model
-        step = cfg["step_ms"]
-        window = cfg["window_ms"]
-        if type(step) is not int or type(window) is not int or not 250 <= step <= window <= 30000:
-            raise ValueError("fenêtre Whisper invalide")
-        self.step_bytes, self.window_bytes = step * 32, window * 32
+        self.final_only = cfg.get("final_only", False)
+        self.vad = "vad_model" in files
+        if not self.final_only:
+            step = cfg["step_ms"]
+            window = cfg["window_ms"]
+            if type(step) is not int or type(window) is not int or not 250 <= step <= window <= 30000:
+                raise ValueError("fenêtre Whisper invalide")
+            self.step_bytes, self.window_bytes = step * 32, window * 32
         self.model = Model(str(files["model"]), context_params={"use_gpu": False},
                            language="fr", n_threads=threads, translate=False, no_context=True,
                            print_progress=False, print_realtime=False, print_timestamps=False,
-                           redirect_whispercpp_logs_to=None)
+                           redirect_whispercpp_logs_to=None,
+                           **({"vad": True, "vad_model_path": str(files["vad_model"])} if self.vad else {}))
 
     def start(self):
         self.window = bytearray()
@@ -94,6 +100,11 @@ class Whisper:
         return " ".join(s.text.strip() for s in self.model.transcribe(pcm_float(self.window)) if s.text.strip())
 
     def audio(self, raw):
+        if self.final_only:
+            if len(self.window) + len(raw) > WHISPER_FINAL_MAX_PCM:
+                raise ValueError("dictée Whisper finale trop longue")
+            self.window.extend(raw)
+            return None
         pos = 0
         hypothesis = None
         while pos < len(raw):
@@ -202,7 +213,9 @@ def main():
         return serve(engine, {"engine": cfg["id"], "details": {
             "adapter": args.adapter, "provider": "cpu", "threads": args.threads,
             "runtime": runtime, "runtime_version": required, "manifest_sha256": manifest_sha,
-            "mode": {"sherpa": "native-stream", "sherpa-final": "final-only", "whisper": "windows"}[args.adapter],
+            "mode": "final-only" if engine.final_only else ("windows" if args.adapter == "whisper" else "native-stream"),
+            **({"vad": engine.vad} if args.adapter == "whisper" else {}),
+            **({"max_audio_ms": WHISPER_FINAL_MAX_MS} if args.adapter == "whisper" and engine.final_only else {}),
             **{key: cfg[key] for key in ("locale", "tail_ms", "step_ms", "window_ms", "model_type") if key in cfg},
         }}, sys.stdin.buffer, emit)
 
