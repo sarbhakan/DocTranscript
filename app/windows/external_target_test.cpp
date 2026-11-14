@@ -8,6 +8,9 @@
 #endif
 #include "external_target.h"
 
+#include <aclapi.h>
+#include <sddl.h>
+
 #include <cstdio>
 #include <cwchar>
 #include <iostream>
@@ -175,17 +178,151 @@ struct LocalHandle {
     ~LocalHandle() { if (value && value != INVALID_HANDLE_VALUE) CloseHandle(value); }
 };
 
+struct RecipeDesktop {
+    HDESK original = nullptr, temporary = nullptr;
+    HWINSTA station = nullptr;
+    std::vector<BYTE> station_descriptor;
+    bool station_changed = false, switched = false;
+    std::wstring path;
+
+    ~RecipeDesktop() {
+        if (!restore()) std::fputs("Unable to restore recipe desktop or station ACL.\n", stderr);
+        if (temporary) CloseDesktop(temporary);
+        if (original) CloseDesktop(original);
+        if (station) CloseWindowStation(station);
+    }
+    bool restore() {
+        if (switched && SwitchDesktop(original)) switched = false;
+        if (station_changed) {
+            SECURITY_INFORMATION security = DACL_SECURITY_INFORMATION;
+            if (SetUserObjectSecurity(station, &security, station_descriptor.data())) station_changed = false;
+        }
+        return !switched && !station_changed;
+    }
+    bool start(HANDLE filtered, PSID logon) {
+        const auto allowed = [](const wchar_t* name, const wchar_t* expected) {
+            wchar_t value[32]{};
+            const DWORD size = GetEnvironmentVariableW(name, value, 32);
+            return size && size < 32 && std::wcscmp(value, expected) == 0;
+        };
+        if (!allowed(L"GITHUB_ACTIONS", L"true") || !allowed(L"RUNNER_ENVIRONMENT", L"github-hosted")) {
+            std::fputs("Run the recipe from an ordinary Windows account; desktop setup is limited to hosted CI.\n", stderr);
+            SetLastError(ERROR_ACCESS_DENIED);
+            return false;
+        }
+        wchar_t station_name[32]{};
+        DWORD length = 0;
+        if (!GetUserObjectInformationW(GetProcessWindowStation(), UOI_NAME, station_name, sizeof(station_name), &length))
+            return false;
+        if (CompareStringOrdinal(station_name, -1, L"WinSta0", -1, TRUE) != CSTR_EQUAL) {
+            SetLastError(ERROR_INVALID_HANDLE);
+            return false;
+        }
+        original = OpenInputDesktop(0, FALSE, DESKTOP_SWITCHDESKTOP | DESKTOP_READOBJECTS);
+        if (!original) return false;
+        wchar_t desktop_name[32]{};
+        if (!GetUserObjectInformationW(original, UOI_NAME, desktop_name, sizeof(desktop_name), &length)) return false;
+        if (CompareStringOrdinal(desktop_name, -1, L"Default", -1, TRUE) != CSTR_EQUAL) {
+            // Never replace an active UAC, lock or other test desktop.
+            SetLastError(ERROR_ACCESS_DENIED);
+            return false;
+        }
+
+        // Inspect existing WinSta0 rights using the actual medium token. Only
+        // add an ACE when that session's logon SID lacks a required right.
+        constexpr DWORD station_access = WINSTA_READATTRIBUTES | WINSTA_ACCESSGLOBALATOMS |
+            WINSTA_ENUMDESKTOPS | WINSTA_ENUMERATE | WINSTA_ACCESSCLIPBOARD;
+        LocalHandle thread_token;
+        if (!DuplicateTokenEx(filtered, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
+                              TokenImpersonation, &thread_token.value) ||
+            !ImpersonateLoggedOnUser(thread_token.value)) return false;
+        HWINSTA access_probe = OpenWindowStationW(station_name, FALSE, station_access);
+        const DWORD access_error = access_probe ? ERROR_SUCCESS : GetLastError();
+        if (access_probe) CloseWindowStation(access_probe);
+        if (!RevertToSelf()) {
+            // Continuing the elevated launcher with an unexpected identity
+            // would make both restore and diagnostics unreliable.
+            TerminateProcess(GetCurrentProcess(), 2);
+            return false;
+        }
+        std::fprintf(stderr, "Filtered token WinSta0 access check: %lu\n", static_cast<unsigned long>(access_error));
+        if (access_error && access_error != ERROR_ACCESS_DENIED) {
+            SetLastError(access_error);
+            return false;
+        }
+        if (access_error) {
+            station = OpenWindowStationW(station_name, FALSE, READ_CONTROL | WRITE_DAC);
+            if (!station) return false;
+            SECURITY_INFORMATION security = DACL_SECURITY_INFORMATION;
+            DWORD needed = 0;
+            GetUserObjectSecurity(station, &security, nullptr, 0, &needed);
+            if (!needed || needed > 65536) return false;
+            station_descriptor.resize(needed);
+            if (!GetUserObjectSecurity(station, &security, station_descriptor.data(), needed, &needed)) return false;
+            BOOL has_dacl = FALSE, defaulted = FALSE;
+            PACL station_original_dacl = nullptr;
+            DWORD err = ERROR_SUCCESS;
+            if (!GetSecurityDescriptorDacl(station_descriptor.data(), &has_dacl, &station_original_dacl, &defaulted))
+                return false;
+            PACL changed = nullptr;
+            if (has_dacl && station_original_dacl) {
+                EXPLICIT_ACCESSW access{};
+                access.grfAccessPermissions = station_access;
+                access.grfAccessMode = GRANT_ACCESS;
+                BuildTrusteeWithSidW(&access.Trustee, logon);
+                err = SetEntriesInAclW(1, &access, station_original_dacl, &changed);
+                if (err == ERROR_SUCCESS) {
+                    SECURITY_DESCRIPTOR descriptor{};
+                    // SetUserObjectSecurity updates the station, without
+                    // SetSecurityInfo's automatic child ACE propagation.
+                    station_changed = InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) &&
+                        SetSecurityDescriptorDacl(&descriptor, TRUE, changed, FALSE) &&
+                        SetUserObjectSecurity(station, &security, &descriptor);
+                    if (!station_changed) err = GetLastError();
+                }
+            } else err = ERROR_INVALID_ACL;
+            if (changed) LocalFree(changed);
+            if (err != ERROR_SUCCESS) { SetLastError(err); return false; }
+            std::fputs("WinSta0 access was granted temporarily to the current logon SID.\n", stderr);
+        }
+
+        LPWSTR sid_text = nullptr;
+        if (!ConvertSidToStringSidW(logon, &sid_text)) return false;
+        const std::wstring sddl = std::wstring(L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;") +
+            sid_text + L")S:(ML;;NW;;;ME)";
+        LocalFree(sid_text);
+        PSECURITY_DESCRIPTOR descriptor = nullptr;
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &descriptor, nullptr))
+            return false;
+        const std::wstring name = L"NoteViveRecipe-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+            std::to_wstring(GetTickCount64());
+        SECURITY_ATTRIBUTES attributes{sizeof(attributes), descriptor, FALSE};
+        temporary = CreateDesktopW(name.c_str(), nullptr, nullptr, 0,
+            DESKTOP_CREATEWINDOW | DESKTOP_READOBJECTS | DESKTOP_SWITCHDESKTOP, &attributes);
+        const auto create_error = temporary ? ERROR_SUCCESS : GetLastError();
+        LocalFree(descriptor);
+        if (!temporary) { SetLastError(create_error); return false; }
+        path = std::wstring(station_name) + L"\\" + name;
+        if (!SwitchDesktop(temporary)) return false;
+        switched = true;
+        std::fputs("Using temporary medium-integrity input desktop. Default was not modified.\n", stderr);
+        return true;
+    }
+};
+
 int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory,
                       const wchar_t* diagnostics) {
     // The runner and Explorer may both be elevated. Filter only the test
-    // child: keep its ordinary user/logon SID and existing desktop ACLs.
+    // child: keep its ordinary user/logon SID and use a disposable desktop.
+    RecipeDesktop desktop;
     LocalHandle own, filtered, job, output, input;
     const auto failure = [](const char* operation) {
         const auto error = GetLastError();
         std::fprintf(stderr, "%s failed (Windows error %lu)\n", operation, static_cast<unsigned long>(error));
         return 1;
     };
-    constexpr DWORD token_access = TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT;
+    constexpr DWORD token_access = TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY |
+        TOKEN_ADJUST_DEFAULT | TOKEN_IMPERSONATE;
     if (!OpenProcessToken(GetCurrentProcess(), token_access, &own.value))
         return failure("OpenProcessToken");
     alignas(DWORD) BYTE builtin_admin[SECURITY_MAX_SID_SIZE]{};
@@ -229,13 +366,20 @@ int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const
     if (!GetTokenInformation(filtered.value, TokenGroups, groups_data.data(), received, &received))
         return failure("GetTokenInformation TokenGroups");
     const auto* groups = reinterpret_cast<const TOKEN_GROUPS*>(groups_data.data());
+    PSID logon = nullptr;
     for (DWORD i = 0; i < groups->GroupCount; ++i) {
         const auto group = groups->Groups[i];
+        if ((group.Attributes & SE_GROUP_LOGON_ID) == SE_GROUP_LOGON_ID &&
+            (group.Attributes & SE_GROUP_ENABLED) && IsValidSid(group.Sid)) logon = group.Sid;
         if (EqualSid(group.Sid, builtin_admin) &&
             ((group.Attributes & SE_GROUP_ENABLED) || !(group.Attributes & SE_GROUP_USE_FOR_DENY_ONLY))) {
             std::fputs("Administrators remains enabled in the filtered test token.\n", stderr);
             return 1;
         }
+    }
+    if (!logon) {
+        std::fputs("The filtered token has no enabled interactive logon SID.\n", stderr);
+        return 1;
     }
     std::fputs("Windows confirmed filtered test token: integrity=0x2000 elevated=0 administrators_disabled=1\n", stderr);
 
@@ -253,10 +397,10 @@ int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const
                               &inherited, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (output.value == INVALID_HANDLE_VALUE || input.value == INVALID_HANDLE_VALUE)
         return failure("Open restricted test diagnostics");
-    wchar_t desktop[] = L"winsta0\\default";
+    if (!desktop.start(filtered.value, logon)) return failure("Prepare temporary Windows input desktop");
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
-    startup.lpDesktop = desktop;
+    startup.lpDesktop = desktop.path.data();
     startup.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
     startup.wShowWindow = SW_HIDE;
     startup.hStdInput = input.value;
@@ -284,6 +428,11 @@ int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const
     if (!GetExitCodeProcess(child_process.value, &elapsed_code)) return failure("GetExitCodeProcess");
     std::fprintf(stderr, "Restricted test process exit: 0x%08lx (%lu)\n",
                  static_cast<unsigned long>(elapsed_code), static_cast<unsigned long>(elapsed_code));
+    TerminateJobObject(job.value, 1); // No browser/fixture descendants on the retired desktop.
+    if (!desktop.restore()) {
+        std::fputs("Restoring the original input desktop or station ACL failed.\n", stderr);
+        return 1;
+    }
     return elapsed_code == 0 ? 0 : 1;
 }
 
