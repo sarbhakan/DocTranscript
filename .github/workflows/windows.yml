@@ -142,6 +142,7 @@ jobs:
       - name: Tester les champs Win32 avec les protections de production
         run: python -m app.test_windows --compiler msvc --external-only --output "$env:RUNNER_TEMP/NoteVive-external-tests"
       - name: Tester la saisie Unicode dans Edge sur une page locale fictive
+        if: ${{ !cancelled() }}
         shell: powershell
         run: ./app/windows/external_interactive_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-external-tests/external-target-test.exe" -Case Edge
   release:
