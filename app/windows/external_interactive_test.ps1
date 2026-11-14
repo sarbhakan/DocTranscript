@@ -48,6 +48,14 @@ $work = Join-Path ([IO.Path]::GetTempPath()) ("notevive-interactive-" + [guid]::
 New-Item -ItemType Directory -Path $work | Out-Null
 $result = Join-Path $work 'result'
 try {
+    $diagnostics = Join-Path $work 'child-output.log'
+    if ($Case -eq 'Native') {
+        & $ProbeExe --launch-restricted $ProbeExe '--native-restricted' $PSScriptRoot $diagnostics
+        $status = $LASTEXITCODE
+        if (Test-Path -LiteralPath $diagnostics) { Get-Content -LiteralPath $diagnostics }
+        if ($status) { throw 'The restricted native recipe failed; see Windows diagnostics.' }
+        exit
+    }
     $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     # Windows PowerShell 5.1 native arguments need explicitly escaped embedded
     # quotes. Put the command in an encoded script instead of shell-escaping.
@@ -55,10 +63,11 @@ try {
     $command = '& ' + (& $quoted $scriptFile) + ' -ProbeExe ' + (& $quoted $ProbeExe) +
                ' -Case ' + $Case + ' -ResultFile ' + (& $quoted $result)
     $encoding = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-    & $ProbeExe --launch-restricted $powerShell "-NoProfile -NonInteractive -EncodedCommand $encoding" $PSScriptRoot
-    if ($LASTEXITCODE -and -not (Test-Path -LiteralPath $result)) { throw 'Windows did not launch the verified restricted test process.' }
+    & $ProbeExe --launch-restricted $powerShell "-NoProfile -NonInteractive -EncodedCommand $encoding" $PSScriptRoot $diagnostics
+    $status = $LASTEXITCODE
+    if (Test-Path -LiteralPath $diagnostics) { Get-Content -LiteralPath $diagnostics }
     if (Test-Path -LiteralPath "$result.log") { Get-Content -LiteralPath "$result.log" }
-    if (-not (Test-Path -LiteralPath $result) -or (Get-Content -LiteralPath $result -Raw) -ne '0') {
+    if ($status -or -not (Test-Path -LiteralPath $result) -or (Get-Content -LiteralPath $result -Raw) -ne '0') {
         throw "$Case recipe failed or could not run under the ordinary desktop token."
     }
 } finally {

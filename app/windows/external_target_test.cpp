@@ -152,15 +152,34 @@ int environment() {
     return 0;
 }
 
+bool ordinary_token() {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return false;
+    DWORD bytes = 0;
+    TOKEN_ELEVATION elevation{};
+    const bool unraised = GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &bytes) &&
+        !elevation.TokenIsElevated;
+    GetTokenInformation(token, TokenIntegrityLevel, nullptr, 0, &bytes);
+    std::vector<BYTE> info(bytes && bytes <= 4096 ? bytes : 0);
+    const bool read = !info.empty() && GetTokenInformation(token, TokenIntegrityLevel, info.data(), bytes, &bytes);
+    CloseHandle(token);
+    if (!unraised || !read) return false;
+    auto sid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(info.data())->Label.Sid;
+    if (!IsValidSid(sid) || !*GetSidSubAuthorityCount(sid)) return false;
+    const auto integrity = *GetSidSubAuthority(sid, *GetSidSubAuthorityCount(sid) - 1);
+    return integrity >= SECURITY_MANDATORY_MEDIUM_RID && integrity < SECURITY_MANDATORY_HIGH_RID;
+}
+
 struct LocalHandle {
     HANDLE value = nullptr;
-    ~LocalHandle() { if (value) CloseHandle(value); }
+    ~LocalHandle() { if (value && value != INVALID_HANDLE_VALUE) CloseHandle(value); }
 };
 
-int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory) {
+int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory,
+                      const wchar_t* diagnostics) {
     // The runner and Explorer may both be elevated. Filter only the test
     // child: keep its ordinary user/logon SID and existing desktop ACLs.
-    LocalHandle own, filtered, job;
+    LocalHandle own, filtered, job, output, input;
     const auto failure = [](const char* operation) {
         const auto error = GetLastError();
         std::fprintf(stderr, "%s failed (Windows error %lu)\n", operation, static_cast<unsigned long>(error));
@@ -225,17 +244,28 @@ int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
     if (!job.value || !SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
         return failure("SetInformationJobObject");
+    // Create both standard handles in the parent, which reports diagnostics
+    // even if the restricted child cannot read its script or write its result.
+    SECURITY_ATTRIBUTES inherited{sizeof(inherited), nullptr, TRUE};
+    output.value = CreateFileW(diagnostics, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,
+                               &inherited, CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY, nullptr);
+    input.value = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              &inherited, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (output.value == INVALID_HANDLE_VALUE || input.value == INVALID_HANDLE_VALUE)
+        return failure("Open restricted test diagnostics");
     wchar_t desktop[] = L"winsta0\\default";
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
     startup.lpDesktop = desktop;
-    startup.dwFlags = STARTF_USESHOWWINDOW;
+    startup.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
     startup.wShowWindow = SW_HIDE;
+    startup.hStdInput = input.value;
+    startup.hStdOutput = startup.hStdError = output.value;
     PROCESS_INFORMATION child{};
     std::wstring command = L"\"" + std::wstring(executable) + L"\" " + arguments;
     // CreateProcessAsUser does not require AssignPrimaryToken privilege for a
     // restricted version of the caller's primary token (Microsoft contract).
-    if (!CreateProcessAsUserW(filtered.value, executable, command.data(), nullptr, nullptr, FALSE,
+    if (!CreateProcessAsUserW(filtered.value, executable, command.data(), nullptr, nullptr, TRUE,
                              CREATE_SUSPENDED | CREATE_NO_WINDOW, nullptr, directory, &startup, &child))
         return failure("CreateProcessAsUser for filtered token");
     LocalHandle child_process{child.hProcess}, child_thread{child.hThread};
@@ -252,6 +282,8 @@ int launch_restricted(const wchar_t* executable, const wchar_t* arguments, const
     }
     DWORD elapsed_code = 1;
     if (!GetExitCodeProcess(child_process.value, &elapsed_code)) return failure("GetExitCodeProcess");
+    std::fprintf(stderr, "Restricted test process exit: 0x%08lx (%lu)\n",
+                 static_cast<unsigned long>(elapsed_code), static_cast<unsigned long>(elapsed_code));
     return elapsed_code == 0 ? 0 : 1;
 }
 
@@ -429,8 +461,13 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-probe") == 0)
             return edge_probe(static_cast<DWORD>(std::stoul(argv[2])));
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
-        if (argc == 5 && std::wcscmp(argv[1], L"--launch-restricted") == 0)
-            return launch_restricted(argv[2], argv[3], argv[4]);
+        if (argc == 6 && std::wcscmp(argv[1], L"--launch-restricted") == 0)
+            return launch_restricted(argv[2], argv[3], argv[4], argv[5]);
+        if (argc == 2 && std::wcscmp(argv[1], L"--native-restricted") == 0) {
+            token_environment("executing native recipe", GetCurrentProcess());
+            require(ordinary_token(), "test process did not inherit an ordinary Windows token");
+            return run(false);
+        }
         if (argc == 1) return run(false);
         if (argc == 2 && std::wcscmp(argv[1], L"--clipboard") == 0) return run(true);
         return 2;
