@@ -45,17 +45,33 @@ function Wait-Until([scriptblock]$Condition, [string]$Failure, [int]$Millisecond
     } while ($timer.ElapsedMilliseconds -lt $Milliseconds)
     throw $Failure
 }
-function CDP([string]$Method, [hashtable]$Arguments = @{}) {
-    $script:sequence++
-    $request = @{ id = $script:sequence; method = $Method; params = $Arguments } | ConvertTo-Json -Compress
+function Connect-DevTools([Uri]$Address, [string]$Channel) {
+    $client = [Net.WebSockets.ClientWebSocket]::new()
+    $client.Options.Proxy = $null
+    $deadline = [Threading.CancellationTokenSource]::new(6500)
+    try {
+        $null = $client.ConnectAsync($Address, $deadline.Token).GetAwaiter().GetResult()
+        return $client
+    } catch {
+        $client.Dispose()
+        throw "Edge DevTools $Channel connection failed: $($_.Exception.GetBaseException().Message)"
+    } finally { $deadline.Dispose() }
+}
+function CDP([string]$Method, [hashtable]$Arguments = @{}, [int]$Timeout = 6500, [string]$Phase = $Method) {
+    $script:cdpSequence++
+    $id = [long]$script:cdpSequence
+    $request = @{ id = $id; method = $Method; params = $Arguments } | ConvertTo-Json -Compress -Depth 4
     $bytes = [Text.Encoding]::UTF8.GetBytes($request)
-    $token = [Threading.CancellationTokenSource]::new(4000)
+    $token = [Threading.CancellationTokenSource]::new($Timeout)
     $scratch = [byte[]]::new(8192)
     $stream = [IO.MemoryStream]::new()
+    $operation = 'send'
+    $received = 0
     try {
         $null = $ws.SendAsync([ArraySegment[byte]]::new($bytes), [Net.WebSockets.WebSocketMessageType]::Text,
                       $true, $token.Token).GetAwaiter().GetResult()
-        do {
+        $operation = 'receive'
+        while ($received -lt 128) {
             $stream.SetLength(0)
             do {
                 $part = $ws.ReceiveAsync([ArraySegment[byte]]::new($scratch), $token.Token).GetAwaiter().GetResult()
@@ -63,17 +79,23 @@ function CDP([string]$Method, [hashtable]$Arguments = @{}) {
                 $stream.Write($scratch, 0, $part.Count)
                 if ($stream.Length -gt 65536) { throw 'Unexpected DevTools message length.' }
             } while (-not $part.EndOfMessage)
+            $received++
             $message = [Text.Encoding]::UTF8.GetString($stream.ToArray()) | ConvertFrom-Json
-        } until ($message.id -eq $script:sequence)
-        if ($message.error) { throw "DevTools command failed: $Method" }
-        return $message.result
+            if (-not $message.PSObject.Properties['id']) { continue } # Events have no reply id.
+            if ($message.id -ne $id) { throw "Unexpected response id $($message.id)." }
+            if ($message.error) { throw "DevTools returned error code $($message.error.code)." }
+            return $message.result
+        }
+        throw 'Too many DevTools events before the response.'
+    } catch {
+        throw "Edge DevTools $Phase ($Method id $id; $operation; $received complete messages): $($_.Exception.GetBaseException().Message)"
     } finally {
         $stream.Dispose()
         $token.Dispose()
     }
 }
-function Eval([string]$Expression) {
-    $outcome = CDP 'Runtime.evaluate' @{expression = $Expression; returnByValue = $true}
+function Eval([string]$Expression, [string]$Phase = 'synthetic DOM check') {
+    $outcome = CDP 'Runtime.evaluate' @{expression = $Expression; returnByValue = $true} -Phase $Phase
     if ($outcome.exceptionDetails) { throw 'The synthetic test page could not execute its check.' }
     return $outcome.result.value
 }
@@ -96,12 +118,6 @@ function Select-Editable {
     Require (Eval '(() => { rich.focus(); const r=document.createRange(); r.setStart(rich.firstChild,1); r.collapse(true); const s=getSelection(); s.removeAllRanges(); s.addRange(r); return document.hasFocus() && document.activeElement===rich; })()') 'Edge contenteditable did not receive focus.'
 }
 
-function Log-EdgeStartupEnvironment([string]$phase, [string]$dll) {
-    Write-Output "Edge recipe environment: $phase."
-    & $ProbeExe --edge-startup-diagnostic $dll
-    if ($LASTEXITCODE -ne 0) { Write-Output "Edge startup diagnostic exited with $LASTEXITCODE." }
-}
-
 function Log-EdgeFailure {
     if ($edge) {
         $state = if ($edge.HasExited) { 'exited 0x{0:X8}' -f $edge.ExitCode } else { 'still running' }
@@ -122,15 +138,16 @@ function Log-EdgeFailure {
                 ForEach-Object { Write-Output ("Edge startup log: " + $_.Substring(0, [Math]::Min($_.Length, 300))) }
         }
     }
-    if ($HostedRecipe) {
-        $installation = Split-Path -Parent $EdgeExe
-        $version = [regex]::Match([Diagnostics.FileVersionInfo]::GetVersionInfo($EdgeExe).FileVersion, '^\d+\.\d+\.\d+\.\d+')
-        $dll = Join-Path $installation 'msedge.dll'
-        if ($version.Success -and -not (Test-Path -LiteralPath $dll -PathType Leaf)) {
-            $dll = Join-Path (Join-Path $installation $version.Value) 'msedge.dll'
-        }
-        if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { $dll = '-' }
-        Log-EdgeStartupEnvironment 'after the browser failure' $dll
+    if ($browserConnection -and $browserConnection.State -eq [Net.WebSockets.WebSocketState]::Open) {
+        # Query the disposable browser only, excluding unrelated processes,
+        # file paths and command lines.
+        $ws = $browserConnection
+        try {
+            $processes = CDP 'SystemInfo.getProcessInfo' -Timeout 2500 -Phase 'browser process diagnosis'
+            $processes.processInfo | Group-Object -Property type | ForEach-Object {
+                if ($_.Name -match '^[A-Za-z0-9 _-]{1,32}$') { Write-Output "Edge profile process role $($_.Name): $($_.Count)" }
+            }
+        } catch { Write-Output $_.Exception.Message }
     }
 }
 
@@ -151,8 +168,8 @@ if ($HostedRecipe) {
 $work = Join-Path $scratch ("notevive-edge-" + [guid]::NewGuid().ToString('N'))
 $profile = Join-Path $work 'profile'
 $portFile = Join-Path $profile 'DevToolsActivePort'
-$edge = $null; $probe = $null; $ws = $null
-$script:sequence = 0
+$edge = $null; $probe = $null; $ws = $null; $browserConnection = $null
+$script:cdpSequence = 0
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
     # Chromium's ProcessSingleton opens a profile lock with DeleteOnClose.
@@ -204,10 +221,20 @@ try {
     Wait-Until {
         if ($edge.HasExited) { throw 'The isolated Edge process exited during startup.' }
         if (-not (Test-Path -LiteralPath $portFile -PathType Leaf)) { return $false }
-        try { return (Get-Content -LiteralPath $portFile -TotalCount 1) -match '^\d+$' } catch { return $false }
+        try {
+            $lines = @(Get-Content -LiteralPath $portFile -TotalCount 2)
+            return $lines.Count -eq 2 -and $lines[0] -match '^\d+$' -and
+                $lines[1] -match '^/devtools/browser/[0-9a-fA-F-]{36}$'
+        } catch { return $false }
     } 'Disposable Edge profile did not start DevTools.' 25000
-    $port = [int](Get-Content -LiteralPath $portFile -TotalCount 1)
+    $lines = @(Get-Content -LiteralPath $portFile -TotalCount 2)
+    $port = [int]$lines[0]
     Require ($port -gt 0 -and $port -lt 65536) 'Bad loopback port.'
+    $browserConnection = Connect-DevTools ([Uri]"ws://127.0.0.1:$port$($lines[1])") 'browser'
+    $ws = $browserConnection
+    $browserInfo = CDP 'Browser.getVersion' -Timeout 12000 -Phase 'browser channel readiness'
+    Require ($null -ne $browserInfo.protocolVersion) 'The isolated browser did not identify its CDP protocol.'
+    Write-Output 'Edge browser DevTools channel ready.'
     $page = $null
     $discovery = [Diagnostics.Stopwatch]::StartNew()
     while (-not $page -and $discovery.ElapsedMilliseconds -lt 12000) {
@@ -219,13 +246,12 @@ try {
     }
     Require ($null -ne $page) 'Synthetic page was not exposed on loopback.'
     $socket = [Uri]$page.webSocketDebuggerUrl
-    Require ($socket.Scheme -eq 'ws' -and $socket.IsLoopback -and $socket.Port -eq $port) 'Not a loopback DevTools target.'
-    $ws = [Net.WebSockets.ClientWebSocket]::new()
-    $ws.Options.Proxy = $null
-    $deadline = [Threading.CancellationTokenSource]::new(4000)
-    try { $null = $ws.ConnectAsync($socket, $deadline.Token).GetAwaiter().GetResult() } finally { $deadline.Dispose() }
-    $null = CDP 'Page.bringToFront'
-    Wait-Until { Eval 'document.readyState === "complete" && document.hasFocus()' } 'The disposable Edge window did not become active.'
+    Require ($socket.Scheme -eq 'ws' -and $socket.IsLoopback -and $socket.Port -eq $port -and
+        $socket.AbsolutePath -match '^/devtools/page/[0-9a-fA-F]+$') 'Not a loopback DevTools page target.'
+    $ws = Connect-DevTools $socket 'page'
+    $null = CDP 'Page.bringToFront' -Timeout 22000 -Phase 'activate synthetic page'
+    Wait-Until { Eval 'document.readyState === "complete" && document.hasFocus()' 'wait for focused renderer' } 'The disposable Edge window did not become active.' 20000
+    Write-Output 'Edge synthetic page is active; starting external input checks.'
 
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = $ProbeExe
@@ -277,7 +303,8 @@ try {
         if (-not $probe.HasExited) { $probe.Kill() }
         $probe.Dispose()
     }
-    if ($ws) { $ws.Dispose() }
+    if ($ws -and $ws -ne $browserConnection) { $ws.Dispose() }
+    if ($browserConnection) { $browserConnection.Dispose() }
     if ($edge) {
         # Terminate only the instance created with the disposable profile.
         if (-not $edge.HasExited) { & taskkill.exe /PID $edge.Id /T /F 2>$null | Out-Null }
