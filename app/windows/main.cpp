@@ -582,7 +582,8 @@ struct App {
             : std::wstring(status) + L"\r\n" + external_status;
         SetWindowTextW(mic_status, full_status.c_str());
         if (external_active) {
-            const auto state = captured ? ui::OverlayState::recording
+            const auto state = microphone_unconfirmed ? ui::OverlayState::uncertain
+                : captured ? ui::OverlayState::recording
                 : phase == Phase::preparing || external_pending ? ui::OverlayState::preparing
                 : ui::OverlayState::finalizing;
             if (!overlay.show(window, external_window, state))
@@ -1069,7 +1070,8 @@ struct App {
         external_target.reset();
         external_active = external_pending = external_sending = false;
         external_drain_started = 0;
-        overlay.hide();
+        if (microphone_unconfirmed) overlay.show(window, external_window, ui::OverlayState::uncertain);
+        else overlay.hide();
         update_controls();
     }
 

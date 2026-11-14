@@ -10,7 +10,7 @@
 
 namespace doct::ui {
 
-enum class OverlayState { preparing, recording, finalizing, local, unavailable };
+enum class OverlayState { preparing, recording, finalizing, local, unavailable, uncertain };
 
 // Display only a fixed status string; this object never takes draft text or a
 // destination title. Call from the thread owning the application window.

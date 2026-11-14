@@ -116,7 +116,12 @@ def main():
     parser.add_argument('--cmake', default='cmake')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--package', type=Path)
-    parser.add_argument('--engine-only', action='store_true', help='Test only the real decoder from --package.')
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument('--engine-only', action='store_true', help='Test only the real decoder from --package.')
+    scope.add_argument('--external-only', action='store_true',
+                       help='Build and run only the native external-target probe.')
+    scope.add_argument('--without-external', action='store_true',
+                       help='Build and run the tests other than the interactive external-target probe.')
     parser.add_argument('--include-unsupported-baseline', action='store_true',
                         help='Diagnostic explicite SSE2, hors du minimum CPU du produit (peut échouer).')
     parser.add_argument('--build-cache', type=Path)
@@ -124,6 +129,8 @@ def main():
     args = parser.parse_args()
     if args.engine_only and not args.package:
         parser.error('--engine-only requiert --package.')
+    if args.external_only and (args.package or args.include_unsupported_baseline):
+        parser.error('--external-only ne prend ni --package ni --include-unsupported-baseline.')
     native_windows = platform.system() == 'Windows'
     if args.compiler == 'zig' and not args.zig:
         parser.error('--zig est requis avec --compiler zig.')
@@ -154,7 +161,7 @@ def main():
     targets, commands = [], []
     regressions = {}
     supervisor = None
-    if not args.engine_only:
+    if not args.engine_only and not args.external_only:
         fixture = out / 'fixture'
         fixture.mkdir()
         child_target = target('fixture/NoteVive-ASR.exe', [WIN / 'worker_fixture.cpp'], wide_main=True)
@@ -170,13 +177,16 @@ def main():
             target('pause-state-test.exe', [ROOT / 'app/native/PauseStateTest.cpp']),
             target('notes-test.exe', [WIN / 'notes.cpp', WIN / 'notes_test.cpp'],
                    defines=['NOTEVIVE_NOTES_TEST'], libraries=['crypt32', 'ole32', 'shell32', 'uuid']),
-            target('external-target-test.exe', [WIN / 'external_target.cpp', WIN / 'external_target_test.cpp'],
-                   libraries=['user32', 'advapi32', 'ole32', 'oleaut32', 'uuid'], wide_main=True),
             target('supervisor-test.exe', [WIN / 'engine.cpp', WIN / 'integrity.cpp', WIN / 'engine_supervisor_test.cpp'],
                    defines=['NOTEVIVE_SUPERVISOR_TEST'], includes=[fixture], libraries=['bcrypt'], wide_main=True),
         ]
         supervisor = targets[-1][0]
         commands = [[test[0]] for test in targets[:-1]] + [[supervisor, fixture]]
+    if not args.engine_only and not args.without_external:
+        external_probe = target('external-target-test.exe', [WIN / 'external_target.cpp', WIN / 'external_target_test.cpp'],
+                                libraries=['user32', 'advapi32', 'ole32', 'oleaut32', 'uuid'], wide_main=True)
+        targets.append(external_probe)
+        commands.append([external_probe[0]])
     if args.package:
         runtime = args.package.resolve() / 'runtime'
         real = out / 'production'

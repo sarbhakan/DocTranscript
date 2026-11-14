@@ -16,11 +16,13 @@ const wchar_t* caption(OverlayState state) {
     case OverlayState::finalizing: return L"NoteVive · Finalisation…";
     case OverlayState::local: return L"Conservé dans NoteVive";
     case OverlayState::unavailable: return L"Champ incompatible · Micro coupé";
+    case OverlayState::uncertain: return L"Arrêt micro non confirmé · Fermez NoteVive";
     }
     return L"NoteVive";
 }
 
 int scale(int value, UINT dpi) { return MulDiv(value, static_cast<int>(dpi), 96); }
+int base_width(OverlayState state) { return state == OverlayState::uncertain ? 370 : 285; }
 
 bool high_contrast() {
     HIGHCONTRASTW contrast{sizeof(contrast), 0, nullptr};
@@ -56,7 +58,7 @@ bool DictationOverlay::show(HWND app_window, HWND target_window, OverlayState st
         // instance explicitly destroys the window at application shutdown.
         if (!CreateWindowExW(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_LAYERED,
             WindowClass, caption(state_), WS_POPUP | WS_BORDER | WS_CLIPCHILDREN,
-            screen.rcWork.left, screen.rcWork.top, scale(285, initial_dpi), scale(46, initial_dpi),
+            screen.rcWork.left, screen.rcWork.top, scale(base_width(state_), initial_dpi), scale(46, initial_dpi),
             nullptr, nullptr, instance, this)) return false;
         // Desktop hit testing ignores a transparent layered window. Refuse
         // to claim that the indicator is visible if compositing failed.
@@ -112,7 +114,8 @@ void DictationOverlay::arrange() {
         }
     }
     const RECT& work = screen.rcWork;
-    const int margin = scale(16, dpi_), width = std::min(scale(285, dpi_), static_cast<int>(work.right - work.left));
+    const int margin = scale(16, dpi_);
+    const int width = std::min(scale(base_width(state_), dpi_), static_cast<int>(work.right - work.left));
     const int height = std::min(scale(46, dpi_), static_cast<int>(work.bottom - work.top));
     SetWindowPos(window_, HWND_TOPMOST, std::max<int>(work.left, work.right - width - margin),
         std::max<int>(work.top, work.bottom - height - margin), width, height,
@@ -132,7 +135,8 @@ void DictationOverlay::paint() {
     RECT rc{};
     GetClientRect(window_, &rc);
     const int size = scale(9, dpi_), x = scale(13, dpi_), y = (rc.bottom - size) / 2;
-    SetDCBrushColor(dc, contrast ? GetSysColor(COLOR_WINDOWTEXT) : state_ == OverlayState::recording ? RGB(158, 39, 59) : RGB(0, 103, 94));
+    const bool alert = state_ == OverlayState::recording || state_ == OverlayState::uncertain;
+    SetDCBrushColor(dc, contrast ? GetSysColor(COLOR_WINDOWTEXT) : alert ? RGB(158, 39, 59) : RGB(0, 103, 94));
     const auto brush = SelectObject(dc, GetStockObject(DC_BRUSH));
     const auto pen = SelectObject(dc, GetStockObject(NULL_PEN));
     Ellipse(dc, x, y, x + size, y + size);
@@ -166,7 +170,12 @@ LRESULT CALLBACK DictationOverlay::procedure(HWND window, UINT message, WPARAM w
         return reinterpret_cast<LRESULT>(contrast ? GetSysColorBrush(COLOR_WINDOW) : GetStockObject(DC_BRUSH));
     }
     case WM_TIMER:
-        if (wparam == HideTimer) { self->hide(); return 0; }
+        if (wparam == HideTimer) {
+            // KillTimer does not remove an already posted WM_TIMER, which
+            // might belong to the preceding transient status.
+            if (self->state_ == OverlayState::local || self->state_ == OverlayState::unavailable) self->hide();
+            return 0;
+        }
         break;
     case WM_MOUSEACTIVATE: return MA_NOACTIVATEANDEAT;
     case WM_NCHITTEST: return HTTRANSPARENT;
