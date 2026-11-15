@@ -958,7 +958,7 @@ struct RecipeDesktop {
         }
         return error;
     }
-    bool start(HANDLE token, PSID account, bool edge_broker) {
+    bool start(HANDLE token, PSID account, bool edge_broker, bool grant_station = true) {
         if (!hosted_recipe()) {
             std::fputs("Run the recipe from an ordinary Windows account; desktop setup is limited to hosted CI.\n", stderr);
             SetLastError(ERROR_ACCESS_DENIED);
@@ -1014,6 +1014,10 @@ struct RecipeDesktop {
         }
         const DWORD access_error = access_with(thread_token.value, station_name);
         std::fprintf(stderr, "Recipe account WinSta0 full access: %lu\n", static_cast<unsigned long>(access_error));
+        if (access_error && !grant_station) {
+            SetLastError(access_error);
+            return false;
+        }
         if (access_error && access_error != ERROR_ACCESS_DENIED) {
             SetLastError(access_error);
             return false;
@@ -1265,6 +1269,271 @@ bool stage_directory(const wchar_t* directory) {
             !(flags & FILE_ATTRIBUTE_REPARSE_POINT);
     };
     return normal_directory(public_directory) && normal_directory(path) && normal_directory(path + L"\\out");
+}
+
+// The filtered arm only compares identities. It does not create a logon,
+// write a namespace ACL, enable token privileges or load/delete a profile.
+bool token_part(HANDLE token, TOKEN_INFORMATION_CLASS kind, std::vector<BYTE>& value) {
+    DWORD size = 0;
+    GetTokenInformation(token, kind, nullptr, 0, &size);
+    if (!size || size > 65536) return false;
+    value.resize(size);
+    return GetTokenInformation(token, kind, value.data(), size, &size);
+}
+
+struct FilteredIdentity {
+    std::vector<BYTE> user, logon;
+    LUID auth{};
+    DWORD session = UINT32_MAX;
+
+    bool read(HANDLE token) {
+        TOKEN_STATISTICS statistics{};
+        DWORD size = 0;
+        if (!GetTokenInformation(token, TokenStatistics, &statistics, sizeof(statistics), &size) ||
+                statistics.TokenType != TokenPrimary ||
+                !GetTokenInformation(token, TokenSessionId, &session, sizeof(session), &size) ||
+                session == 0 || session == UINT32_MAX) return false;
+        auth = statistics.AuthenticationId;
+        std::vector<BYTE> user_info, logon_info;
+        if (!token_part(token, TokenUser, user_info) || !token_part(token, TokenLogonSid, logon_info)) return false;
+        const auto* groups = reinterpret_cast<const TOKEN_GROUPS*>(logon_info.data());
+        constexpr DWORD active_logon = SE_GROUP_LOGON_ID | SE_GROUP_ENABLED;
+        if (groups->GroupCount != 1 || (groups->Groups[0].Attributes & active_logon) != active_logon ||
+                (groups->Groups[0].Attributes & SE_GROUP_USE_FOR_DENY_ONLY)) return false;
+        const auto copy_sid = [](PSID sid, std::vector<BYTE>& bytes) {
+            if (!IsValidSid(sid)) return false;
+            bytes.resize(GetLengthSid(sid));
+            return CopySid(static_cast<DWORD>(bytes.size()), bytes.data(), sid) != FALSE;
+        };
+        return copy_sid(reinterpret_cast<const TOKEN_USER*>(user_info.data())->User.Sid, user) &&
+               copy_sid(groups->Groups[0].Sid, logon);
+    }
+
+    bool same(const FilteredIdentity& other) const {
+        return session == other.session && auth.LowPart == other.auth.LowPart && auth.HighPart == other.auth.HighPart &&
+            user == other.user && logon == other.logon;
+    }
+
+    std::wstring digest() const {
+        // Compare the same data inside the process without writing or
+        // printing SID/logon identifiers in the CI artifacts.
+        std::vector<BYTE> bytes;
+        const auto add = [&](const void* data, size_t size) {
+            const auto* first = static_cast<const BYTE*>(data);
+            bytes.insert(bytes.end(), first, first + size);
+        };
+        add(&session, sizeof(session));
+        add(&auth.LowPart, sizeof(auth.LowPart));
+        add(&auth.HighPart, sizeof(auth.HighPart));
+        const auto user_size = static_cast<DWORD>(user.size());
+        add(&user_size, sizeof(user_size));
+        add(user.data(), user.size());
+        add(logon.data(), logon.size());
+        BCRYPT_ALG_HANDLE algorithm = nullptr;
+        if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) != 0) return {};
+        BYTE hash[32]{};
+        const NTSTATUS status = BCryptHash(algorithm, nullptr, 0, bytes.data(),
+                                          static_cast<ULONG>(bytes.size()), hash, sizeof(hash));
+        BCryptCloseAlgorithmProvider(algorithm, 0);
+        if (status != 0) return {};
+        std::wstring hex;
+        for (const BYTE byte : hash) {
+            constexpr wchar_t digits[] = L"0123456789abcdef";
+            hex += digits[byte >> 4];
+            hex += digits[byte & 15];
+        }
+        return hex;
+    }
+};
+
+bool same_process_session(DWORD pid, DWORD token_session) {
+    DWORD session = UINT32_MAX;
+    return ProcessIdToSessionId(pid, &session) && session == token_session;
+}
+
+bool filtered_token(HANDLE token, PSID administrators) {
+    TOKEN_ELEVATION elevation{};
+    DWORD received = 0, ui_access = 1, app_container = 1;
+    if (!GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &received) || elevation.TokenIsElevated ||
+            !GetTokenInformation(token, TokenUIAccess, &ui_access, sizeof(ui_access), &received) || ui_access ||
+            !GetTokenInformation(token, TokenIsAppContainer, &app_container, sizeof(app_container), &received) || app_container)
+        return false;
+    std::vector<BYTE> level, groups, privileges;
+    if (!token_part(token, TokenIntegrityLevel, level) || !token_part(token, TokenGroups, groups) ||
+            !token_part(token, TokenPrivileges, privileges) ||
+            !IsWellKnownSid(reinterpret_cast<const TOKEN_MANDATORY_LABEL*>(level.data())->Label.Sid, WinMediumLabelSid))
+        return false;
+    bool deny_only = false;
+    const auto* group_info = reinterpret_cast<const TOKEN_GROUPS*>(groups.data());
+    for (DWORD i = 0; i < group_info->GroupCount; ++i) {
+        const auto& group = group_info->Groups[i];
+        if (EqualSid(group.Sid, administrators)) {
+            constexpr DWORD mask = SE_GROUP_ENABLED | SE_GROUP_ENABLED_BY_DEFAULT | SE_GROUP_USE_FOR_DENY_ONLY;
+            if ((group.Attributes & mask) != SE_GROUP_USE_FOR_DENY_ONLY) return false;
+            deny_only = true;
+        }
+    }
+    LUID traverse{};
+    if (!deny_only || !LookupPrivilegeValueW(nullptr, L"SeChangeNotifyPrivilege", &traverse)) return false;
+    const auto* privilege_info = reinterpret_cast<const TOKEN_PRIVILEGES*>(privileges.data());
+    for (DWORD i = 0; i < privilege_info->PrivilegeCount; ++i) {
+        const auto& privilege = privilege_info->Privileges[i];
+        if ((privilege.Attributes & SE_PRIVILEGE_ENABLED) &&
+                (privilege.Luid.LowPart != traverse.LowPart || privilege.Luid.HighPart != traverse.HighPart)) return false;
+    }
+    return true;
+}
+
+bool normal_file(const std::wstring& path) {
+    const DWORD flags = GetFileAttributesW(path.c_str());
+    return flags != INVALID_FILE_ATTRIBUTES && !(flags & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT));
+}
+
+int filtered_child(const wchar_t* expected) {
+    wchar_t directory[MAX_PATH]{};
+    const DWORD length = GetCurrentDirectoryW(MAX_PATH, directory);
+    require(length && length < MAX_PATH && stage_directory(directory), "invalid filtered child staging directory");
+    if (!_wfreopen(L"out\\filtered-child.log", L"wb", stderr)) return 3;
+    LocalHandle token;
+    BYTE administrators[SECURITY_MAX_SID_SIZE]{};
+    DWORD size = sizeof(administrators);
+    BOOL in_job = FALSE;
+    FilteredIdentity identity;
+    require(IsProcessInJob(GetCurrentProcess(), nullptr, &in_job) && in_job &&
+            CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, administrators, &size) &&
+            OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token.value) && filtered_token(token.value, administrators) &&
+            identity.read(token.value) && same_process_session(GetCurrentProcessId(), identity.session),
+            "filtered child must run in the recipe job with a Medium non-elevated token");
+    const auto actual = identity.digest();
+    require(actual.size() == 64 && actual == expected, "filtered child user/logon/session/authentication identity changed");
+    std::fputs("Filtered child verified: Medium, non-elevated, Administrators DenyOnly, same user/logon/session/LUID.\n", stderr);
+    std::fflush(stderr);
+
+    wchar_t system[MAX_PATH]{};
+    const UINT system_size = GetSystemDirectoryW(system, MAX_PATH);
+    require(system_size && system_size < MAX_PATH, "resolve Windows PowerShell location");
+    const std::wstring power_shell = std::wstring(system) + L"\\WindowsPowerShell\\v1.0\\powershell.exe";
+    require(normal_file(L"edge-bootstrap.ps1") && normal_file(power_shell), "locate filtered Edge bootstrap");
+    // Only the host markers already required by the parent are passed on,
+    // independently of any credentials in its GitHub Actions environment.
+    require(SetEnvironmentVariableW(L"GITHUB_ACTIONS", L"true") &&
+            SetEnvironmentVariableW(L"RUNNER_ENVIRONMENT", L"github-hosted"),
+            "set the two hosted recipe markers");
+    std::wstring command = L"\"" + power_shell +
+        L"\" -NoProfile -NonInteractive -File .\\edge-bootstrap.ps1 -RecipeCase EdgeFiltered";
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION next{};
+    require(CreateProcessW(power_shell.c_str(), command.data(), nullptr, nullptr, FALSE,
+                            CREATE_NO_WINDOW | CREATE_SUSPENDED, nullptr, directory, &startup, &next),
+            "start the filtered Edge bootstrap without changing its token");
+    LocalHandle process{next.hProcess}, thread{next.hThread}, bootstrap_token;
+    FilteredIdentity bootstrap;
+    require(OpenProcessToken(process.value, TOKEN_QUERY, &bootstrap_token.value) &&
+            filtered_token(bootstrap_token.value, administrators) &&
+            bootstrap.read(bootstrap_token.value) && bootstrap.same(identity) &&
+            same_process_session(next.dwProcessId, bootstrap.session),
+            "the Edge PowerShell bootstrap did not inherit the verified token");
+    AllowSetForegroundWindow(next.dwProcessId);
+    require(ResumeThread(thread.value) != static_cast<DWORD>(-1), "resume the verified PowerShell bootstrap");
+    DWORD exit_code = 1;
+    require(WaitForSingleObject(process.value, 90000) == WAIT_OBJECT_0 &&
+            GetExitCodeProcess(process.value, &exit_code), "filtered Edge bootstrap deadline");
+    return exit_code == 0 ? 0 : 1;
+}
+
+int launch_filtered(const wchar_t* directory) {
+    const auto failure = [](const char* operation) {
+        std::fprintf(stderr, "Filtered Edge: %s (Windows error %lu).\n", operation,
+                     static_cast<unsigned long>(GetLastError()));
+        return 1;
+    };
+    if (!hosted_recipe() || !stage_directory(directory))
+        return failure("requires GitHub-hosted CI and a fresh private staging directory");
+    const std::wstring executable = std::wstring(directory) + L"\\external-target-test.exe";
+    if (!normal_file(executable) || !normal_file(std::wstring(directory) + L"\\edge-bootstrap.ps1"))
+        return failure("invalid staged executable or bootstrap");
+    LocalHandle runner, filtered;
+    constexpr DWORD rights = TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT;
+    TOKEN_ELEVATION elevation{};
+    DWORD received = 0;
+    FilteredIdentity original, selected;
+    BYTE administrators[SECURITY_MAX_SID_SIZE]{}, medium[SECURITY_MAX_SID_SIZE]{};
+    DWORD administrators_size = sizeof(administrators), medium_size = sizeof(medium);
+    if (!OpenProcessToken(GetCurrentProcess(), rights, &runner.value) ||
+            !GetTokenInformation(runner.value, TokenElevation, &elevation, sizeof(elevation), &received) ||
+            !elevation.TokenIsElevated ||
+            !original.read(runner.value) || !same_process_session(GetCurrentProcessId(), original.session) ||
+            !CreateWellKnownSid(WinBuiltinAdministratorsSid, nullptr, administrators, &administrators_size) ||
+            !CreateWellKnownSid(WinMediumLabelSid, nullptr, medium, &medium_size))
+        return failure("cannot identify the elevated interactive runner");
+    SID_AND_ATTRIBUTES disable{administrators, 0};
+    if (!CreateRestrictedToken(runner.value, DISABLE_MAX_PRIVILEGE, 1, &disable, 0, nullptr, 0, nullptr, &filtered.value))
+        return failure("CreateRestrictedToken");
+    TOKEN_MANDATORY_LABEL mandatory{{medium, SE_GROUP_INTEGRITY}};
+    if (!SetTokenInformation(filtered.value, TokenIntegrityLevel, &mandatory, sizeof(mandatory) + medium_size) ||
+            !filtered_token(filtered.value, administrators) || !selected.read(filtered.value) || !selected.same(original))
+        return failure("filtered token must be Medium, non-elevated, Administrators DenyOnly and preserve logon identity");
+    const auto expected = original.digest();
+    if (expected.size() != 64) return failure("hash the original logon identity");
+
+    RecipeDesktop desktop;
+    LocalHandle job{CreateJobObjectW(nullptr, nullptr)};
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!job.value || !SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
+        return failure("create the kill-on-close descendant job");
+    if (!desktop.start(filtered.value, selected.user.data(), true, false))
+        return failure("open the Low test desktop without changing WinSta0 access");
+    struct Environment {
+        LPVOID value = nullptr;
+        ~Environment() { if (value) DestroyEnvironmentBlock(value); }
+    } environment;
+    if (!CreateEnvironmentBlock(&environment.value, filtered.value, FALSE))
+        return failure("prepare the existing profile environment without inheriting runner variables");
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    startup.lpDesktop = desktop.path.data();
+    std::wstring command = L"\"" + executable + L"\" --edge-filtered-child " + expected;
+    PROCESS_INFORMATION child{};
+    if (!CreateProcessAsUserW(filtered.value, executable.c_str(), command.data(), nullptr, nullptr, FALSE,
+            CREATE_SUSPENDED | CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT, environment.value, directory, &startup, &child))
+        return failure("CreateProcessAsUserW for the filtered token");
+    LocalHandle child_process{child.hProcess}, child_thread{child.hThread}, child_token;
+    if (!AssignProcessToJobObject(job.value, child_process.value)) {
+        const auto result = failure("assign the suspended process to the cleanup job");
+        TerminateProcess(child_process.value, 1);
+        WaitForSingleObject(child_process.value, 3000);
+        return result;
+    }
+    FilteredIdentity started;
+    const bool checked = OpenProcessToken(child_process.value, TOKEN_QUERY, &child_token.value) &&
+        filtered_token(child_token.value, administrators) && started.read(child_token.value) &&
+        started.same(original) && same_process_session(child.dwProcessId, started.session);
+    DWORD exit_code = 1;
+    bool collected = false;
+    if (checked) {
+        std::fputs("Filtered launch verified: Medium, non-elevated, Administrators DenyOnly, same user/logon/session/LUID.\n", stderr);
+        AllowSetForegroundWindow(child.dwProcessId);
+        if (ResumeThread(child_thread.value) != static_cast<DWORD>(-1)) {
+            collected = WaitForSingleObject(child_process.value, 95000) == WAIT_OBJECT_0 &&
+                        GetExitCodeProcess(child_process.value, &exit_code);
+            if (collected)
+                std::fprintf(stderr, "Filtered test process exit: 0x%08lx (%lu)\n",
+                             static_cast<unsigned long>(exit_code), static_cast<unsigned long>(exit_code));
+            else std::fputs("Filtered Edge recipe did not finish before its deadline.\n", stderr);
+        } else failure("resume the filtered Edge recipe");
+    } else std::fputs("Suspended Edge process has an unexpected token or logon identity.\n", stderr);
+
+    if (!TerminateJobObject(job.value, 1)) return failure("stop the filtered recipe job");
+    const bool drained = within([&] {
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting{};
+        return QueryInformationJobObject(job.value, JobObjectBasicAccountingInformation,
+                   &accounting, sizeof(accounting), nullptr) && accounting.ActiveProcesses == 0;
+    }, 3000);
+    if (!drained) return failure("verify that the filtered Edge job has no live descendants");
+    if (!desktop.restore()) return failure("restore the original input desktop");
+    return collected && exit_code == 0 ? 0 : 1;
 }
 
 struct RecipeProcessCleanup {
@@ -1736,6 +2005,8 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 2 && std::wcscmp(argv[1], L"--edge-namespace-control") == 0)
             return edge_namespace_control();
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();
+        if (argc == 3 && std::wcscmp(argv[1], L"--launch-edge-filtered") == 0) return launch_filtered(argv[2]);
+        if (argc == 3 && std::wcscmp(argv[1], L"--edge-filtered-child") == 0) return filtered_child(argv[2]);
         if ((argc == 5 || argc == 6 || argc == 7) && std::wcscmp(argv[1], L"--launch-standard") == 0) {
             ACCESS_MASK access = 0;
             if (argc >= 6) {

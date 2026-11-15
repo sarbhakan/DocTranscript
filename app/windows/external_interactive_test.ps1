@@ -1,9 +1,9 @@
-# Exercise real UI under the ordinary logon token, even when a build agent
-# itself is elevated. Do not modify UAC, forge a token, or alter production.
+# Exercise real UI under a non-elevated token, even when the build agent is
+# elevated. The opt-in filtered arm keeps the runner's existing logon.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$ProbeExe,
-    [ValidateSet('Native','Edge')][string]$Case = 'Native',
+    [ValidateSet('Native','Edge','EdgeFiltered')][string]$Case = 'Native',
     [string]$ResultFile
 )
 $ErrorActionPreference = 'Stop'
@@ -13,6 +13,8 @@ function Invoke-Recipe {
     if ($Case -eq 'Native') {
         & $ProbeExe
         if ($LASTEXITCODE) { throw "Native external target probe exited with code $LASTEXITCODE." }
+    } elseif ($Case -eq 'EdgeFiltered') {
+        & (Join-Path $PSScriptRoot 'external_edge_test.ps1') -ProbeExe $ProbeExe -HostedFilteredRecipe
     } elseif ($ResultFile) {
         & (Join-Path $PSScriptRoot 'external_edge_test.ps1') -ProbeExe $ProbeExe -HostedRecipe
     } else {
@@ -45,6 +47,9 @@ if ($ResultFile) {
     }
 }
 if ($integrity -lt 8192) { throw "Windows interactive user integrity is too low ($integrity)." }
+if ($Case -eq 'EdgeFiltered' -and $integrity -lt 12288) {
+    throw 'EdgeFiltered compares a hosted elevated runner with a restricted duplicate of its interactive token.'
+}
 if ($integrity -lt 12288) { Invoke-Recipe; exit }
 & $ProbeExe --environment
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
@@ -100,6 +105,33 @@ try {
     }
     Copy-Item -LiteralPath $scriptFile -Destination (Join-Path $work 'external_interactive_test.ps1')
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'external_edge_test.ps1') -Destination $work
+    $result = Join-Path $out 'result'
+    $bootstrap = @'
+param([ValidateSet('Edge','EdgeFiltered')][string]$RecipeCase = 'Edge')
+$ErrorActionPreference = 'Stop'
+try {
+    $probe = Join-Path $PSScriptRoot 'external-target-test.exe'
+    & (Join-Path $PSScriptRoot 'external_interactive_test.ps1') -ProbeExe $probe -Case $RecipeCase -ResultFile (Join-Path $PSScriptRoot 'out\result')
+    exit $LASTEXITCODE
+} catch {
+    $_ | Out-String | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'out\bootstrap.log')
+    exit 1
+}
+'@
+    Set-Content -LiteralPath (Join-Path $work 'edge-bootstrap.ps1') -Value $bootstrap
+    if ($Case -eq 'EdgeFiltered') {
+        & $ProbeExe --launch-edge-filtered $work
+        $status = $LASTEXITCODE
+        foreach ($name in @('filtered-child.log', 'bootstrap.log', 'result.log')) {
+            $log = Join-Path $out $name
+            if (Test-Path -LiteralPath $log -PathType Leaf) { Get-Content -LiteralPath $log }
+        }
+        if ($status -or -not (Test-Path -LiteralPath $result -PathType Leaf) -or
+            (Get-Content -LiteralPath $result -Raw) -ne '0') {
+            throw 'EdgeFiltered failed under the restricted runner token.'
+        }
+        exit
+    }
     # Same hosted VM and session for both arms. The control uses a fresh
     # standard account with the same profile/setup as the actual Edge arm.
     # A failed Win32 mutex plus a successful 0x7 and denied 0xF are the only
@@ -123,19 +155,6 @@ try {
         $jobOption = @('--edge-with-own-jobs')
     }
 
-    $result = Join-Path $out 'result'
-    $bootstrap = @'
-$ErrorActionPreference = 'Stop'
-try {
-    $probe = Join-Path $PSScriptRoot 'external-target-test.exe'
-    & (Join-Path $PSScriptRoot 'external_interactive_test.ps1') -ProbeExe $probe -Case Edge -ResultFile (Join-Path $PSScriptRoot 'out\result')
-    exit $LASTEXITCODE
-} catch {
-    $_ | Out-String | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'out\bootstrap.log')
-    exit 1
-}
-'@
-    Set-Content -LiteralPath (Join-Path $work 'edge-bootstrap.ps1') -Value $bootstrap
     $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -File .\edge-bootstrap.ps1' $work $namespaceOption @jobOption
     $status = $LASTEXITCODE

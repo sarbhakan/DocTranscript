@@ -4,9 +4,14 @@
 param(
     [Parameter(Mandatory)][string]$ProbeExe,
     [string]$EdgeExe,
-    [switch]$HostedRecipe
+    [switch]$HostedRecipe,
+    [switch]$HostedFilteredRecipe
 )
 $ErrorActionPreference = 'Stop'
+if ($HostedRecipe -and $HostedFilteredRecipe) { throw 'Choose only one hosted Edge recipe.' }
+if ($HostedFilteredRecipe -and ($env:GITHUB_ACTIONS -cne 'true' -or $env:RUNNER_ENVIRONMENT -cne 'github-hosted')) {
+    throw 'The filtered-account comparison requires a disposable hosted Windows runner.'
+}
 if (-not [Environment]::UserInteractive) { throw 'An interactive desktop is required for the Edge smoke test.' }
 $ProbeExe = (Resolve-Path -LiteralPath $ProbeExe).Path
 if (-not $EdgeExe) {
@@ -440,6 +445,19 @@ if ($HostedRecipe) {
         -not $scratch.StartsWith($homeDirectory.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Windows did not provide LocalAppData for the disposable Edge account.'
     }
+} elseif ($HostedFilteredRecipe) {
+    # Keep the filtered comparison inside the launcher's disposable stage.
+    # It must not read or open the existing runner account's Edge profile.
+    $stage = Get-Item -LiteralPath $PSScriptRoot
+    $public = [IO.Path]::GetFullPath($env:PUBLIC).TrimEnd('\')
+    $out = Get-Item -LiteralPath (Join-Path $stage.FullName 'out')
+    if (-not $stage.PSIsContainer -or $stage.Name -notmatch '^notevive-interactive-[0-9a-f]{32}$' -or
+        -not $stage.Parent -or $stage.Parent.FullName.TrimEnd('\') -ine $public -or
+        ($stage.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+        -not $out.PSIsContainer -or ($out.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'The filtered-account comparison requires the private staged output directory.'
+    }
+    $scratch = $out.FullName
 }
 $work = Join-Path $scratch ("notevive-edge-" + [guid]::NewGuid().ToString('N'))
 $profile = Join-Path $work 'profile'
@@ -483,7 +501,7 @@ try {
         '--new-window', $url)
     # The hosted desktop has no GPU requirement. Leave the rendering path
     # unchanged for a local smoke test from a normal Windows account.
-    if ($HostedRecipe) { $flags += '--disable-gpu' }
+    if ($HostedRecipe -or $HostedFilteredRecipe) { $flags += '--disable-gpu' }
     $browserStart = [Diagnostics.ProcessStartInfo]::new()
     $browserStart.FileName = $EdgeExe
     $browserStart.Arguments = $flags -join ' '
@@ -491,10 +509,12 @@ try {
     $browserStart.UseShellExecute = $false
     $browserStart.EnvironmentVariables['TEMP'] = $work
     $browserStart.EnvironmentVariables['TMP'] = $work
-    if ($HostedRecipe) {
+    if ($HostedRecipe -or $HostedFilteredRecipe) {
         & $ProbeExe --edge-startup-preflight
         $preflight = $LASTEXITCODE
-        if ($preflight -eq 2) {
+        if ($HostedFilteredRecipe -and $preflight -eq 2) {
+            Write-Output 'Filtered account and local mutex verified; new-account-only synthetic LowBox probe omitted.'
+        } elseif ($preflight -eq 2) {
             Write-Output 'Synthetic AppContainer creation failed; the actual Edge recipe will still run with its sandbox.'
             try { Trace-SyntheticLowBox } catch { Write-Output 'Synthetic LowBox trace could not prepare its private scratch files.' }
         } elseif ($preflight -ne 0) {
