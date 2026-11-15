@@ -3,12 +3,80 @@
 [CmdletBinding(DefaultParameterSetName = 'Test')]
 param(
     [Parameter(Mandatory, ParameterSetName = 'Test')][string]$ProbeExe,
-    [Parameter(Mandatory, ParameterSetName = 'Fixture')][switch]$Fixture
+    [Parameter(Mandatory, ParameterSetName = 'Fixture')][switch]$Fixture,
+    [Parameter(Mandatory, ParameterSetName = 'Inventory')][ValidateRange(1, 2147483647)][int]$InventoryPid
 )
 $ErrorActionPreference = 'Stop'
 
 function Assert-Wpf([bool]$Condition, [string]$Failure) {
     if (-not $Condition) { throw $Failure }
+}
+
+if ($PSCmdlet.ParameterSetName -eq 'Inventory') {
+    # Read-only diagnostic in a separate MTA. Do not print names, values,
+    # handles or process IDs, and never enumerate from the desktop root.
+    try {
+        Assert-Wpf ([Threading.Thread]::CurrentThread.GetApartmentState() -eq 'MTA') 'Inventory needs an MTA process.'
+        Add-Type -AssemblyName UIAutomationClient
+        $fixtureIdentity = [Diagnostics.Process]::GetProcessById($InventoryPid)
+        try { $fixtureWindow = $fixtureIdentity.MainWindowHandle } finally { $fixtureIdentity.Dispose() }
+        if ($fixtureWindow -eq [IntPtr]::Zero) {
+            [Console]::WriteLine('WPF UIA inventory fixture_window_missing')
+            exit 1
+        }
+        $ownerProperty = [Windows.Automation.AutomationElement]::ProcessIdProperty
+        function In-Fixture([Windows.Automation.AutomationElement]$Element) {
+            return $null -ne $Element -and $Element.GetCurrentPropertyValue($ownerProperty, $true) -eq $InventoryPid
+        }
+        function Ui-Bool([Windows.Automation.AutomationElement]$Element, $Property) {
+            $raw = $Element.GetCurrentPropertyValue($Property, $true)
+            if ($raw -isnot [bool]) { return 'unknown' }
+            if ($raw) { return 'true' }
+            return 'false'
+        }
+        function Write-UiElement([Windows.Automation.AutomationElement]$Element, [string]$Role) {
+            $type = $Element.GetCurrentPropertyValue([Windows.Automation.AutomationElement]::ControlTypeProperty, $true)
+            $category = 'other'
+            if ($type -is [Windows.Automation.ControlType]) {
+                $category = switch -CaseSensitive ($type.ProgrammaticName) {
+                    'ControlType.Window' { 'window' }
+                    'ControlType.Pane' { 'pane' }
+                    'ControlType.Group' { 'group' }
+                    'ControlType.Custom' { 'custom' }
+                    'ControlType.Text' { 'text' }
+                    'ControlType.Edit' { 'edit' }
+                    'ControlType.Document' { 'document' }
+                    default { 'other' }
+                }
+            }
+            $focus = Ui-Bool $Element ([Windows.Automation.AutomationElement]::HasKeyboardFocusProperty)
+            $enabled = Ui-Bool $Element ([Windows.Automation.AutomationElement]::IsEnabledProperty)
+            $textPattern = Ui-Bool $Element ([Windows.Automation.AutomationElement]::IsTextPatternAvailableProperty)
+            $valuePattern = Ui-Bool $Element ([Windows.Automation.AutomationElement]::IsValuePatternAvailableProperty)
+            [Console]::WriteLine("WPF UIA inventory role=$Role type=$category focus=$focus enabled=$enabled text=$textPattern value=$valuePattern")
+        }
+        $focused = [Windows.Automation.AutomationElement]::FocusedElement
+        if (In-Fixture $focused) { Write-UiElement $focused 'focused' }
+        else { [Console]::WriteLine('WPF UIA inventory focused_element_not_in_fixture') }
+        $root = [Windows.Automation.AutomationElement]::FromHandle($fixtureWindow)
+        $walker = [Windows.Automation.TreeWalker]::RawViewWalker
+        $pending = [Collections.Queue]::new()
+        $pending.Enqueue($root)
+        for ($seen = 0; $pending.Count -gt 0 -and $seen -lt 24; ++$seen) {
+            $element = $pending.Dequeue()
+            if (-not (In-Fixture $element)) { continue }
+            Write-UiElement $element 'tree'
+            $child = $walker.GetFirstChild($element)
+            while ($child -and $pending.Count + $seen -lt 23) {
+                $pending.Enqueue($child)
+                $child = $walker.GetNextSibling($child)
+            }
+        }
+        exit 0
+    } catch {
+        [Console]::WriteLine('WPF UIA inventory unavailable')
+        exit 1
+    }
 }
 
 if ($Fixture) {
@@ -178,6 +246,32 @@ function Stop-WpfChild([Diagnostics.Process]$Child, $GuardTask) {
         }
     } finally { $Child.Dispose() }
 }
+function Explain-WpfCaptureFailure {
+    # Retry solely for diagnosis. The controller always fails the first
+    # assertion, even if a warmed provider reports ready on this capture.
+    try {
+        Start-Sleep -Milliseconds 500
+        Send-WpfCommand $probe 'capture'
+        $retry = Read-WpfReply $probe 'diagnostic second capture'
+        if ($retry -cin @('ready', 'unsupported', 'target_changed', 'protected_field')) {
+            Write-Output "WPF diagnostic second capture after 500 ms: $retry."
+        }
+        Require-WpfReply $probe 'reset' 'inactive'
+    } catch { Write-Output 'WPF diagnostic second capture did not complete.' }
+    $diagnostic = $null
+    try {
+        $diagnostic = Start-WpfChild $powerShell ('-NoProfile -NonInteractive -MTA -File "{0}" -InventoryPid {1}' -f $PSCommandPath, $fixtureProcess.Id)
+        $inventory = $diagnostic.StandardOutput.ReadToEndAsync()
+        if ($inventory.Wait((Remaining-WpfTime 9000))) {
+            $inventory.Result -split '\r?\n' |
+                Where-Object { $_ -cmatch '^WPF UIA inventory [a-z0-9_ =]+$' } |
+                Select-Object -First 25
+        } else { Write-Output 'WPF UIA inventory hit its diagnostic deadline.' }
+    } catch { Write-Output 'WPF UIA inventory could not start.' }
+    finally {
+        try { Stop-WpfChild $diagnostic } catch { Write-Output 'WPF UIA inventory cleanup did not complete.' }
+    }
+}
 
 $fixtureProcess = $null
 $probe = $null
@@ -195,7 +289,10 @@ try {
     $second = 'c' + $unicode + 'd'
 
     Require-WpfReply $fixtureProcess 'focus-a' 'focused'
-    Require-WpfReply $probe 'capture' 'ready'
+    Send-WpfCommand $probe 'capture'
+    $firstCapture = Read-WpfReply $probe 'capture'
+    if ($firstCapture -ceq 'unsupported') { Explain-WpfCaptureFailure }
+    Assert-Wpf ($firstCapture -ceq 'ready') "WPF-recipe command 'capture': expected 'ready'; received '$firstCapture'."
     Require-WpfReply $probe 'send' 'submitted'
     Assert-WpfText $first 'cd' 'first Unicode insertion' -WaitForText
     Require-WpfReply $fixtureProcess 'focus-b' 'focused'

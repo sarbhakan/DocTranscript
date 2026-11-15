@@ -60,6 +60,20 @@ inline bool win32_veto(const char* guard) noexcept {
     return veto(guard);
 #endif
 }
+inline void editor_type_veto(CONTROLTYPEID type) noexcept {
+#ifdef NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS
+    switch (type) {
+    case UIA_WindowControlTypeId: veto("uia.element_not_editor.window"); break;
+    case UIA_PaneControlTypeId: veto("uia.element_not_editor.pane"); break;
+    case UIA_CustomControlTypeId: veto("uia.element_not_editor.custom"); break;
+    case UIA_TextControlTypeId: veto("uia.element_not_editor.text"); break;
+    case UIA_GroupControlTypeId: veto("uia.element_not_editor.group"); break;
+    default: veto("uia.element_not_editor.other"); break;
+    }
+#else
+    (void)type;
+#endif
+}
 
 struct Handle {
     HANDLE value = nullptr;
@@ -306,7 +320,8 @@ Result inspect_uia(IUIAutomation2* uia, const Focus& f, bool browser, std::vecto
     if (static_cast<DWORD>(pid) != f.pid) { veto("uia.element_process_mismatch"); return Result::unsupported; }
     if (!com_ok("uia.element_control_type_query", element->get_CurrentControlType(&type))) return Result::unsupported;
     if (type != UIA_EditControlTypeId && type != UIA_DocumentControlTypeId) {
-        veto("uia.element_not_editor"); return Result::unsupported;
+        editor_type_veto(type);
+        return Result::unsupported;
     }
     if (!com_ok("uia.element_enabled_query", element->get_CurrentIsEnabled(&enabled))) return Result::unsupported;
     if (!enabled) { veto("uia.element_disabled"); return Result::unsupported; }
