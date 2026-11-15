@@ -154,74 +154,9 @@ function Trace-SyntheticLowBox {
     }
     $symbols = Join-Path $work 'local-symbols-only'
     $null = [IO.Directory]::CreateDirectory($symbols)
-    $rawLog = Join-Path $work 'private-lowbox-debugger.log'
-    # x64 ZwDuplicateObject: source process, source handle and target
-    # process are RCX, RDX and R8. Args five through seven are on the stack.
-    # !handle only examines a real source handle of this synthetic process.
-    @'
-.printf "NV_DUP_WANTED=%08x attributes=%08x options=%08x\n", dwo(@rsp+0x28), dwo(@rsp+0x30), dwo(@rsp+0x38)
-.if (@rcx == 0xffffffffffffffff) { .echo NV_DUP_SOURCE=self-pseudo } .else { .if (@rcx == 0) { .echo NV_DUP_SOURCE=null } .else { .echo NV_DUP_SOURCE=process-handle } }
-.if (@r8 == 0xffffffffffffffff) { .echo NV_DUP_TARGET=self-pseudo } .else { .if (@r8 == 0) { .echo NV_DUP_TARGET=null } .else { .echo NV_DUP_TARGET=process-handle } }
-.if (@rcx == 0xffffffffffffffff) { .if (@$t4 == 0) { .echo NV_DUP_CREATED=unknown } .else { .if (@rdx == @$t4) { .echo NV_DUP_CREATED=yes } .else { .echo NV_DUP_CREATED=no } } }
-.if (@rcx == 0xffffffffffffffff) { .if (@rdx != 0) { .if (@rdx != 0xffffffffffffffff) { .if (@rdx != 0xfffffffffffffffe) { .echo NV_DUP_INSPECT=attempted; r @$t2=@rdx; !handle @$t2 7 } } } }
-bp /1 poi(@rsp) "$$><nv-duplicate-return.txt"
-gc
-'@ | Set-Content -LiteralPath (Join-Path $work 'nv-duplicate-entry.txt') -Encoding Ascii
-    @'
-.printf "NV_DUP_STATUS=%08x\n", @eax
-gc
-'@ | Set-Content -LiteralPath (Join-Path $work 'nv-duplicate-return.txt') -Encoding Ascii
-    # Keep only the last successful creation handle and the first descriptor
-    # of this factory. t5–t11 are independent of the handle capture. The
-    # absolute x64 descriptor has pointer fields +8 and +0x20; the relative
-    # format uses DWORD offsets +4 and +0x10. .writemem uses an inclusive end
-    # address: the private files can contain at most 68 and 8192 bytes.
-    @'
-r @$t3=@rcx
-r @$t4=0
-bp /1 poi(@rsp) "$$><nv-directory-created-return.txt"
-.if (@$t11 != 0) { gc }
-r @$t11=1
-r @$t5=0
-.if (@r8 == 0) { .echo NV_CREATE_SD=missing-attributes } .else { .if (dwo(@r8) != 0x30) { .echo NV_CREATE_SD=unexpected-layout } .else { r @$t5=poi(@r8+0x20); .if (@$t5 == 0) { .echo NV_CREATE_SD=default } .else { .echo NV_CREATE_SD=explicit } } }
-.if (@$t5 != 0) {
-    .if (by(@$t5) == 1) {
-        r @$t8=wo(@$t5+2)
-        .printf "NV_SD_CONTROL=%04x\n", @$t8
-        r @$t6=0
-        r @$t7=0
-        .if ((@$t8 & 0x8000) == 0) {
-            r @$t6=poi(@$t5+8)
-            .if ((@$t8 & 4) != 0) { r @$t7=poi(@$t5+0x20); .if (@$t7 == 0) { .echo NV_SD_DACL=null } }
-        } .else {
-            r @$t9=dwo(@$t5+4)
-            .if (@$t9 >= 0x14) { .if (@$t9 <= 0xffff) { r @$t6=@$t5+@$t9 } }
-            .if ((@$t8 & 4) != 0) {
-                r @$t9=dwo(@$t5+0x10)
-                .if (@$t9 == 0) { .echo NV_SD_DACL=null } .else { .if (@$t9 >= 0x14) { .if (@$t9 <= 0xffff) { r @$t7=@$t5+@$t9 } } }
-            }
-        }
-        .if (@$t6 != 0) {
-            .if (by(@$t6) == 1) { r @$t9=by(@$t6+1); .if (@$t9 <= 0xf) { r @$t10=@$t6+7+4*@$t9; .writemem nv-sd-owner.bin @$t6 @$t10 } }
-        }
-        .if (@$t7 != 0) {
-            r @$t9=wo(@$t7+2)
-            .if (@$t9 >= 8) { .if (@$t9 <= 0x2000) { r @$t10=@$t7+@$t9-1; .writemem nv-sd-dacl.bin @$t7 @$t10 } }
-        }
-    } .else { .echo NV_SD_REVISION=unavailable }
-    .echo NV_SD_EXTENSION_BEGIN
-    !sd @$t5 0
-    .echo NV_SD_EXTENSION_END
-}
-gc
-'@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-created-entry.txt') -Encoding Ascii
-    @'
-.if (@eax == 0) { .if (@$t3 != 0) { r @$t4=poi(@$t3) } }
-gc
-'@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-created-return.txt') -Encoding Ascii
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $kits
-    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -logo "{1}" -c "bu kernelbase!CreateAppContainerToken;g" "{2}" --edge-lowbox-trace' -f $symbols, $rawLog, $ProbeExe
+    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -c "bu kernelbase!CreateAppContainerToken;g" "{1}" --edge-lowbox-trace' -f $symbols, $ProbeExe
     $start.WorkingDirectory = $work
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -233,14 +168,11 @@ gc
         $debugger = [Diagnostics.Process]::Start($start)
         $stdout = $debugger.StandardOutput.ReadToEndAsync()
         $stderr = $debugger.StandardError.ReadToEndAsync()
-        # Trace the duplicate call only during the first synthetic factory call.
+        # The initial command stops at the exported factory. These commands
+        # are consumed at its prompt and after the traced return.
         $debugger.StandardInput.WriteLine('bc *')
-        $debugger.StandardInput.WriteLine('r @$t4=0')
-        $debugger.StandardInput.WriteLine('r @$t11=0')
-        $debugger.StandardInput.WriteLine('bp /1 poi(@rsp) ".echo NV_FACTORY_RETURN; q"')
-        $debugger.StandardInput.WriteLine('bu ntdll!NtCreateDirectoryObjectEx "$$><nv-directory-created-entry.txt"')
-        $debugger.StandardInput.WriteLine('bu ntdll!ZwDuplicateObject "$$><nv-duplicate-entry.txt"')
-        $debugger.StandardInput.WriteLine('g')
+        $debugger.StandardInput.WriteLine('wt -l 14 -ns -nw -or')
+        $debugger.StandardInput.WriteLine('q')
         $debugger.StandardInput.Flush()
         if (-not $debugger.WaitForExit(18000)) {
             Write-Output 'Synthetic LowBox trace: debugger deadline reached.'
@@ -251,135 +183,23 @@ gc
             Write-Output 'Synthetic LowBox trace: debugger stream did not close.'
             return
         }
-        # This text stays in the disposable profile. Emit only allowlisted
-        # metadata; never emit actual object names, paths, SIDs or handles.
-        $raw = if (Test-Path -LiteralPath $rawLog -PathType Leaf) { Get-Content -LiteralPath $rawLog -Raw } else { $stdout.Result }
-        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-        try {
-            $userSid = $identity.User.Value
-            $logonSids = @($identity.Groups | ForEach-Object Value | Where-Object { $_ -match '^S-1-5-5-\d+-\d+$' })
-        } finally { $identity.Dispose() }
-        function Sid-Category([string]$Sid) {
-            if ($Sid -eq $userSid) { return 'current-user' }
-            if ($logonSids -contains $Sid) { return 'current-logon' }
-            switch -Regex ($Sid) {
-                '^S-1-5-18$' { return 'system' }
-                '^S-1-5-32-544$' { return 'administrators' }
-                '^S-1-5-5-\d+-\d+$' { return 'other-logon' }
-                '^S-1-15-2-1$' { return 'all-app-packages' }
-                '^S-1-15-2-2$' { return 'all-restricted-app-packages' }
-                '^S-1-15-2-(?:\d+-){6}\d+$' { return 'package' }
-                default { return 'other' }
+        # wt prints symbol names and return registers. Exclude command lines,
+        # process paths, registers other than reported returns, and all raw SIDs.
+        $kept = @()
+        foreach ($line in ($stdout.Result -split "`r?`n")) {
+            if ($line -match '^\s*(?:\d+\s+){2}\[\s*\d+\]\s+(?<symbol>ntdll!(?:Nt|Zw)[A-Za-z0-9_]{2,64})\b(?<tail>.*)$') {
+                $symbol = $Matches.symbol
+                $tail = $Matches.tail
+                $codes = @([regex]::Matches($tail, '(?i)\b(?:0x)?[0-9a-f]{8}(?:`[0-9a-f]{8})?\b') |
+                    ForEach-Object Value | Select-Object -First 3)
+                $kept += "Synthetic LowBox trace call $symbol returns=$($codes -join ',')"
             }
         }
-        $pending = $null
-        $kept = 0
-        $descriptor = @{source='unavailable'; control=-1; nullDacl=$false; extension='not-run'}
-        $inExtension = $false
-        foreach ($line in ($raw -split "`r?`n")) {
-            if ($line -match '^\s*NV_CREATE_SD=(?<source>explicit|default|unexpected-layout|missing-attributes)\s*$') {
-                $descriptor.source = $Matches.source
-            } elseif ($line -match '^\s*NV_SD_CONTROL=(?<control>[0-9a-f]{4})\s*$') {
-                $descriptor.control = [Convert]::ToInt32($Matches.control, 16)
-            } elseif ($line -match '^\s*NV_SD_DACL=null\s*$') {
-                $descriptor.nullDacl = $true
-            } elseif ($line -match '^\s*NV_SD_EXTENSION_BEGIN\s*$') {
-                $inExtension = $true
-                $descriptor.extension = 'unrecognized-output'
-            } elseif ($line -match '^\s*NV_SD_EXTENSION_END\s*$') {
-                $inExtension = $false
-            } elseif ($inExtension -and $line -match '(?i)no export|entry point.+not found|unknown extension|unable to load.+extension|not supported.+user.mode') {
-                $descriptor.extension = 'export-unavailable'
-            } elseif ($inExtension -and $line -match '(?i)(unable|failed|cannot|could not).+read|memory access error|invalid.+(security descriptor|address)') {
-                $descriptor.extension = 'read-failed'
-            } elseif ($inExtension -and $descriptor.extension -eq 'unrecognized-output' -and $line -match '^\s*->(?:Revision|Owner|Dacl)\s*:') {
-                $descriptor.extension = 'recognized-output'
-            } elseif ($line -match '^\s*NV_DUP_WANTED=(?<mask>[0-9a-f]{8}) attributes=(?<attr>[0-9a-f]{8}) options=(?<options>[0-9a-f]{8})\s*$') {
-                $pending = @{mask=$Matches.mask; attr=$Matches.attr; options=$Matches.options; source='unknown';
-                    target='unknown'; type='unknown'; granted='unknown'; kind='unknown'; created='unknown'; inspected=$false}
-            } elseif ($pending -and $line -match '^\s*NV_DUP_(?<which>SOURCE|TARGET)=(?<category>self-pseudo|null|process-handle)\s*$') {
-                $pending[$Matches.which.ToLowerInvariant()] = $Matches.category
-            } elseif ($pending -and $line -match '^\s*NV_DUP_CREATED=(?<created>yes|no|unknown)\s*$') {
-                $pending.created = $Matches.created
-            } elseif ($pending -and $line -match '^\s*NV_DUP_INSPECT=attempted\s*$') {
-                $pending.inspected = $true
-            } elseif ($pending -and $line -match '^\s+Type\s+(?<type>Directory|SymbolicLink|Token|Process|Thread|File|Key|Section|Event)\s*$') {
-                $pending.type = $Matches.type
-            } elseif ($pending -and $line -match '^\s+GrantedAccess\s+(?<granted>0x[0-9a-f]{1,8}):?\s*$') {
-                $pending.granted = $Matches.granted
-            } elseif ($pending -and $line -match '^\s+Name\s+(?<name>.*)$') {
-                $objectName = $Matches.name.Trim()
-                $pending.kind = switch -Regex ($objectName) {
-                    '^\\Sessions\\\d+\\AppContainerNamedObjects\\.+$' { 'session-app-child'; break }
-                    '^\\Sessions\\\d+\\AppContainerNamedObjects\\?$' { 'session-app-root'; break }
-                    '^\\Sessions\\\d+\\BaseNamedObjects\\?$' { 'session-base-root'; break }
-                    '^<none>$|^$' { 'unnamed'; break }
-                    default { 'other' }
-                }
-            } elseif ($pending -and $line -match '^\s*NV_DUP_STATUS=(?<status>[0-9a-f]{8})\s*$') {
-                $status = $Matches.status
-                $kept++
-                if ($kept -le 16) {
-                    Write-Output "Synthetic LowBox ZwDuplicateObject: source=$($pending.source) target=$($pending.target) same_as_created_dir=$($pending.created) inspected=$($pending.inspected) object_type=$($pending.type) object_kind=$($pending.kind) granted=$($pending.granted) desired=0x$($pending.mask) attributes=0x$($pending.attr) options=0x$($pending.options) ntstatus=0x$status"
-                }
-                $pending = $null
-            }
-        }
-        # Decode the exact structures written by CDB; no raw data is emitted.
-        # DACL absent, explicitly NULL, valid with zero ACEs, and unavailable
-        # are all different outcomes.
-        $ownerCategory = 'unavailable'
-        $acl = $null
-        $layout = 'unavailable'
-        $daclState = 'unavailable'
-        if ($descriptor.control -ge 0) {
-            $layout = if ($descriptor.control -band 0x8000) { 'self-relative' } else { 'absolute-x64' }
-            if (-not ($descriptor.control -band 4)) { $daclState = 'absent' }
-            elseif ($descriptor.nullDacl) { $daclState = 'null' }
-        }
-        try {
-            $ownerFile = Get-Item -LiteralPath (Join-Path $work 'nv-sd-owner.bin') -ErrorAction SilentlyContinue
-            if ($ownerFile -and $ownerFile.Length -ge 8 -and $ownerFile.Length -le 68) {
-                $bytes = [IO.File]::ReadAllBytes($ownerFile.FullName)
-                if ($bytes[0] -eq 1 -and $bytes[1] -le 15 -and $bytes.Length -eq (8 + 4 * $bytes[1])) {
-                    $owner = [Security.Principal.SecurityIdentifier]::new($bytes, 0)
-                    $ownerCategory = Sid-Category $owner.Value
-                }
-            }
-        } catch { $ownerCategory = 'invalid' }
-        if ($descriptor.control -ge 0 -and ($descriptor.control -band 4) -and -not $descriptor.nullDacl) {
-            try {
-                $daclFile = Get-Item -LiteralPath (Join-Path $work 'nv-sd-dacl.bin') -ErrorAction SilentlyContinue
-                if ($daclFile -and $daclFile.Length -ge 8 -and $daclFile.Length -le 8192) {
-                    $bytes = [IO.File]::ReadAllBytes($daclFile.FullName)
-                    $daclState = 'invalid'
-                    if ($bytes.Length -eq [BitConverter]::ToUInt16($bytes, 2)) {
-                        $acl = [Security.AccessControl.RawAcl]::new($bytes, 0)
-                        $daclState = 'parsed'
-                    }
-                }
-            } catch { $daclState = 'invalid' }
-        }
-        $control = if ($descriptor.control -ge 0) { '0x{0:X4}' -f $descriptor.control } else { 'unavailable' }
-        $aceCount = if ($null -ne $acl) { $acl.Count } else { 'unavailable' }
-        Write-Output "Synthetic LowBox directory descriptor: source=$($descriptor.source) layout=$layout control=$control owner=$ownerCategory dacl=$daclState ace_count=$aceCount extension=$($descriptor.extension)"
-        if ($null -ne $acl) {
-            for ($index = 0; $index -lt [Math]::Min($acl.Count, 24); ++$index) {
-                $ace = $acl[$index]
-                $category = 'unavailable'
-                $mask = 'unavailable'
-                if ($ace -is [Security.AccessControl.KnownAce]) {
-                    $category = Sid-Category $ace.SecurityIdentifier.Value
-                    $mask = '0x{0:X8}' -f [int]$ace.AccessMask
-                }
-                $flags = '0x{0:X2}' -f [int]$ace.AceFlags
-                Write-Output "Synthetic LowBox directory ACE: index=$index category=$category type=$($ace.AceType) flags=$flags mask=$mask"
-            }
-        }
-        Write-Output "Synthetic LowBox duplicate trace: captured_calls=$kept; factory_return=$($raw -match '(?m)^\s*NV_FACTORY_RETURN\s*$'); debugger_exited=$($debugger.HasExited)."
-        if (-not $kept) {
-            $diagnosis = $raw + $stderr.Result
-            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-duplicate-entry'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
+        $kept | Select-Object -Last 80 | Write-Output
+        Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); debugger_exited=$($debugger.HasExited)."
+        if (-not $kept.Count) {
+            $raw = $stdout.Result + $stderr.Result
+            Write-Output "Synthetic LowBox trace state: factory_symbol=$($raw -match 'kernelbase!CreateAppContainerToken'); trace_command=$($raw -match 'wt -l 14'); command_error=$($raw -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
         }
     } catch {
         # Do not print raw debugger command lines/paths.
