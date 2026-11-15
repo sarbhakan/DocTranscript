@@ -1991,7 +1991,7 @@ struct RecipeProcessCleanup {
 };
 
 int launch_standard(const wchar_t* executable, const wchar_t* arguments, const wchar_t* directory,
-                    ACCESS_MASK edge_access, bool edge_owns_jobs) {
+                    ACCESS_MASK edge_access, bool edge_owns_jobs, bool uia_session = false) {
     if (!hosted_recipe()) {
         std::fputs("Temporary local accounts are only used on hosted GitHub Actions.\n", stderr);
         return 1;
@@ -1999,6 +1999,11 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     if (!stage_directory(directory)) {
         std::fputs("The standard recipe needs a fresh private staging directory.\n", stderr);
         return 1;
+    }
+    if (uia_session && (edge_access || edge_owns_jobs ||
+        std::wcscmp(arguments, L"-NoProfile -NonInteractive -STA -File .\\edge-bootstrap.ps1 -RecipeCase WPF") != 0)) {
+        std::fputs("The UIA namespace comparison is limited to the isolated WPF recipe.\n", stderr);
+        return 2;
     }
     const bool edge_broker = edge_access && std::wcscmp(arguments, L"--edge-namespace-control") != 0;
     if (edge_broker && edge_owns_jobs) {
@@ -2073,6 +2078,14 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
     if (edge_access && !named_objects.start(child.dwProcessId, child_process.value,
                                             account.token.value, account.sid(), edge_access, edge_broker))
         return failure("Prepare the session namespace for the Edge recipe");
+    if (uia_session) {
+        // Compare only the already observed Win32 Local object mask. This
+        // does not use the Edge broker or change the native desktop or job.
+        std::fputs("WPF differential: BaseNamedObjects 0xf only; native desktop and recipe job.\n", stderr);
+        if (!named_objects.start(child.dwProcessId, child_process.value, account.token.value,
+                                 account.sid(), RecipeNamespace::with_subdirectory))
+            return failure("Prepare BaseNamedObjects for the WPF differential");
+    }
     if (edge_broker && !app_objects.start(child.dwProcessId, child_process.value, account.token.value,
                                           account.sid(), RecipeNamespace::with_subdirectory))
         return failure("Prepare the AppContainer session namespace for the Edge recipe");
@@ -2396,6 +2409,8 @@ int wmain(int argc, wchar_t** argv) {
         if (argc == 3 && std::wcscmp(argv[1], L"--launch-edge-filtered") == 0) return launch_filtered(argv[2]);
         if (argc == 3 && std::wcscmp(argv[1], L"--edge-filtered-child") == 0) return filtered_child(argv[2]);
         if ((argc == 5 || argc == 6 || argc == 7) && std::wcscmp(argv[1], L"--launch-standard") == 0) {
+            if (argc == 6 && std::wcscmp(argv[5], L"--uia-session") == 0)
+                return launch_standard(argv[2], argv[3], argv[4], 0, false, true);
             ACCESS_MASK access = 0;
             if (argc >= 6) {
                 if (std::wcscmp(argv[5], L"--edge-session") == 0) access = RecipeNamespace::recipe_access;

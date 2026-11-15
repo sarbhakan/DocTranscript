@@ -126,10 +126,10 @@ try {
 '@
     Set-Content -LiteralPath (Join-Path $work 'edge-bootstrap.ps1') -Value $bootstrap
     if ($Case -eq 'WPF') {
-        # The ordinary native launcher suffices for this generic UIA fixture.
-        # Do not grant Edge/AppContainer namespace access for WPF.
+        # Keep the Native desktop/job and test only the previously measured
+        # BaseNamedObjects 0xF requirement. No AppContainer access is granted.
         $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-        & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -STA -File .\edge-bootstrap.ps1 -RecipeCase WPF' $work
+        & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -STA -File .\edge-bootstrap.ps1 -RecipeCase WPF' $work --uia-session
         $status = $LASTEXITCODE
         foreach ($name in @('bootstrap.log', 'result.log')) {
             $log = Join-Path $out $name
