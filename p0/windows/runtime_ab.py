@@ -28,7 +28,7 @@ from p0.windows.runtime_ab_build import BASELINE, CANDIDATE, SOURCES, build_pair
 PAIRS = ("cold", "warm")
 VERSIONS = (BASELINE, CANDIDATE)
 WAV_RATE = 16000
-SEND_FRAMES = 1600
+SEND_FRAMES = 320  # 20 ms, same input packet size as the Windows package.
 SAMPLE_MS = 50
 WARMUP_ID = "px-826"
 CONTROL_ID = "silence"
