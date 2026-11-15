@@ -439,7 +439,7 @@ $testRenamed = "$prefix classe"
 $marker = "$prefix marqueur éphémère."
 if ($PreviewPath) {
     # The preview uses its own fresh user profile, so friendly names are deterministic.
-    $testOlder = 'A · Note d’essai'
+    $testOlder = 'A · Première note fictive'
     $testNote = 'B · Compte rendu fictif'
     $testFolder = 'Mes essais'
     $testChild = 'Brouillons'
