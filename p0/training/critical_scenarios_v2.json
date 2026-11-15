@@ -1,0 +1,1284 @@
+{
+  "schema": 2,
+  "scorer_profile": "medical-screens-v2",
+  "purpose": "Public fictional scripts and adversarial text tests, not ASR results or medical advice",
+  "asr_executed": false,
+  "audio_recorded": false,
+  "clinician_reviewed": false,
+  "real_patient_data": false,
+  "real_drugs_have_no_prescribed_dose": true,
+  "dose_names_are_explicit_placeholders": true,
+  "coverage": {
+    "drug": {
+      "spans": 15,
+      "clips": 9
+    },
+    "value": {
+      "spans": 25,
+      "clips": 14
+    },
+    "unit": {
+      "spans": 25,
+      "clips": 14
+    },
+    "dose": {
+      "spans": 25,
+      "clips": 14
+    },
+    "fraction": {
+      "spans": 16,
+      "clips": 8
+    },
+    "frequency": {
+      "spans": 16,
+      "clips": 8
+    },
+    "duration": {
+      "spans": 0,
+      "clips": 0
+    },
+    "administration_time": {
+      "spans": 16,
+      "clips": 8
+    },
+    "condition": {
+      "spans": 16,
+      "clips": 16
+    },
+    "negation": {
+      "spans": 7,
+      "clips": 6
+    },
+    "delay": {
+      "spans": 0,
+      "clips": 0
+    },
+    "negated_clause": {
+      "spans": 8,
+      "clips": 8
+    },
+    "laterality": {
+      "spans": 18,
+      "clips": 9
+    },
+    "clinical_negation": {
+      "spans": 8,
+      "clips": 8
+    },
+    "concentration_clause": {
+      "spans": 2,
+      "clips": 1
+    },
+    "drug_strength_association": {
+      "spans": 7,
+      "clips": 5
+    }
+  },
+  "limitations": [
+    "Author-written, not a representative clinical corpus",
+    "Text mutations only test the scorer; they do not measure speech recognition",
+    "Do not train on the eventual held-out recording of these scripts",
+    "Clinical clause annotations require clinician review before evaluation with human recordings"
+  ],
+  "cases": [
+    {
+      "id": "fraction-01",
+      "reference": "1 quart de comprimé matin et 1 demi de comprimé soir",
+      "critical": {
+        "drug": [],
+        "value": [
+          "1 quart",
+          "1 demi"
+        ],
+        "unit": [
+          "comprimé",
+          "comprimé"
+        ],
+        "dose": [
+          "1 quart de comprimé",
+          "1 demi de comprimé"
+        ],
+        "fraction": [
+          "1 quart",
+          "1 demi"
+        ],
+        "frequency": [
+          "matin",
+          "soir"
+        ],
+        "duration": [],
+        "administration_time": [
+          "1 quart de comprimé matin",
+          "1 demi de comprimé soir"
+        ],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "1 quart de comprimé soir et 1 demi de comprimé matin",
+      "expected_failed_check": "spans:administration_time",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "fraction-02",
+      "reference": "1 demi de comprimé matin et 1 quart de comprimé soir",
+      "critical": {
+        "drug": [],
+        "value": [
+          "1 demi",
+          "1 quart"
+        ],
+        "unit": [
+          "comprimé",
+          "comprimé"
+        ],
+        "dose": [
+          "1 demi de comprimé",
+          "1 quart de comprimé"
+        ],
+        "fraction": [
+          "1 demi",
+          "1 quart"
+        ],
+        "frequency": [
+          "matin",
+          "soir"
+        ],
+        "duration": [],
+        "administration_time": [
+          "1 demi de comprimé matin",
+          "1 quart de comprimé soir"
+        ],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "1 demi de comprimé matin ou 1 quart de comprimé soir",
+      "expected_failed_check": "guards:alternative_connector_positions_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "fraction-03",
+      "reference": "3 quarts de comprimé midi et 1 demi de comprimé soir",
+      "critical": {
+        "drug": [],
+        "value": [
+          "3 quarts",
+          "1 demi"
+        ],
+        "unit": [
+          "comprimé",
+          "comprimé"
+        ],
+        "dose": [
+          "3 quarts de comprimé",
+          "1 demi de comprimé"
+        ],
+        "fraction": [
+          "3 quarts",
+          "1 demi"
+        ],
+        "frequency": [
+          "midi",
+          "soir"
+        ],
+        "duration": [],
+        "administration_time": [
+          "3 quarts de comprimé midi",
+          "1 demi de comprimé soir"
+        ],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "3 quarts de comprimé soir et 1 demi de comprimé midi",
+      "expected_failed_check": "spans:administration_time",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "fraction-04",
+      "reference": "1 demi de comprimé midi et 3 quarts de comprimé soir",
+      "critical": {
+        "drug": [],
+        "value": [
+          "1 demi",
+          "3 quarts"
+        ],
+        "unit": [
+          "comprimé",
+          "comprimé"
+        ],
+        "dose": [
+          "1 demi de comprimé",
+          "3 quarts de comprimé"
+        ],
+        "fraction": [
+          "1 demi",
+          "3 quarts"
+        ],
+        "frequency": [
+          "midi",
+          "soir"
+        ],
+        "duration": [],
+        "administration_time": [
+          "1 demi de comprimé midi",
+          "3 quarts de comprimé soir"
+        ],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "1 demi de comprimé midi ou 3 quarts de comprimé soir",
+      "expected_failed_check": "guards:alternative_connector_positions_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "fraction-05",
+      "reference": "1 quart de comprimé matin et 3 quarts de comprimé midi",
+      "critical": {
+        "drug": [],
+        "value": [
+          "1 quart",
+          "3 quarts"
+        ],
+        "unit": [
+          "comprimé",
+          "comprimé"
+        ],
+        "dose": [
+          "1 quart de comprimé",
+          "3 quarts de comprimé"
+        ],
+        "fraction": [
+          "1 quart",
+          "3 quarts"
+        ],
+        "frequency": [
+          "matin",
+          "midi"
+        ],
+        "duration": [],
+        "administration_time": [
+          "1 quart de comprimé matin",
+          "3 quarts de comprimé midi"
+        ],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "1 quart de comprimé midi et 3 quarts de comprimé matin",
+      "expected_failed_check": "spans:administration_time",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "fraction-06",
+      "reference": "3 quarts de comprimé matin et 1 quart de comprimé soir",
+      "critical": {
+        "drug": [],
+        "value": [
+          "3 quarts",
+          "1 quart"
+        ],
+        "unit": [
+          "comprimé",
+          "comprimé"
+        ],
+        "dose": [
+          "3 quarts de comprimé",
+          "1 quart de comprimé"
+        ],
+        "fraction": [
+          "3 quarts",
+          "1 quart"
+        ],
+        "frequency": [
+          "matin",
+          "soir"
+        ],
+        "duration": [],
+        "administration_time": [
+          "3 quarts de comprimé matin",
+          "1 quart de comprimé soir"
+        ],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "3 quarts de comprimé matin ou 1 quart de comprimé soir",
+      "expected_failed_check": "guards:alternative_connector_positions_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "fraction-07",
+      "reference": "1 demi de comprimé soir et 1 quart de comprimé matin",
+      "critical": {
+        "drug": [],
+        "value": [
+          "1 demi",
+          "1 quart"
+        ],
+        "unit": [
+          "comprimé",
+          "comprimé"
+        ],
+        "dose": [
+          "1 demi de comprimé",
+          "1 quart de comprimé"
+        ],
+        "fraction": [
+          "1 demi",
+          "1 quart"
+        ],
+        "frequency": [
+          "soir",
+          "matin"
+        ],
+        "duration": [],
+        "administration_time": [
+          "1 demi de comprimé soir",
+          "1 quart de comprimé matin"
+        ],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "1 demi de comprimé matin et 1 quart de comprimé soir",
+      "expected_failed_check": "spans:administration_time",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "fraction-08",
+      "reference": "1 quart de comprimé soir et 1 demi de comprimé midi",
+      "critical": {
+        "drug": [],
+        "value": [
+          "1 quart",
+          "1 demi"
+        ],
+        "unit": [
+          "comprimé",
+          "comprimé"
+        ],
+        "dose": [
+          "1 quart de comprimé",
+          "1 demi de comprimé"
+        ],
+        "fraction": [
+          "1 quart",
+          "1 demi"
+        ],
+        "frequency": [
+          "soir",
+          "midi"
+        ],
+        "duration": [],
+        "administration_time": [
+          "1 quart de comprimé soir",
+          "1 demi de comprimé midi"
+        ],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "1 quart de comprimé soir ou 1 demi de comprimé midi",
+      "expected_failed_check": "guards:alternative_connector_positions_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "negation-01",
+      "reference": "pas de fièvre ; toux présente",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "pas de fièvre ; toux présente"
+        ],
+        "negation": [
+          "pas de"
+        ],
+        "delay": [],
+        "negated_clause": [
+          "pas de fièvre"
+        ],
+        "laterality": [],
+        "clinical_negation": [
+          "pas de fièvre"
+        ],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "fièvre présente ; pas de toux",
+      "expected_failed_check": "guards:negated_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "negation-02",
+      "reference": "absence de dyspnée ; douleur thoracique présente",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "absence de dyspnée ; douleur thoracique présente"
+        ],
+        "negation": [
+          "absence de"
+        ],
+        "delay": [],
+        "negated_clause": [
+          "absence de dyspnée"
+        ],
+        "laterality": [],
+        "clinical_negation": [
+          "absence de dyspnée"
+        ],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "dyspnée présente ; absence de douleur thoracique",
+      "expected_failed_check": "guards:negated_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "negation-03",
+      "reference": "aucun déficit moteur à droite ; paresthésie à gauche",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "aucun déficit moteur à droite ; paresthésie à gauche"
+        ],
+        "negation": [
+          "aucun déficit"
+        ],
+        "delay": [],
+        "negated_clause": [
+          "aucun déficit moteur à droite"
+        ],
+        "laterality": [
+          "aucun déficit moteur à droite",
+          "paresthésie à gauche"
+        ],
+        "clinical_negation": [
+          "aucun déficit moteur à droite"
+        ],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "déficit moteur à droite ; aucune paresthésie à gauche",
+      "expected_failed_check": "guards:negated_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "negation-04",
+      "reference": "pas d'hémoptysie ; épistaxis rapportée",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "pas d'hémoptysie ; épistaxis rapportée"
+        ],
+        "negation": [
+          "pas d'hémoptysie"
+        ],
+        "delay": [],
+        "negated_clause": [
+          "pas d'hémoptysie"
+        ],
+        "laterality": [],
+        "clinical_negation": [
+          "pas d'hémoptysie"
+        ],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "hémoptysie rapportée ; pas d'épistaxis",
+      "expected_failed_check": "guards:negated_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "negation-05",
+      "reference": "ne présente pas d'aphasie ; dysarthrie décrite",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "ne présente pas d'aphasie ; dysarthrie décrite"
+        ],
+        "negation": [
+          "ne présente",
+          "pas d'aphasie"
+        ],
+        "delay": [],
+        "negated_clause": [
+          "ne présente pas d'aphasie"
+        ],
+        "laterality": [],
+        "clinical_negation": [
+          "ne présente pas d'aphasie"
+        ],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "aphasie décrite ; ne présente pas de dysarthrie",
+      "expected_failed_check": "guards:negated_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "negation-06",
+      "reference": "syndrome de Guillain-Barré exclu ; myasthénie suspectée",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "syndrome de Guillain-Barré exclu ; myasthénie suspectée"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [
+          "syndrome de Guillain-Barré exclu"
+        ],
+        "laterality": [],
+        "clinical_negation": [
+          "syndrome de Guillain-Barré exclu"
+        ],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "syndrome de Guillain-Barré suspecté ; myasthénie exclue",
+      "expected_failed_check": "guards:negated_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "negation-07",
+      "reference": "pneumothorax absent ; épanchement pleural présent",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "pneumothorax absent ; épanchement pleural présent"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [
+          "pneumothorax absent"
+        ],
+        "laterality": [],
+        "clinical_negation": [
+          "pneumothorax absent"
+        ],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "pneumothorax présent ; épanchement pleural absent",
+      "expected_failed_check": "guards:negated_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "negation-08",
+      "reference": "pas de récidive de purpura thrombotique thrombocytopénique ; fatigue présente",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "pas de récidive de purpura thrombotique thrombocytopénique ; fatigue présente"
+        ],
+        "negation": [
+          "pas de"
+        ],
+        "delay": [],
+        "negated_clause": [
+          "pas de récidive de purpura thrombotique thrombocytopénique"
+        ],
+        "laterality": [],
+        "clinical_negation": [
+          "pas de récidive de purpura thrombotique thrombocytopénique"
+        ],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "récidive de purpura thrombotique thrombocytopénique ; pas de fatigue",
+      "expected_failed_check": "guards:negated_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lateralite-01",
+      "reference": "douleur à la cheville gauche ; œdème à la cheville droite",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "douleur à la cheville gauche ; œdème à la cheville droite"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [
+          "douleur à la cheville gauche",
+          "œdème à la cheville droite"
+        ],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "douleur à la cheville droite ; œdème à la cheville gauche",
+      "expected_failed_check": "guards:laterality_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lateralite-02",
+      "reference": "paresthésie à gauche ; parésie à droite",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "paresthésie à gauche ; parésie à droite"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [
+          "paresthésie à gauche",
+          "parésie à droite"
+        ],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "paresthésie à droite ; parésie à gauche",
+      "expected_failed_check": "guards:laterality_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lateralite-03",
+      "reference": "hypoacousie droite ; acouphène gauche",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "hypoacousie droite ; acouphène gauche"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [
+          "hypoacousie droite",
+          "acouphène gauche"
+        ],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "hypoacousie gauche ; acouphène droit",
+      "expected_failed_check": "guards:laterality_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lateralite-04",
+      "reference": "ventricule gauche dilaté ; ventricule droit normal",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "ventricule gauche dilaté ; ventricule droit normal"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [
+          "ventricule gauche dilaté",
+          "ventricule droit normal"
+        ],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "ventricule gauche normal ; ventricule droit dilaté",
+      "expected_failed_check": "guards:laterality_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lateralite-05",
+      "reference": "veine jugulaire interne gauche thrombosée ; veine jugulaire interne droite perméable",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "veine jugulaire interne gauche thrombosée ; veine jugulaire interne droite perméable"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [
+          "veine jugulaire interne gauche thrombosée",
+          "veine jugulaire interne droite perméable"
+        ],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "veine jugulaire interne gauche perméable ; veine jugulaire interne droite thrombosée",
+      "expected_failed_check": "guards:laterality_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lateralite-06",
+      "reference": "lombosciatalgie droite ; cruralgie gauche",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "lombosciatalgie droite ; cruralgie gauche"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [
+          "lombosciatalgie droite",
+          "cruralgie gauche"
+        ],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "lombosciatalgie gauche ; cruralgie droite",
+      "expected_failed_check": "guards:laterality_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lateralite-07",
+      "reference": "ptosis unilatéral ; strabisme bilatéral",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "ptosis unilatéral ; strabisme bilatéral"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [
+          "ptosis unilatéral",
+          "strabisme bilatéral"
+        ],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "ptosis bilatéral ; strabisme unilatéral",
+      "expected_failed_check": "guards:laterality_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lateralite-08",
+      "reference": "déficit ipsilatéral ; atteinte controlatérale",
+      "critical": {
+        "drug": [],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [
+          "déficit ipsilatéral ; atteinte controlatérale"
+        ],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [
+          "déficit ipsilatéral",
+          "atteinte controlatérale"
+        ],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "déficit controlatéral ; atteinte ipsilatérale",
+      "expected_failed_check": "guards:laterality_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "association-01",
+      "reference": "médicament Alpha 20 mg ; médicament Bêta 40 mg",
+      "critical": {
+        "drug": [
+          "médicament Alpha",
+          "médicament Bêta"
+        ],
+        "value": [
+          "20",
+          "40"
+        ],
+        "unit": [
+          "mg",
+          "mg"
+        ],
+        "dose": [
+          "20 mg",
+          "40 mg"
+        ],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [
+        {
+          "drug": "médicament Alpha",
+          "value": "20",
+          "unit": "mg",
+          "source_link": [],
+          "drug_occurrence": 0
+        },
+        {
+          "drug": "médicament Bêta",
+          "value": "40",
+          "unit": "mg",
+          "source_link": [],
+          "drug_occurrence": 0
+        }
+      ],
+      "adversarial_text": "médicament Bêta 20 mg ; médicament Alpha 40 mg",
+      "expected_failed_check": "drug_strength_association:0",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "association-02",
+      "reference": "médicament Alpha 20 mg puis médicament Alpha 40 mg",
+      "critical": {
+        "drug": [
+          "médicament Alpha",
+          "médicament Alpha"
+        ],
+        "value": [
+          "20",
+          "40"
+        ],
+        "unit": [
+          "mg",
+          "mg"
+        ],
+        "dose": [
+          "20 mg",
+          "40 mg"
+        ],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [
+        {
+          "drug": "médicament Alpha",
+          "value": "20",
+          "unit": "mg",
+          "source_link": [],
+          "drug_occurrence": 0
+        },
+        {
+          "drug": "médicament Alpha",
+          "value": "40",
+          "unit": "mg",
+          "source_link": [],
+          "drug_occurrence": 1
+        }
+      ],
+      "adversarial_text": "médicament Alpha 40 mg puis médicament Alpha 20 mg",
+      "expected_failed_check": "drug_strength_association:0",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "association-03",
+      "reference": "médicament Alpha LP 600 mg",
+      "critical": {
+        "drug": [
+          "médicament Alpha LP"
+        ],
+        "value": [
+          "600"
+        ],
+        "unit": [
+          "mg"
+        ],
+        "dose": [
+          "600 mg"
+        ],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [
+        {
+          "drug": "médicament Alpha LP",
+          "value": "600",
+          "unit": "mg",
+          "source_link": [],
+          "drug_occurrence": 0
+        }
+      ],
+      "adversarial_text": "médicament Alpha 600 mg",
+      "expected_failed_check": "spans:drug",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lexique-01",
+      "reference": "amiodarone et dronédarone",
+      "critical": {
+        "drug": [
+          "amiodarone",
+          "dronédarone"
+        ],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "amiodarone et amiodarone",
+      "expected_failed_check": "guards:drug_name_order_and_multiplicity_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lexique-02",
+      "reference": "hydroxyzine puis hydralazine",
+      "critical": {
+        "drug": [
+          "hydroxyzine",
+          "hydralazine"
+        ],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "hydralazine puis hydroxyzine",
+      "expected_failed_check": "guards:drug_name_order_and_multiplicity_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "lexique-03",
+      "reference": "lévétiracétam et lamotrigine",
+      "critical": {
+        "drug": [
+          "lévétiracétam",
+          "lamotrigine"
+        ],
+        "value": [],
+        "unit": [],
+        "dose": [],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "lévétiracétam et lamivudine",
+      "expected_failed_check": "spans:drug",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "unite-01",
+      "reference": "médicament Alpha 20 microgrammes",
+      "critical": {
+        "drug": [
+          "médicament Alpha"
+        ],
+        "value": [
+          "20"
+        ],
+        "unit": [
+          "microgrammes"
+        ],
+        "dose": [
+          "20 microgrammes"
+        ],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [
+        {
+          "drug": "médicament Alpha",
+          "value": "20",
+          "unit": "ug",
+          "source_link": [],
+          "drug_occurrence": 0
+        }
+      ],
+      "adversarial_text": "médicament Alpha 20 milligrammes",
+      "expected_failed_check": "drug_strength_association:0",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "denominateur-01",
+      "reference": "médicament Alpha 20 mg",
+      "critical": {
+        "drug": [
+          "médicament Alpha"
+        ],
+        "value": [
+          "20"
+        ],
+        "unit": [
+          "mg"
+        ],
+        "dose": [
+          "20 mg"
+        ],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": []
+      },
+      "drug_strength_associations": [
+        {
+          "drug": "médicament Alpha",
+          "value": "20",
+          "unit": "mg",
+          "source_link": [],
+          "drug_occurrence": 0
+        }
+      ],
+      "adversarial_text": "médicament Alpha 20 mg par kg",
+      "expected_failed_check": "drug_strength_association:0",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    },
+    {
+      "id": "concentration-01",
+      "reference": "médicament Alpha 20 mg par kg ; médicament Bêta 40 mg par ml",
+      "critical": {
+        "drug": [
+          "médicament Alpha",
+          "médicament Bêta"
+        ],
+        "value": [
+          "20",
+          "40"
+        ],
+        "unit": [
+          "mg",
+          "mg"
+        ],
+        "dose": [
+          "20 mg",
+          "40 mg"
+        ],
+        "fraction": [],
+        "frequency": [],
+        "duration": [],
+        "administration_time": [],
+        "condition": [],
+        "negation": [],
+        "delay": [],
+        "negated_clause": [],
+        "laterality": [],
+        "clinical_negation": [],
+        "concentration_clause": [
+          "médicament Alpha 20 mg par kg",
+          "médicament Bêta 40 mg par ml"
+        ]
+      },
+      "drug_strength_associations": [],
+      "adversarial_text": "médicament Alpha 20 mg par ml ; médicament Bêta 40 mg par kg",
+      "expected_failed_check": "guards:concentration_clauses_equal",
+      "annotation_origin": "author-written fictional text; not a clinical record"
+    }
+  ]
+}

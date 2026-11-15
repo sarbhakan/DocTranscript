@@ -6,6 +6,27 @@ Le premier candidat est [whisper.cpp 1.9.5](https://github.com/ggml-org/whisper.
 
 Il s’agit de mesurer les changements de Whisper et de ses noyaux GGML, à modèle et pont constants. Les deux versions activent déjà l’attention Flash dans leurs paramètres par défaut. Le [chemin OpenBLAS 1.9.5](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/ggml/src/ggml-blas/ggml-blas.cpp) conserve la conversion des matrices quantifiées pour le produit `cblas_sgemm`, ainsi que le réglage du nombre de fils par appel. On ne peut donc ni présumer d’un gain de latence, ni tester un réglage OpenBLAS en changeant uniquement une variable d’environnement. Le 1.8.5 du banc inclut le [correctif de réinitialisation du générateur](https://github.com/ggml-org/whisper.cpp/commit/6d0ed914991cac42ace012a05588880801831343), déjà intégré au code 1.9.5. La [réduction du contexte audio](audio_context_ablation.md), le [décodage beam5](decoder_consolidation.md) et [CT2 INT8](windows_runtime_benchmark.md) ont déjà produit des pertes sur des cas critiques de développement ou de régression ; on ne les active pas dans cette comparaison.
 
+## Résultat sur la VM Windows
+
+Le [run 43667755235](https://github.com/sarbhakan/DocTranscript/actions/runs/43667755235) ([révision 5442882](https://github.com/sarbhakan/DocTranscript/commit/54428823e7cd87e70df565db0d730b54dbc325e9)) a comparé les deux bras sur **la même VM** EPYC 7763, 2 cœurs, 4 fils logiques, 17 174 360 064 octets de RAM, Windows NT 10.0.20348. Les [mesures et leur provenance](windows_runtime_ab_report.json) reprennent l’archive **ASR-Windows-AB** (SHA-256 `cd7255295bd4f8c37f753ab1de3ac967e207f1626ec5f1e5c6ba79252de02295`). Cette empreinte identifie l’archive des mesures, distincte du ZIP NoteVive.
+
+| Mesure | 1.8.5 avec correctif RNG | 1.9.5 |
+|---|---:|---:|
+| Rejeu à chaud, médiane sur 6 dictées | 45,60 s | 43,50 s |
+| Rapport temps de calcul / durée audio à chaud, médiane | 3,00 | 2,86 |
+| Calcul d’une tranche à chaud, médiane sur 16 tranches | 15,10 s | 14,38 s |
+| Calcul d’une tranche à chaud, P95 empirique | 15,69 s | 14,96 s |
+| Nouveau processus et dictée `px-826`, médiane sur 2 passages | 15,50 s | 16,22 s |
+| Chargement du pont et des modèles dans le nouveau processus, médiane | 190 ms | 188 ms |
+| Mémoire privée maximale échantillonnée | 1 982 943 232 octets | 1 981 001 728 octets |
+| Mémoire résidente maximale échantillonnée | 847 110 144 octets | 844 685 312 octets |
+
+Le rapport médian des six rejeux **appariés** est de **0,948**, soit environ **5,2 % de temps en moins** à chaud sur cette VM. Le P95 empirique baisse également. Le temps médian du nouveau processus avec dictée est plus élevé chez le candidat, mais avec deux passages seulement et un temps de chargement très proche, cet écart ne permet pas d’attribuer un ralentissement au chargement. Les modèles ont été lus pour vérifier leurs empreintes avant la mesure : « nouveau processus » ne signifie pas « cache disque vide ». Les maxima mémoire sont des échantillons relevés à un intervalle demandé de 50 ms, avec Python inclus ; ils peuvent manquer des pics. Les échecs individuels de sondage ne sont pas dénombrés.
+
+Les 10 paires de sorties (dictées, passages à froid et silence compris) ont le même texte et les mêmes tranches PCM aux mêmes pauses ; les deux répétitions sont stables. Sur les trois dictées distinctes, les deux versions préservent les doses (3/3), les fractions (3/3) et les suites numériques (3/3). Elles reconnaissent les mêmes deux médicaments sur trois et omettent le même nom sur `px-23`. Le silence ne produit aucun texte. Aucune amélioration de fidélité n’est démontrée.
+
+**Décision : garder 1.8.5 dans le produit.** Le candidat n’atteint pas le seuil de gain fixé à 20 %, et son RTF à chaud reste nettement au-dessus de 1 sur cet hôte. Cette mesure ne qualifie ni les négations prononcées ni la latence au micro sur un PC physique de 8 Go. Une autre VM doit faire l’objet d’un relevé distinct plutôt que d’une moyenne avec celui-ci.
+
 ## Rejouer sur Windows
 
 Préparer Windows x64, la même compatibilité AVX2 que NoteVive, Python 3.12 x64, Visual Studio 2022 avec le SDK x64 et ClangCL, CMake et Ninja. Lancer à la racine du dépôt dans PowerShell :

@@ -1,0 +1,833 @@
+{
+  "eligible_arms_before_manual_review": [],
+  "evaluation_freeze_sha256": "08effff4397764cd2842097366098a6bb16a97a26b4bc1eb39f9dec93ef05b19",
+  "evaluations": {
+    "ce50": {
+      "additional64": {
+        "automatic_checks": {
+          "all_eos": true,
+          "drug_gain": false,
+          "no_scored_regression": false,
+          "time_total_and_median": true,
+          "word_error_gain": true
+        },
+        "clips": 64,
+        "coverage": {
+          "administration_time": {
+            "clips": 27,
+            "spans": 39
+          },
+          "clinical_negation": {
+            "clips": 0,
+            "spans": 0
+          },
+          "concentration_clause": {
+            "clips": 1,
+            "spans": 1
+          },
+          "condition": {
+            "clips": 11,
+            "spans": 11
+          },
+          "delay": {
+            "clips": 0,
+            "spans": 0
+          },
+          "dose": {
+            "clips": 53,
+            "spans": 97
+          },
+          "drug": {
+            "clips": 48,
+            "spans": 49
+          },
+          "drug_strength_association": {
+            "clips": 25,
+            "spans": 25
+          },
+          "duration": {
+            "clips": 44,
+            "spans": 47
+          },
+          "fraction": {
+            "clips": 4,
+            "spans": 8
+          },
+          "frequency": {
+            "clips": 49,
+            "spans": 84
+          },
+          "laterality": {
+            "clips": 0,
+            "spans": 0
+          },
+          "negated_clause": {
+            "clips": 1,
+            "spans": 1
+          },
+          "negation": {
+            "clips": 1,
+            "spans": 1
+          },
+          "unit": {
+            "clips": 57,
+            "spans": 148
+          },
+          "value": {
+            "clips": 56,
+            "spans": 165
+          }
+        },
+        "critical_scores": {
+          "adapter": {
+            "drug_strength_association": [
+              10,
+              25
+            ],
+            "guards": {
+              "alternative_connector_positions_equal": [
+                64,
+                64
+              ],
+              "concentration_clauses_equal": [
+                63,
+                64
+              ],
+              "drug_name_order_and_multiplicity_equal": [
+                34,
+                64
+              ],
+              "laterality_clauses_equal": [
+                64,
+                64
+              ],
+              "negated_clauses_equal": [
+                63,
+                64
+              ],
+              "negation_markers_equal": [
+                64,
+                64
+              ],
+              "no_added_concentration": [
+                64,
+                64
+              ],
+              "no_added_signed_number": [
+                64,
+                64
+              ],
+              "no_unreviewed_content_addition": [
+                27,
+                64
+              ],
+              "numeric_sequence_equal": [
+                47,
+                64
+              ],
+              "unit_multiplicities_equal": [
+                54,
+                64
+              ]
+            },
+            "screen_passed": 25,
+            "spans": {
+              "administration_time": [
+                32,
+                39
+              ],
+              "clinical_negation": [
+                0,
+                0
+              ],
+              "concentration_clause": [
+                0,
+                1
+              ],
+              "condition": [
+                7,
+                11
+              ],
+              "delay": [
+                0,
+                0
+              ],
+              "dose": [
+                83,
+                97
+              ],
+              "drug": [
+                18,
+                49
+              ],
+              "duration": [
+                47,
+                47
+              ],
+              "fraction": [
+                8,
+                8
+              ],
+              "frequency": [
+                84,
+                84
+              ],
+              "laterality": [
+                0,
+                0
+              ],
+              "negated_clause": [
+                0,
+                1
+              ],
+              "negation": [
+                1,
+                1
+              ],
+              "unit": [
+                143,
+                148
+              ],
+              "value": [
+                149,
+                165
+              ]
+            }
+          },
+          "base": {
+            "drug_strength_association": [
+              9,
+              25
+            ],
+            "guards": {
+              "alternative_connector_positions_equal": [
+                64,
+                64
+              ],
+              "concentration_clauses_equal": [
+                63,
+                64
+              ],
+              "drug_name_order_and_multiplicity_equal": [
+                32,
+                64
+              ],
+              "laterality_clauses_equal": [
+                64,
+                64
+              ],
+              "negated_clauses_equal": [
+                63,
+                64
+              ],
+              "negation_markers_equal": [
+                64,
+                64
+              ],
+              "no_added_concentration": [
+                64,
+                64
+              ],
+              "no_added_signed_number": [
+                64,
+                64
+              ],
+              "no_unreviewed_content_addition": [
+                26,
+                64
+              ],
+              "numeric_sequence_equal": [
+                46,
+                64
+              ],
+              "unit_multiplicities_equal": [
+                55,
+                64
+              ]
+            },
+            "screen_passed": 23,
+            "spans": {
+              "administration_time": [
+                30,
+                39
+              ],
+              "clinical_negation": [
+                0,
+                0
+              ],
+              "concentration_clause": [
+                0,
+                1
+              ],
+              "condition": [
+                7,
+                11
+              ],
+              "delay": [
+                0,
+                0
+              ],
+              "dose": [
+                82,
+                97
+              ],
+              "drug": [
+                16,
+                49
+              ],
+              "duration": [
+                47,
+                47
+              ],
+              "fraction": [
+                7,
+                8
+              ],
+              "frequency": [
+                84,
+                84
+              ],
+              "laterality": [
+                0,
+                0
+              ],
+              "negated_clause": [
+                0,
+                1
+              ],
+              "negation": [
+                1,
+                1
+              ],
+              "unit": [
+                144,
+                148
+              ],
+              "value": [
+                148,
+                165
+              ]
+            }
+          }
+        },
+        "eos_observed": {
+          "adapter": 64,
+          "base": 64
+        },
+        "grid_sha256": "9befe2239fef61caf51de8a046562e16e08ce182a1dc2605d309dd15e9049c4a",
+        "paired": {
+          "improvements": {
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 3,
+            "guard:no_unreviewed_content_addition": 3,
+            "guard:numeric_sequence_equal": 2,
+            "span:administration_time": 2,
+            "span:dose": 2,
+            "span:drug": 3,
+            "span:fraction": 1,
+            "span:value": 2
+          },
+          "regressions": {
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 2,
+            "guard:numeric_sequence_equal": 1,
+            "guard:unit_multiplicities_equal": 1,
+            "span:dose": 1,
+            "span:drug": 1,
+            "span:unit": 1,
+            "span:value": 1
+          }
+        },
+        "paired_affected_clips": {
+          "improvements": {
+            "any_critical_check": 4,
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 3,
+            "guard:no_unreviewed_content_addition": 3,
+            "guard:numeric_sequence_equal": 2,
+            "span:administration_time": 2,
+            "span:dose": 2,
+            "span:drug": 3,
+            "span:fraction": 1,
+            "span:value": 2
+          },
+          "regressions": {
+            "any_critical_check": 2,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 2,
+            "guard:numeric_sequence_equal": 1,
+            "guard:unit_multiplicities_equal": 1,
+            "span:dose": 1,
+            "span:drug": 1,
+            "span:unit": 1,
+            "span:value": 1
+          }
+        },
+        "predictions_sha256": "6eb70ed321deb275a046eff20ee0441099157be967debd170d8ba7513208f2cc",
+        "scores": {
+          "adapter": {
+            "clips": 64,
+            "generation_without_eos": 0,
+            "inference_seconds": 86.30143325185054,
+            "reference_words": 738,
+            "wer": 0.2140921409214092,
+            "word_errors": 158
+          },
+          "base": {
+            "clips": 64,
+            "generation_without_eos": 0,
+            "inference_seconds": 85.94070549996104,
+            "reference_words": 738,
+            "wer": 0.23306233062330622,
+            "word_errors": 172
+          }
+        },
+        "speakers": 8,
+        "time_ratios": {
+          "median_ratio": 1.019353516297461,
+          "total_ratio": 1.004197402730068
+        },
+        "unlinked_source_strengths": 8,
+        "unobserved_categories": [
+          "clinical_negation",
+          "delay",
+          "laterality"
+        ]
+      },
+      "historical32": {
+        "automatic_checks": {
+          "all_eos": true,
+          "no_scored_regression": false,
+          "time_total_and_median": true
+        },
+        "clips": 32,
+        "coverage": {
+          "administration_time": {
+            "clips": 14,
+            "spans": 17
+          },
+          "clinical_negation": {
+            "clips": 0,
+            "spans": 0
+          },
+          "concentration_clause": {
+            "clips": 0,
+            "spans": 0
+          },
+          "condition": {
+            "clips": 12,
+            "spans": 14
+          },
+          "delay": {
+            "clips": 1,
+            "spans": 2
+          },
+          "dose": {
+            "clips": 26,
+            "spans": 46
+          },
+          "drug": {
+            "clips": 24,
+            "spans": 24
+          },
+          "drug_strength_association": {
+            "clips": 16,
+            "spans": 16
+          },
+          "duration": {
+            "clips": 20,
+            "spans": 21
+          },
+          "fraction": {
+            "clips": 1,
+            "spans": 3
+          },
+          "frequency": {
+            "clips": 25,
+            "spans": 42
+          },
+          "laterality": {
+            "clips": 0,
+            "spans": 0
+          },
+          "negated_clause": {
+            "clips": 1,
+            "spans": 1
+          },
+          "negation": {
+            "clips": 1,
+            "spans": 1
+          },
+          "unit": {
+            "clips": 29,
+            "spans": 70
+          },
+          "value": {
+            "clips": 28,
+            "spans": 78
+          }
+        },
+        "critical_scores": {
+          "adapter": {
+            "drug_strength_association": [
+              5,
+              16
+            ],
+            "guards": {
+              "alternative_connector_positions_equal": [
+                31,
+                32
+              ],
+              "concentration_clauses_equal": [
+                32,
+                32
+              ],
+              "drug_name_order_and_multiplicity_equal": [
+                16,
+                32
+              ],
+              "laterality_clauses_equal": [
+                32,
+                32
+              ],
+              "negated_clauses_equal": [
+                31,
+                32
+              ],
+              "negation_markers_equal": [
+                32,
+                32
+              ],
+              "no_added_concentration": [
+                32,
+                32
+              ],
+              "no_added_signed_number": [
+                32,
+                32
+              ],
+              "no_unreviewed_content_addition": [
+                12,
+                32
+              ],
+              "numeric_sequence_equal": [
+                26,
+                32
+              ],
+              "unit_multiplicities_equal": [
+                28,
+                32
+              ]
+            },
+            "screen_passed": 11,
+            "spans": {
+              "administration_time": [
+                13,
+                17
+              ],
+              "clinical_negation": [
+                0,
+                0
+              ],
+              "concentration_clause": [
+                0,
+                0
+              ],
+              "condition": [
+                12,
+                14
+              ],
+              "delay": [
+                0,
+                2
+              ],
+              "dose": [
+                41,
+                46
+              ],
+              "drug": [
+                8,
+                24
+              ],
+              "duration": [
+                21,
+                21
+              ],
+              "fraction": [
+                3,
+                3
+              ],
+              "frequency": [
+                42,
+                42
+              ],
+              "laterality": [
+                0,
+                0
+              ],
+              "negated_clause": [
+                0,
+                1
+              ],
+              "negation": [
+                1,
+                1
+              ],
+              "unit": [
+                66,
+                70
+              ],
+              "value": [
+                73,
+                78
+              ]
+            }
+          },
+          "base": {
+            "drug_strength_association": [
+              5,
+              16
+            ],
+            "guards": {
+              "alternative_connector_positions_equal": [
+                31,
+                32
+              ],
+              "concentration_clauses_equal": [
+                32,
+                32
+              ],
+              "drug_name_order_and_multiplicity_equal": [
+                16,
+                32
+              ],
+              "laterality_clauses_equal": [
+                32,
+                32
+              ],
+              "negated_clauses_equal": [
+                31,
+                32
+              ],
+              "negation_markers_equal": [
+                32,
+                32
+              ],
+              "no_added_concentration": [
+                32,
+                32
+              ],
+              "no_added_signed_number": [
+                32,
+                32
+              ],
+              "no_unreviewed_content_addition": [
+                11,
+                32
+              ],
+              "numeric_sequence_equal": [
+                27,
+                32
+              ],
+              "unit_multiplicities_equal": [
+                28,
+                32
+              ]
+            },
+            "screen_passed": 10,
+            "spans": {
+              "administration_time": [
+                14,
+                17
+              ],
+              "clinical_negation": [
+                0,
+                0
+              ],
+              "concentration_clause": [
+                0,
+                0
+              ],
+              "condition": [
+                12,
+                14
+              ],
+              "delay": [
+                0,
+                2
+              ],
+              "dose": [
+                42,
+                46
+              ],
+              "drug": [
+                8,
+                24
+              ],
+              "duration": [
+                21,
+                21
+              ],
+              "fraction": [
+                3,
+                3
+              ],
+              "frequency": [
+                42,
+                42
+              ],
+              "laterality": [
+                0,
+                0
+              ],
+              "negated_clause": [
+                0,
+                1
+              ],
+              "negation": [
+                1,
+                1
+              ],
+              "unit": [
+                66,
+                70
+              ],
+              "value": [
+                74,
+                78
+              ]
+            }
+          }
+        },
+        "eos_observed": {
+          "adapter": 32,
+          "base": 32
+        },
+        "grid_sha256": "e68b37befd34ae93870d14be4a5b54c2d3889c2b1a1f417f808326d718f7ebd7",
+        "paired": {
+          "improvements": {
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 2,
+            "guard:numeric_sequence_equal": 1,
+            "guard:unit_multiplicities_equal": 1,
+            "span:administration_time": 1,
+            "span:dose": 1,
+            "span:drug": 1,
+            "span:unit": 1,
+            "span:value": 1
+          },
+          "regressions": {
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 1,
+            "guard:numeric_sequence_equal": 2,
+            "guard:unit_multiplicities_equal": 1,
+            "span:administration_time": 2,
+            "span:dose": 2,
+            "span:drug": 1,
+            "span:unit": 1,
+            "span:value": 2
+          }
+        },
+        "paired_affected_clips": {
+          "improvements": {
+            "any_critical_check": 2,
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 2,
+            "guard:numeric_sequence_equal": 1,
+            "guard:unit_multiplicities_equal": 1,
+            "span:administration_time": 1,
+            "span:dose": 1,
+            "span:drug": 1,
+            "span:unit": 1,
+            "span:value": 1
+          },
+          "regressions": {
+            "any_critical_check": 3,
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 1,
+            "guard:numeric_sequence_equal": 2,
+            "guard:unit_multiplicities_equal": 1,
+            "span:administration_time": 2,
+            "span:dose": 2,
+            "span:drug": 1,
+            "span:unit": 1,
+            "span:value": 2
+          }
+        },
+        "predictions_sha256": "f086d3ca3c81e48908dc3b6b0a15692aa7d7973878ac8952e02d1869bf23aacb",
+        "scores": {
+          "adapter": {
+            "clips": 32,
+            "generation_without_eos": 0,
+            "inference_seconds": 42.46598462192924,
+            "reference_words": 371,
+            "wer": 0.1967654986522911,
+            "word_errors": 73
+          },
+          "base": {
+            "clips": 32,
+            "generation_without_eos": 0,
+            "inference_seconds": 42.545622085162904,
+            "reference_words": 371,
+            "wer": 0.215633423180593,
+            "word_errors": 80
+          }
+        },
+        "speakers": 8,
+        "time_ratios": {
+          "median_ratio": 1.019188886451255,
+          "total_ratio": 0.9981281866539815
+        },
+        "unlinked_source_strengths": 0,
+        "unobserved_categories": [
+          "clinical_negation",
+          "concentration_clause",
+          "laterality"
+        ]
+      }
+    }
+  },
+  "experiment": "px-retention-ce-kl-50",
+  "export_performed": false,
+  "failed_arms": {
+    "kl50": {
+      "actual_optimizer_updates": 2,
+      "checkpoint_evaluated": false,
+      "elapsed_seconds": 14.062691041006474,
+      "failure_report_contains_contract_sha256": false,
+      "status": "failed"
+    }
+  },
+  "limits": "Development clips only; no reserve, new voices, Windows or Q5_0 evaluated here.",
+  "manual_review_and_independent_confirmation_required": true,
+  "paired_baseline_text_differences": null,
+  "paired_treatment_comparison_complete": false,
+  "passes_automatic_checks_before_review": false,
+  "plan_sha256": "41f5fd55f7fbb2eadc418ceb0e4a61caeda2cc21a16731ba8bfb463d30190f2a",
+  "promoted_to_application": false,
+  "schema": 1,
+  "training": {
+    "ce50": {
+      "actual_optimizer_updates": 50,
+      "adapter_final_sha256": "8d6e985911b6c62b525d0fa4cd26275c77ec2f4495472c9d889c21c5b48ea6b1",
+      "adapter_reload_exact": true,
+      "base_retention_kl_weight": 0.0,
+      "base_weights_unchanged": true,
+      "clips_consumed": 200,
+      "elapsed_seconds": 225.16201862500748,
+      "last_validation": {
+        "clips": 8,
+        "elapsed_seconds": 7.790768416016363,
+        "speakers": 8,
+        "token_weighted_cross_entropy": 0.6889351318913994,
+        "tokens": 141
+      },
+      "mps_driver_peak_observed_bytes": 3144335360,
+      "process_peak_rss_bytes": 932642816
+    }
+  }
+}

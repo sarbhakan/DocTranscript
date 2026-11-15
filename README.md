@@ -57,7 +57,7 @@ La version 0.4.0 revoit la fenêtre autour de la bibliothèque et de l’éditeu
 
 *Capture réelle de la recette Windows, avec des notes fictives de test. Le contour de la fenêtre peut varier selon votre version de Windows.*
 
-Un [entraînement local du modèle](docs/entrainement-local.md) a aussi été réalisé. Il réduit les erreurs de mots sur un petit lot de développement, mais dégrade encore certains noms de médicaments. Les poids entraînés restent expérimentaux et ne sont pas inclus dans le ZIP ; le moteur distribué est conservé. Les [mesures du paquet 0.3.1](docs/audit-consolidation-031.md) restent consultables pour comparaison.
+Les [derniers essais de précision et de vitesse](docs/precision-vitesse-041.md) évaluent un nouvel adaptateur sur 96 dictées de développement et comparent deux versions du moteur sur Windows. L'adaptation améliore certains mots, mais dégrade aussi des médicaments et des doses : elle est refusée. Le gain de vitesse observé avec le moteur plus récent reste limité. **Le modèle et le moteur du ZIP 0.4.0 sont conservés.** Les contrôles ont été renforcés et [33 dictées fictives à lire](docs/dictees-fiabilisation.md) sont disponibles pour poursuivre les essais. L'[entraînement précédent](docs/entrainement-local.md) et les [mesures du paquet 0.3.1](docs/audit-consolidation-031.md) restent consultables.
 
 ## Besoin d’aide ou envie de transmettre un résultat ?
 
@@ -92,6 +92,7 @@ Le paquet Windows s’appuie sur **Whisper Large-v3 Turbo, whisper.cpp 1.8.5, Op
 | [Veille des moteurs](docs/veille-moteurs.md) · [Réemploi](docs/reemploi.md) | Alternatives, licences et rôle de Dev Toolkit Orchestrator. |
 | [Refonte Windows](docs/ui-040.md) · [Toolkit et composants retenus](docs/toolkit-040.md) | Choix d’interface, accessibilité, sources réutilisées et périmètre des outils. |
 | [Entraînement local](docs/entrainement-local.md) · [Outils de reproduction](p0/training/README.md) | Données séparées, adaptation LoRA, contrôles critiques et décision sur les poids. |
+| [Derniers essais médicaux et Windows](docs/precision-vitesse-041.md) · [Dictées fictives](docs/dictees-fiabilisation.md) | Résultats sur 96 enregistrements, échecs conservés, comparaison Windows appariée et scripts accessibles. |
 | [Qualité médicale](docs/qualite-medicale.md) · [Adaptation lexicale](docs/adaptation-lexicale.md) | Vocabulaire, évaluation des erreurs critiques et effets des lexiques. |
 | [Référentiels médicaux](docs/referentiels-medicaux.md) · [Catalogue local](lexique/README.md) | Sources françaises, licences et imports reproductibles. |
 | [Expérience praticien](docs/experience-praticien.md) · [Données et usage professionnel](docs/donnees-et-usage.md) | Scénarios d’usage, flux des données et conditions préalables à un pilote. |

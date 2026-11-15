@@ -428,7 +428,16 @@ def validation_loss(rt, model, base, processor, corpus, rows, labels, args, outp
     return result
 
 
+def require_finite_adapters(rt, tensors) -> None:
+    torch = rt["torch"]
+    with torch.no_grad():
+        if not tensors or any(tensor.dtype != torch.float32 or not torch.isfinite(tensor).all().item()
+                              for tensor in tensors):
+            raise ValueError("Poids LoRA absents, de type inattendu ou non finis ; sauvegarde refusée")
+
+
 def checkpoint(rt, model, output: Path, update: int, contract_hash: str, validation=None) -> Path:
+    require_finite_adapters(rt, list(rt["state"](model).values()))
     checkpoints = output / "checkpoints"
     checkpoints.mkdir(exist_ok=True)
     destination = checkpoints / f"update-{update:06d}"
@@ -510,6 +519,7 @@ def train(args):
                                        "teacher_inputs": "same_train_audio_and_shifted_train_reference",
                                        "validation_loss_uses_teacher": False},
                 "trainer_source_sha256": sha256(Path(__file__)),
+                "validate_finite_adapter_weights_after_step_and_before_save": True,
                 "bitwise_MPS_reproducibility_validated": False}
     output.mkdir(mode=0o700)
     atomic_json(output / "contract.json", contract)
@@ -570,6 +580,7 @@ def train(args):
                 scaler.update()
                 if actual["updates"] != next_update:
                     raise ValueError("L’optimiseur a ignoré une mise à jour")
+                require_finite_adapters(rt, trainable)
                 aggregate = {"phase": "train", "update": actual["updates"], "epoch": epoch + 1,
                              "clips_consumed": consumed, "clips_in_update": len(group),
                              "mean_clip_loss": loss_sum / len(group), "learning_rate": rate,
