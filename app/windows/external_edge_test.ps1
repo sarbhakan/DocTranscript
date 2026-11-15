@@ -154,9 +154,37 @@ function Trace-SyntheticLowBox {
     }
     $symbols = Join-Path $work 'local-symbols-only'
     $null = [IO.Directory]::CreateDirectory($symbols)
+    $rawLog = Join-Path $work 'private-lowbox-debugger.log'
+    # Cover the observed directory/link setup and the subsequent token creation.
+    # Nt and Zw aliases share a stub; use only one spelling per operation.
+    $calls = @(
+        'ZwOpenDirectoryObject', 'ZwCreateDirectoryObject', 'ZwCreateDirectoryObjectEx',
+        'ZwDuplicateObject', 'ZwQuerySecurityObject', 'ZwSetSecurityObject', 'ZwClose',
+        'ZwCreateSymbolicLinkObject', 'ZwOpenSymbolicLinkObject', 'ZwQuerySymbolicLinkObject',
+        'ZwSetInformationSymbolicLink', 'ZwMakePermanentObject', 'ZwMakeTemporaryObject',
+        'ZwCreateLowBoxToken', 'ZwCreateToken', 'ZwDuplicateToken', 'ZwFilterToken',
+        'ZwOpenProcessToken', 'ZwOpenProcessTokenEx', 'ZwOpenThreadToken', 'ZwOpenThreadTokenEx',
+        'ZwQueryInformationToken', 'ZwSetInformationToken', 'ZwAdjustPrivilegesToken',
+        'ZwOpenFile', 'ZwCreateFile', 'ZwSetInformationFile', 'ZwAlpcSendWaitReceivePort'
+    )
+    $entry = @'
+~.bp /1 poi(@rsp) "$$><nv-nt-return.txt"
+gc
+'@
+    foreach ($call in $calls) {
+        ".echo NV_NT_CALL=$call`r`n$entry" | Set-Content -LiteralPath (Join-Path $work "nv-$call.txt") -Encoding Ascii
+    }
+    @'
+.printf "NV_NT_STATUS=%08x\n", @eax
+gc
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-nt-return.txt') -Encoding Ascii
+    @'
+.printf "NV_FACTORY_STATUS=%08x\n", @eax
+q
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-factory-return.txt') -Encoding Ascii
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $kits
-    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -c "bu kernelbase!CreateAppContainerToken;g" "{1}" --edge-lowbox-trace' -f $symbols, $ProbeExe
+    $start.Arguments = '-G -sins -nosqm -noshell -netsyms:no -y "{0}" -logo "{1}" -c "bu kernelbase!CreateAppContainerToken;g" "{2}" --edge-lowbox-trace' -f $symbols, $rawLog, $ProbeExe
     $start.WorkingDirectory = $work
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -168,11 +196,14 @@ function Trace-SyntheticLowBox {
         $debugger = [Diagnostics.Process]::Start($start)
         $stdout = $debugger.StandardOutput.ReadToEndAsync()
         $stderr = $debugger.StandardError.ReadToEndAsync()
-        # The initial command stops at the exported factory. These commands
-        # are consumed at its prompt and after the traced return.
+        # Arm only within the first call to the factory, on its current thread.
+        # Unlike wt, execution between the selected syscall stubs runs normally.
         $debugger.StandardInput.WriteLine('bc *')
-        $debugger.StandardInput.WriteLine('wt -l 14 -ns -nw -or')
-        $debugger.StandardInput.WriteLine('q')
+        $debugger.StandardInput.WriteLine('~.bp /1 poi(@rsp) "$$><nv-factory-return.txt"')
+        foreach ($call in $calls) {
+            $debugger.StandardInput.WriteLine(('~.bu ntdll!{0} "$$><nv-{0}.txt"' -f $call))
+        }
+        $debugger.StandardInput.WriteLine('g')
         $debugger.StandardInput.Flush()
         if (-not $debugger.WaitForExit(18000)) {
             Write-Output 'Synthetic LowBox trace: debugger deadline reached.'
@@ -183,23 +214,28 @@ function Trace-SyntheticLowBox {
             Write-Output 'Synthetic LowBox trace: debugger stream did not close.'
             return
         }
-        # wt prints symbol names and return registers. Exclude command lines,
-        # process paths, registers other than reported returns, and all raw SIDs.
+        # Only allowlisted syscall labels and their fixed-width NTSTATUS leave
+        # the disposable scratch directory. No arguments or raw debugger output.
+        $raw = if (Test-Path -LiteralPath $rawLog -PathType Leaf) { Get-Content -LiteralPath $rawLog -Raw } else { $stdout.Result }
         $kept = @()
-        foreach ($line in ($stdout.Result -split "`r?`n")) {
-            if ($line -match '^\s*(?:\d+\s+){2}\[\s*\d+\]\s+(?<symbol>ntdll!(?:Nt|Zw)[A-Za-z0-9_]{2,64})\b(?<tail>.*)$') {
-                $symbol = $Matches.symbol
-                $tail = $Matches.tail
-                $codes = @([regex]::Matches($tail, '(?i)\b(?:0x)?[0-9a-f]{8}(?:`[0-9a-f]{8})?\b') |
-                    ForEach-Object Value | Select-Object -First 3)
-                $kept += "Synthetic LowBox trace call $symbol returns=$($codes -join ',')"
+        $pending = $null
+        $factoryStatus = 'unobserved'
+        foreach ($line in ($raw -split "`r?`n")) {
+            if ($line -cmatch '^\s*NV_NT_CALL=(?<call>Zw[A-Za-z0-9_]{2,64})\s*$' -and
+                $calls -ccontains $Matches.call) {
+                $pending = $Matches.call
+            } elseif ($pending -and $line -match '^\s*NV_NT_STATUS=(?<status>[0-9a-f]{8})\s*$') {
+                $kept += "Synthetic LowBox trace $pending ntstatus=0x$($Matches.status)"
+                $pending = $null
+            } elseif ($line -match '^\s*NV_FACTORY_STATUS=(?<status>[0-9a-f]{8})\s*$') {
+                $factoryStatus = '0x' + $Matches.status
             }
         }
         $kept | Select-Object -Last 80 | Write-Output
-        Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); debugger_exited=$($debugger.HasExited)."
+        Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); factory_result=$factoryStatus; debugger_exited=$($debugger.HasExited)."
         if (-not $kept.Count) {
-            $raw = $stdout.Result + $stderr.Result
-            Write-Output "Synthetic LowBox trace state: factory_symbol=$($raw -match 'kernelbase!CreateAppContainerToken'); trace_command=$($raw -match 'wt -l 14'); command_error=$($raw -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
+            $diagnosis = $raw + $stderr.Result
+            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-ZwOpenDirectoryObject'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
         }
     } catch {
         # Do not print raw debugger command lines/paths.

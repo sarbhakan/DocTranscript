@@ -14,7 +14,7 @@ NoteVive transforme votre voix en texte sur votre PC. Le téléchargement néces
 
 Prévoyez un PC sous **Windows 11, avec un processeur Intel ou AMD et un système x64**, un microphone et suffisamment de place pour le ZIP et son dossier extrait. Vous pouvez utiliser le micro intégré ou un micro externe. Aucune carte graphique dédiée n’est requise.
 
-Pour connaître votre système, ouvrez le menu **Démarrer**, puis **Paramètres → Système → Informations système**. Relevez l’édition de Windows et le type du système. Le paquet proposé est destiné aux PC x64 ; il n’est pas une application Mac.
+Pour connaître votre système, ouvrez le menu **Démarrer**, puis **Paramètres → Système → Informations système** (ou **À propos**). Sous **Spécifications de l’appareil**, cherchez **Type du système** et la mention **processeur x64**. Relevez aussi l’édition de Windows. La seule mention « 64 bits » ne suffit pas : le paquet Intel/AMD proposé n’est pas destiné aux processeurs ARM, ni au Mac.
 
 NoteVive vérifie automatiquement si le processeur permet la dictée. S’il manque les instructions appelées **AVX2** ou leurs extensions, un message l’indique et le micro reste fermé. Installer un logiciel supplémentaire ne rend pas ce processeur compatible. Les essais sur un PC physique à **8 Go de mémoire sans carte graphique dédiée** restent à faire : nous ne garantissons pas encore sa vitesse ni son bon fonctionnement sur cette configuration.
 
@@ -137,7 +137,7 @@ NoteVive ne conserve pas d’enregistrement audio. L’application ne propose pa
 
 NoteVive crée une note **Dictée externe** par session et y sauvegarde chaque passage confirmé avant de tenter de l’envoyer. Gardez le même champ actif pendant toute la dictée et la finalisation. Si l’envoi s’arrête, relisez ce qui a été écrit dans la destination et retrouvez les passages sauvegardés dans NoteVive. Ne recollez pas automatiquement toute la note : une partie pourrait déjà être dans le document.
 
-Word, le navigateur et les autres logiciels n’exposent pas tous des champs compatibles. Le texte transmis peut être synchronisé ou stocké par le logiciel qui le reçoit. Windows ne garantit pas la destination des frappes simulées en cas de changement de focus pendant l’envoi vers Word ou un navigateur. Pour le détail du fonctionnement et les cas à tester, voir le [guide de dictée externe](dictee-externe.md).
+Word et les logiciels métier restent à vérifier sur les postes d’essai. Word, le navigateur et les autres logiciels n’exposent pas tous des champs compatibles. Si le champ est refusé, dictez dans NoteVive puis utilisez **Copier le texte** et collez manuellement après relecture. Le texte transmis peut être synchronisé ou stocké par le logiciel qui le reçoit. Windows ne garantit pas la destination des frappes simulées en cas de changement de focus pendant l’envoi vers Word ou un navigateur. Pour le détail du fonctionnement et les cas à tester, voir le [guide de dictée externe](dictee-externe.md).
 
 ## 6. Comprendre ce qui se passe pendant la dictée
 

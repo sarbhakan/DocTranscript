@@ -341,7 +341,7 @@ struct RecipeNamespace {
     // showed an open of BaseNamedObjects with exactly this access.
     static constexpr ACCESS_MASK lowbox_read = READ_CONTROL | 0x0001 | 0x0002;
     // Windows duplicates the child directory with this exact mask; accept
-    // it only as a copy of an existing direct ACE for the host logon.
+    // it only as a copy of an existing direct ACE for a verified interactive identity.
     static constexpr ACCESS_MASK normal_logon_rights = STANDARD_RIGHTS_REQUIRED | with_subdirectory;
     static_assert(normal_logon_rights == 0x000f000f);
     static constexpr NTSTATUS denied = static_cast<NTSTATUS>(0xc0000022u);
