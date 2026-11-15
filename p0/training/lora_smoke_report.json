@@ -1,0 +1,46 @@
+{
+  "actual_optimizer_updates": 8,
+  "adapter_final_sha256": "027f8cbde2ef46550542a1b8b90aa582e6c5f5e54fafc5464a83d26889a9adeb",
+  "adapter_initial_sha256": "6d506807f5d330ef204e1bb2675438abede95fdc558f1dba507c3c33014b7a16",
+  "adapter_reload_exact": true,
+  "adapter_weights_changed": true,
+  "base_parameters_sha256": "765092f2e6baec1846c7c631ab5c583cc5140bda723752fdefd6b960413ae52c",
+  "base_weights_unchanged": true,
+  "clips_consumed": 32,
+  "contract_sha256": "fe9cf428206e834bd22b2385db01f5ddecec038475efe7f13259a7f1ac72211c",
+  "disk_free_bytes": 7276027904,
+  "elapsed_seconds": 47.228882583003724,
+  "last_validation": {
+    "clips": 8,
+    "elapsed_seconds": 7.704747542011319,
+    "speakers": 8,
+    "token_weighted_cross_entropy": 0.9786569032263248,
+    "tokens": 141
+  },
+  "mechanics_only_micro_trial": true,
+  "mps_current_allocated_bytes": 1626800384,
+  "mps_driver_allocated_bytes": 2927525888,
+  "mps_recommended_max_bytes": 12713115648,
+  "process_peak_rss_bytes": 876003328,
+  "promoted_to_application": false,
+  "schema": 1,
+  "status": "completed",
+  "training_performed": true,
+  "date": "2026-11-14",
+  "host": "Apple M1 Pro, 16 GiB unified memory",
+  "scope": "Eight optimizer updates, mechanics only; no ASR improvement claimed",
+  "previous_attempts": [
+    {
+      "attempt": "smoke-01",
+      "actual_optimizer_updates": 8,
+      "status": "failed_reload_check",
+      "cause": "PEFT cast adapter through FP16 before reload; fixed by FP32 allocation before copying."
+    },
+    {
+      "attempt": "smoke-02",
+      "actual_optimizer_updates": 8,
+      "status": "failed_reload_check",
+      "cause": "safetensors rejected mps:0; fixed by CPU load then exact copy into MPS FP32 adapter."
+    }
+  ]
+}

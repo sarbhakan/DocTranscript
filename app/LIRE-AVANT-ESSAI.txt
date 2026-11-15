@@ -1,9 +1,11 @@
-NoteVive 0.3.0 — essai Windows 11 x64, données fictives uniquement
+NoteVive 0.4.0 — essai Windows 11 x64, données fictives uniquement
 
 1. Extraire le ZIP en entier dans un dossier local sur le PC, puis lancer NoteVive.exe. Laisser le dossier runtime à côté de l’application. L’application utilise le microphone par défaut de Windows.
 2. Cliquer sur « + Transcription », donner un titre, puis cliquer sur « Dicter » (F9). Attendre « Micro ouvert » et lire la phrase ci-dessous. Entre les deux phrases, faire une pause et attendre le résultat sans cliquer sur « Arrêter ».
 3. Cliquer sur « Arrêter », attendre la fin de la dictée, puis relire la note et cliquer sur « Enregistrer ». Le moteur détecte les pauses à partir de 576 ms ; ajouter le temps de calcul. La finalisation peut prendre quelques secondes, selon le PC.
 4. Utiliser « + Dossier » à la racine ou sélectionner un dossier avant de créer un sous-dossier. « Classer… » déplace la transcription courante. Fermer puis rouvrir NoteVive : rechercher la note par titre ou par mot dans le texte et vérifier son contenu et ses dates.
+5. Après relecture, « Copier le texte » (Ctrl + Maj + C) copie le corps de la note et ses sauts de ligne. Coller manuellement dans le document voulu. Le presse-papiers courant reste lisible par d’autres applications locales.
+6. Pour un champ externe compatible, laisser NoteVive ouvert, placer le curseur dans un document fictif ou un champ de test vide, sans sélectionner de texte, puis appuyer sur Ctrl + Alt + Espace. Relâcher les touches, attendre « Micro ouvert », dicter, puis arrêter avec le même raccourci. Chaque passage confirmé est sauvegardé dans « Dictée externe » avant sa tentative d’envoi. Garder le champ actif et vérifier le résultat : en cas de changement de focus, Word ou le navigateur peut recevoir du texte dans un autre champ. Le logiciel de destination peut synchroniser ou stocker le texte. La compatibilité avec Edge, Word et vos logiciels reste à vérifier sur le poste d’essai ; les tests des autres champs ne les valident pas. Si le champ est refusé, dicter dans NoteVive et utiliser « Copier le texte » après relecture.
 
 Exemple à lire : « Pas de douleur à la cheville droite. La gêne concerne la cheville gauche depuis cinq jours. »
 

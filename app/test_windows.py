@@ -116,7 +116,12 @@ def main():
     parser.add_argument('--cmake', default='cmake')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--package', type=Path)
-    parser.add_argument('--engine-only', action='store_true', help='Test only the real decoder from --package.')
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument('--engine-only', action='store_true', help='Test only the real decoder from --package.')
+    scope.add_argument('--external-only', action='store_true',
+                       help='Build and run only the native external-target probe.')
+    scope.add_argument('--without-external', action='store_true',
+                       help='Build and run the tests other than the interactive external-target probe.')
     parser.add_argument('--include-unsupported-baseline', action='store_true',
                         help='Diagnostic explicite SSE2, hors du minimum CPU du produit (peut échouer).')
     parser.add_argument('--build-cache', type=Path)
@@ -124,6 +129,8 @@ def main():
     args = parser.parse_args()
     if args.engine_only and not args.package:
         parser.error('--engine-only requiert --package.')
+    if args.external_only and (args.package or args.include_unsupported_baseline):
+        parser.error('--external-only ne prend ni --package ni --include-unsupported-baseline.')
     native_windows = platform.system() == 'Windows'
     if args.compiler == 'zig' and not args.zig:
         parser.error('--zig est requis avec --compiler zig.')
@@ -154,7 +161,7 @@ def main():
     targets, commands = [], []
     regressions = {}
     supervisor = None
-    if not args.engine_only:
+    if not args.engine_only and not args.external_only:
         fixture = out / 'fixture'
         fixture.mkdir()
         child_target = target('fixture/NoteVive-ASR.exe', [WIN / 'worker_fixture.cpp'], wide_main=True)
@@ -175,6 +182,15 @@ def main():
         ]
         supervisor = targets[-1][0]
         commands = [[test[0]] for test in targets[:-1]] + [[supervisor, fixture]]
+    if not args.engine_only and not args.without_external:
+        targets.append(target('external-user32-fixture.exe', [WIN / 'external_user32_fixture.cpp'],
+                              libraries=['user32']))
+        external_probe = target('external-target-test.exe', [WIN / 'external_target.cpp', WIN / 'external_target_test.cpp'],
+                                defines=['NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS'],
+                                libraries=['user32', 'advapi32', 'ole32', 'oleaut32', 'uuid',
+                                           'bcrypt', 'netapi32', 'userenv', 'wtsapi32'], wide_main=True)
+        targets.append(external_probe)
+        commands.append([external_probe[0]])
     if args.package:
         runtime = args.package.resolve() / 'runtime'
         real = out / 'production'
@@ -233,7 +249,14 @@ def main():
         if is_smoke:
             resources = out / f'memory-{label}-{requested_cpu}.json'
             measured = [sys.executable, '-m', 'p0.windows.measure', '--output', resources, '--', *cmd]
-        completed = subprocess.run(measured, check=False, env=env, timeout=120 if is_smoke else 30)
+        is_external = cmd[0].name == 'external-target-test.exe'
+        if is_external:
+            measured = [
+                Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe',
+                '-NoProfile', '-NonInteractive', '-File', WIN / 'external_interactive_test.ps1',
+                '-ProbeExe', cmd[0], '-Case', 'Native',
+            ]
+        completed = subprocess.run(measured, check=False, env=env, timeout=125 if is_external else (120 if is_smoke else 30))
         result = {'test': label, 'requested_cpu': requested_cpu, 'elapsed_seconds': round(time.perf_counter() - start, 3)}
         if is_smoke:
             with wave.open(str(cmd[2]), 'rb') as audio:

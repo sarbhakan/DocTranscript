@@ -134,7 +134,7 @@ def run(zig, args, cache):
     subprocess.run([str(zig), *map(str, args)], check=True, cwd=ROOT, env=env)
 
 
-def compile_bundle(zig, work, package, cache, whisper_runtime):
+def compile_bundle(zig, work, package, cache, whisper_runtime, preview_exe=None):
     make_resources(work / "notevive.res")
     spec = LOCK["catalogue"]
     (work / "catalogue_integrity.h").write_text(
@@ -142,7 +142,7 @@ def compile_bundle(zig, work, package, cache, whisper_runtime):
         f'#define NOTEVIVE_CATALOGUE_SHA256 "{spec["hash"]}"\n', encoding="ascii")
     (package / "Build").mkdir()
     (package / "Build/version.json").write_text(json.dumps({
-        "product": "NoteVive", "version": "0.3.1-essai",
+        "product": "NoteVive", "version": "0.4.0-essai",
         "source_commit": os.environ.get("GITHUB_SHA", "local-build"),
         "asr": "whisper.cpp-1.8.5", "model": "large-v3-turbo-q5_0",
         "decoder_upstream_fix": DECODER_PATCH["upstream_commit"],
@@ -168,11 +168,21 @@ def compile_bundle(zig, work, package, cache, whisper_runtime):
         f'#define NOTEVIVE_WORKER_SHA256 "{digest(child)}"\n', encoding="ascii")
     run(zig, ["cc", *BASE_FLAGS, "-DNDEBUG", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_OMIT_LOAD_EXTENSION",
               "-DSQLITE_OMIT_DEPRECATED", "-c", work / "sqlite3.c", "-o", work / "sqlite3.obj"], cache)
-    run(zig, ["c++", *CXX_FLAGS, "-municode", "-Wl,--subsystem,windows", "-I", work, "-s",
-              *(WIN / f for f in ("main.cpp", "engine.cpp", "notes.cpp", "catalogue.cpp", "integrity.cpp")),
+    gui_args = ["c++", *CXX_FLAGS, "-municode", "-Wl,--subsystem,windows", "-I", work, "-s",
+              *(WIN / f for f in ("main.cpp", "engine.cpp", "notes.cpp", "catalogue.cpp", "integrity.cpp",
+                                  "ui_theme.cpp", "dictation_overlay.cpp", "external_target.cpp")),
               work / "sqlite3.obj", work / "notevive.res", "-luser32", "-lgdi32", "-lwtsapi32", "-lwinmm",
-              "-lcrypt32", "-lole32", "-lshell32", "-luuid", "-lbcrypt", "-lcomctl32", "-o", package / "NoteVive.exe"], cache)
+              "-lcrypt32", "-lole32", "-loleaut32", "-ladvapi32", "-lshell32", "-luuid", "-lbcrypt", "-lcomctl32"]
+    run(zig, [*gui_args, "-o", package / "NoteVive.exe"], cache)
     check_windows_gui(package / "NoteVive.exe")
+    if preview_exe:
+        # Separate, non-shipping artifact for a fictional UI screenshot only.
+        preview_exe = preview_exe.resolve()
+        if preview_exe.exists() or preview_exe.is_relative_to(package.resolve()):
+            raise ValueError("Le binaire de capture doit être neuf et hors du paquet distribué")
+        preview_exe.parent.mkdir(parents=True, exist_ok=True)
+        run(zig, [*gui_args, "-DNOTEVIVE_UI_CAPTURE_TEST", "-o", preview_exe], cache)
+        check_windows_gui(preview_exe)
 
 
 def check_windows_gui(path):
@@ -207,6 +217,7 @@ def main():
     parser.add_argument("--catalogue", type=Path, default=ROOT / "lexique/private/catalogue-essai-public.sqlite")
     parser.add_argument("--build-cache", type=Path, default=ROOT / "app/private/build-cache")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/NoteVive-Windows-x64-Essai.zip")
+    parser.add_argument("--preview-exe", type=Path, help="Binaire séparé de capture UI fictive, jamais ajouté au ZIP")
     args = parser.parse_args()
     output = args.output.resolve()
     if output.exists() or output.with_suffix(output.suffix + ".sha256").exists():
@@ -219,7 +230,7 @@ def main():
         parser.error("Version Zig différente de celle déclarée dans le verrou")
     with tempfile.TemporaryDirectory(prefix="notevive-", dir=cache) as tmp:
         work, package = stage_inputs(args.downloads.resolve(), Path(tmp), args.catalogue.resolve(), args.whisper_runtime.resolve())
-        compile_bundle(args.zig.resolve(), work, package, cache, args.whisper_runtime.resolve())
+        compile_bundle(args.zig.resolve(), work, package, cache, args.whisper_runtime.resolve(), args.preview_exe)
         publish(package, output)
     print(output)
 

@@ -1,0 +1,40 @@
+{
+  "actual_optimizer_updates": 271,
+  "adapter_final_sha256": "6b99bcb2b6e2a5ef240ed9d0f9b38ed513e81218648399017118fc2b05797036",
+  "adapter_initial_sha256": "6d506807f5d330ef204e1bb2675438abede95fdc558f1dba507c3c33014b7a16",
+  "adapter_reload_exact": true,
+  "adapter_weights_changed": true,
+  "base_parameters_sha256": "765092f2e6baec1846c7c631ab5c583cc5140bda723752fdefd6b960413ae52c",
+  "base_weights_unchanged": true,
+  "clips_consumed": 1081,
+  "contract_sha256": "4709d24e8ad590d24e675edd3a871c5493043232f042e6cddc1270679efccaa2",
+  "disk_free_bytes": 5383720960,
+  "elapsed_seconds": 1395.1430861660047,
+  "last_validation": {
+    "clips": 282,
+    "elapsed_seconds": 270.7602437500027,
+    "speakers": 8,
+    "token_weighted_cross_entropy": 0.2659219295590254,
+    "tokens": 5660
+  },
+  "mechanics_only_micro_trial": false,
+  "mps_current_allocated_bytes": 1626838784,
+  "mps_driver_allocated_bytes": 3578019840,
+  "mps_recommended_max_bytes": 12713115648,
+  "process_peak_rss_bytes": 1026932736,
+  "promoted_to_application": false,
+  "schema": 1,
+  "status": "completed",
+  "training_performed": true,
+  "max_sampled_mps_driver_bytes": 3578019840,
+  "source_code_sha256": {
+    "p0/training/train_lora.py": "98d6ac1f33ea8cffbd114842bd9ed649d38a71315dd3d856849e22aeb0051baa",
+    "p0/training/prepare_px.py": "3ea8ac11065767c27818ee94b584c60f65ad5866e9c7c06d5d5facefbf6fede6",
+    "p0/training/fetch_model.py": "9acd9859724941a0543d9be9a681a3517c890f9645bcd86a0389005b5b5cd45c",
+    "p0/training/model.lock.json": "539ab782543aca70a9114f979e0f3f2de8278bc46bbd9e8afdb1ebab89ffe79a",
+    "p0/training/requirements-macos-arm64.lock.txt": "aea4a0f03bce9cebaeb213c27002a4f389c372751a1cf6a9bd4d6de76ff9225c"
+  },
+  "date": "2026-11-14",
+  "host": "Apple M1 Pro, 16 GiB unified memory",
+  "scope": "One epoch on 1081 simulated prescriptions, validation loss on 282 held-out clips. ASR adoption is a separate decision."
+}

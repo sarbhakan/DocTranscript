@@ -334,7 +334,12 @@ bool Store::Open(std::wstring& error) {
     CoTaskMemFree(path);
     if (local.empty())
         return Fail(error, L"Le dossier de données du compte Windows doit se trouver sur un disque local.");
+#ifdef NOTEVIVE_UI_CAPTURE_TEST
+    // The non-distributed visual build only works on its own fictional data.
+    const std::wstring base = local + L"\\NoteVive-VisualSmoke";
+#else
     const std::wstring base = local + L"\\NoteVive-Pilote";
+#endif
     const auto notes = base + L"\\notes";
     if (!EnsureDirectory(base) || !EnsureDirectory(notes))
         return Fail(error, L"Impossible d’ouvrir la bibliothèque de notes locale.");
