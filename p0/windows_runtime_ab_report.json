@@ -1,0 +1,1434 @@
+{
+  "comparison": {
+    "arm_orders": [
+      [
+        "1.8.5",
+        "1.9.5"
+      ],
+      [
+        "1.9.5",
+        "1.8.5"
+      ]
+    ],
+    "asr_threads": 4,
+    "assets": {
+      "ggml-large-v3-turbo-q5_0.bin": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      "ggml-silero-v6.2.0.bin": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+      "openblas-v0.3.34-source.tar.gz": "cd7e129868320cc2d033afa920e31202dfe0b8066a5b66661900ccc0f197dfed"
+    },
+    "build": {
+      "arms": {
+        "1.8.5": {
+          "cmake_options": {
+            "BUILD_SHARED_LIBS": "OFF",
+            "CMAKE_CXX_FLAGS_INIT": "-clang:-mno-fsgsbase -clang:-mno-movbe -clang:-mno-pclmul -clang:-mno-xsaveopt",
+            "CMAKE_C_FLAGS_INIT": "-clang:-mno-fsgsbase -clang:-mno-movbe -clang:-mno-pclmul -clang:-mno-xsaveopt",
+            "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded",
+            "GGML_AVX": "ON",
+            "GGML_AVX2": "ON",
+            "GGML_AVX512": "OFF",
+            "GGML_AVX512_BF16": "OFF",
+            "GGML_AVX512_VBMI": "OFF",
+            "GGML_AVX512_VNNI": "OFF",
+            "GGML_AVX_VNNI": "OFF",
+            "GGML_BACKEND_DL": "OFF",
+            "GGML_BLAS": "ON",
+            "GGML_BLAS_VENDOR": "OpenBLAS",
+            "GGML_BMI2": "OFF",
+            "GGML_BUILD_EXAMPLES": "OFF",
+            "GGML_BUILD_TESTS": "OFF",
+            "GGML_CCACHE": "OFF",
+            "GGML_CPU": "ON",
+            "GGML_CPU_ALL_VARIANTS": "OFF",
+            "GGML_CPU_HBM": "OFF",
+            "GGML_CPU_KLEIDIAI": "OFF",
+            "GGML_CUDA": "OFF",
+            "GGML_HIP": "OFF",
+            "GGML_LLAMAFILE": "OFF",
+            "GGML_LTO": "OFF",
+            "GGML_METAL": "OFF",
+            "GGML_NATIVE": "OFF",
+            "GGML_OPENCL": "OFF",
+            "GGML_OPENMP": "OFF",
+            "GGML_SSE42": "OFF",
+            "GGML_SYCL": "OFF",
+            "GGML_VULKAN": "OFF",
+            "WHISPER_BUILD_EXAMPLES": "OFF",
+            "WHISPER_BUILD_SERVER": "OFF",
+            "WHISPER_BUILD_TESTS": "OFF",
+            "WHISPER_COREML": "OFF",
+            "WHISPER_CURL": "OFF",
+            "WHISPER_OPENVINO": "OFF",
+            "WHISPER_SDL2": "OFF",
+            "WHISPER_USE_SYSTEM_GGML": "OFF"
+          },
+          "compiler": {
+            "C": {
+              "executable": "clang-cl.exe",
+              "id": "Clang",
+              "version": "19.1.5"
+            },
+            "CXX": {
+              "executable": "clang-cl.exe",
+              "id": "Clang",
+              "version": "19.1.5"
+            }
+          },
+          "probe_dll_sha256": "e3ae27d328355a98e476930a559433ada6e46e93acb17211ff3a788589a2f06e",
+          "probe_imports": [
+            "kernel32.dll",
+            "whisper.dll"
+          ],
+          "rng_reset": "6d0ed914991cac42ace012a05588880801831343",
+          "source": {
+            "hash": "cd702189cb5e608c8bc487f4b151db593c4455925b37cc06ef76b44861911db1",
+            "url": "https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.8.5"
+          },
+          "whisper_dll_sha256": "ce3528c5b3f41bb13c6ead6274fdfef4b95483130bddc648c972a41fb75774db",
+          "whisper_imports": [
+            "advapi32.dll",
+            "kernel32.dll"
+          ],
+          "whisper_license_sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+        },
+        "1.9.5": {
+          "cmake_options": {
+            "BUILD_SHARED_LIBS": "OFF",
+            "CMAKE_CXX_FLAGS_INIT": "-clang:-mno-fsgsbase -clang:-mno-movbe -clang:-mno-pclmul -clang:-mno-xsaveopt",
+            "CMAKE_C_FLAGS_INIT": "-clang:-mno-fsgsbase -clang:-mno-movbe -clang:-mno-pclmul -clang:-mno-xsaveopt",
+            "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded",
+            "GGML_AVX": "ON",
+            "GGML_AVX2": "ON",
+            "GGML_AVX512": "OFF",
+            "GGML_AVX512_BF16": "OFF",
+            "GGML_AVX512_VBMI": "OFF",
+            "GGML_AVX512_VNNI": "OFF",
+            "GGML_AVX_VNNI": "OFF",
+            "GGML_BACKEND_DL": "OFF",
+            "GGML_BLAS": "ON",
+            "GGML_BLAS_VENDOR": "OpenBLAS",
+            "GGML_BMI2": "OFF",
+            "GGML_BUILD_EXAMPLES": "OFF",
+            "GGML_BUILD_TESTS": "OFF",
+            "GGML_CCACHE": "OFF",
+            "GGML_CPU": "ON",
+            "GGML_CPU_ALL_VARIANTS": "OFF",
+            "GGML_CPU_HBM": "OFF",
+            "GGML_CPU_KLEIDIAI": "OFF",
+            "GGML_CUDA": "OFF",
+            "GGML_HIP": "OFF",
+            "GGML_LLAMAFILE": "OFF",
+            "GGML_LTO": "OFF",
+            "GGML_METAL": "OFF",
+            "GGML_NATIVE": "OFF",
+            "GGML_OPENCL": "OFF",
+            "GGML_OPENMP": "OFF",
+            "GGML_SSE42": "OFF",
+            "GGML_SYCL": "OFF",
+            "GGML_VULKAN": "OFF",
+            "WHISPER_BUILD_EXAMPLES": "OFF",
+            "WHISPER_BUILD_IS_DEV": "OFF",
+            "WHISPER_BUILD_SERVER": "OFF",
+            "WHISPER_BUILD_TESTS": "OFF",
+            "WHISPER_COREML": "OFF",
+            "WHISPER_CURL": "OFF",
+            "WHISPER_OPENVINO": "OFF",
+            "WHISPER_SDL2": "OFF",
+            "WHISPER_USE_SYSTEM_GGML": "OFF"
+          },
+          "compiler": {
+            "C": {
+              "executable": "clang-cl.exe",
+              "id": "Clang",
+              "version": "19.1.5"
+            },
+            "CXX": {
+              "executable": "clang-cl.exe",
+              "id": "Clang",
+              "version": "19.1.5"
+            }
+          },
+          "probe_dll_sha256": "1c8641b6815132260c580492e83bfa59241714fcc8da9869267ba231d4d3a7a3",
+          "probe_imports": [
+            "kernel32.dll",
+            "whisper.dll"
+          ],
+          "rng_reset": "upstream",
+          "source": {
+            "hash": "ff1a9053feb509ff9d7729703355541ae9690073a6b1c40eb692c962e0dc1720",
+            "url": "https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v1.9.5"
+          },
+          "whisper_dll_sha256": "685449f48798454219cd6e97c36379efcaddf0bb6005a33b9d7f093d27319683",
+          "whisper_imports": [
+            "advapi32.dll",
+            "kernel32.dll"
+          ],
+          "whisper_license_sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d"
+        }
+      },
+      "bridge_sha256": "cddf24b74f60b3b4e18c54cf49e3969ae3ee5299db1ddd184b5e71c04ad0830d",
+      "openblas": {
+        "cmake_options": {
+          "BINARY": "64",
+          "BUILD_COMPLEX": "OFF",
+          "BUILD_COMPLEX16": "OFF",
+          "BUILD_DOUBLE": "OFF",
+          "BUILD_SHARED_LIBS": "OFF",
+          "BUILD_SINGLE": "ON",
+          "BUILD_STATIC_LIBS": "ON",
+          "BUILD_TESTING": "OFF",
+          "BUILD_WITHOUT_LAPACK": "ON",
+          "CMAKE_BUILD_TYPE": "Release",
+          "CMAKE_C_FLAGS_INIT": "/arch:AVX2 -clang:-mno-fsgsbase -clang:-mno-movbe -clang:-mno-pclmul -clang:-mno-xsaveopt",
+          "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+          "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded",
+          "CMAKE_POLICY_DEFAULT_CMP0091": "NEW",
+          "DYNAMIC_ARCH": "OFF",
+          "FIXED_LIBNAME": "ON",
+          "INTERFACE64": "OFF",
+          "NOFORTRAN": "ON",
+          "NO_AVX512": "ON",
+          "NUM_THREADS": "4",
+          "ONLY_CBLAS": "ON",
+          "TARGET": "HASWELL",
+          "USE_OPENMP": "OFF",
+          "USE_THREAD": "ON"
+        },
+        "compiler": {
+          "executable": "clang-cl.exe",
+          "id": "Clang",
+          "version": "19.1.5"
+        },
+        "generator": "Ninja",
+        "source_sha256": "cd7e129868320cc2d033afa920e31202dfe0b8066a5b66661900ccc0f197dfed",
+        "source_url": "https://github.com/OpenMathLib/OpenBLAS/releases/download/v0.3.34/OpenBLAS-0.3.34.tar.gz",
+        "variant": "avx2",
+        "version": "0.3.34",
+        "whisper_patch": {
+          "after_sha256": "51bf55eca2ae18fce5b8ed07a7c9bd911a2280b074a669b8a1483607a78c1db1",
+          "before_sha256": "dc7028c2c7207e8c334fd61ea4556599a326710cd9b33050bace38833529df71",
+          "path": "ggml/src/ggml-blas/CMakeLists.txt"
+        }
+      },
+      "openblas_lib_sha256": "dedc9081a86d2899d4afeeb0c093f49829bde5aa0dadb2f0b35938b488e8bf52",
+      "pause_state_sha256": "673474bf355ec256b324f444ac97821e06f10e29b32536fb347aa47ee9dea9ad",
+      "silero_pause_sha256": "3bae913ed74bfe2b6360c2a1e8983b7610592a0ac97cb999bc7c55b5612ca35e"
+    },
+    "measurements": [
+      {
+        "1.8.5": {
+          "cold": {
+            "initialize_ms": 179.305,
+            "memory": {
+              "peak_private_commit_bytes_sampled": 1971175424,
+              "peak_working_set_bytes_sampled": 834392064,
+              "sample_ms": 50,
+              "samples": 167
+            },
+            "process_wall_ms": 15610.701,
+            "rows": [
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-826",
+                "realtime_factor": 2.351185,
+                "replay_ms": 15141.629,
+                "segments": [
+                  {
+                    "decode_ms": 15116.518,
+                    "feed_end_ms": 5040.0,
+                    "frames": 74240,
+                    "pcm_fnv1a64": "f3e871b317886221",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 6.44
+              }
+            ]
+          },
+          "warm": {
+            "initialize_ms": 183.715,
+            "memory": {
+              "peak_private_commit_bytes_sampled": 1982943232,
+              "peak_working_set_bytes_sampled": 847110144,
+              "sample_ms": 50,
+              "samples": 1550
+            },
+            "process_wall_ms": 140535.077,
+            "rows": [
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-826",
+                "realtime_factor": 2.428778,
+                "replay_ms": 15641.333,
+                "segments": [
+                  {
+                    "decode_ms": 15616.27,
+                    "feed_end_ms": 5040.0,
+                    "frames": 74240,
+                    "pcm_fnv1a64": "f3e871b317886221",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 6.44
+              },
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "7,5",
+                    "1",
+                    "¼",
+                    "7"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ],
+                    "fraction": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "7,5",
+                    "1",
+                    "¼",
+                    "7"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    0,
+                    1
+                  ]
+                },
+                "id": "px-23",
+                "realtime_factor": 3.672828,
+                "replay_ms": 61703.513,
+                "segments": [
+                  {
+                    "decode_ms": 15555.148,
+                    "feed_end_ms": 3620.0,
+                    "frames": 52736,
+                    "pcm_fnv1a64": "a72c6ea901956a34",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 15656.454,
+                    "feed_end_ms": 9800.0,
+                    "frames": 86016,
+                    "pcm_fnv1a64": "80293e4df40e6812",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 15196.553,
+                    "feed_end_ms": 12240.0,
+                    "frames": 38912,
+                    "pcm_fnv1a64": "9aadc4b7a34ee326",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 15229.791,
+                    "feed_end_ms": 15040.0,
+                    "frames": 26112,
+                    "pcm_fnv1a64": "b2a8bba4ba777d9f",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 16.8
+              },
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "80",
+                    "½",
+                    "½",
+                    "2"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ],
+                    "fraction": [
+                      2,
+                      2
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "80",
+                    "½",
+                    "½",
+                    "2"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-584",
+                "realtime_factor": 3.036214,
+                "replay_ms": 46150.453,
+                "segments": [
+                  {
+                    "decode_ms": 15690.105,
+                    "feed_end_ms": 6180.0,
+                    "frames": 61440,
+                    "pcm_fnv1a64": "4a3c19d6e3f92074",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 15306.619,
+                    "feed_end_ms": 9860.0,
+                    "frames": 58880,
+                    "pcm_fnv1a64": "5dbfa464a403f695",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 15095.128,
+                    "feed_end_ms": 14540.0,
+                    "frames": 49664,
+                    "pcm_fnv1a64": "f0cd6a097d9bda6a",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 15.2
+              },
+              {
+                "checks": {
+                  "silent": true
+                },
+                "id": "silence",
+                "realtime_factor": 0.003702,
+                "replay_ms": 29.618,
+                "segments": [],
+                "speech_seconds": 8.0
+              }
+            ]
+          }
+        },
+        "1.9.5": {
+          "cold": {
+            "initialize_ms": 195.64,
+            "memory": {
+              "peak_private_commit_bytes_sampled": 1970696192,
+              "peak_working_set_bytes_sampled": 834514944,
+              "sample_ms": 50,
+              "samples": 181
+            },
+            "process_wall_ms": 17018.737,
+            "rows": [
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-826",
+                "realtime_factor": 2.565787,
+                "replay_ms": 16523.666,
+                "segments": [
+                  {
+                    "decode_ms": 16498.692,
+                    "feed_end_ms": 5040.0,
+                    "frames": 74240,
+                    "pcm_fnv1a64": "f3e871b317886221",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 6.44
+              }
+            ]
+          },
+          "warm": {
+            "initialize_ms": 179.946,
+            "memory": {
+              "peak_private_commit_bytes_sampled": 1980796928,
+              "peak_working_set_bytes_sampled": 844009472,
+              "sample_ms": 50,
+              "samples": 1379
+            },
+            "process_wall_ms": 130241.558,
+            "rows": [
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-826",
+                "realtime_factor": 2.244211,
+                "replay_ms": 14452.718,
+                "segments": [
+                  {
+                    "decode_ms": 14427.612,
+                    "feed_end_ms": 5040.0,
+                    "frames": 74240,
+                    "pcm_fnv1a64": "f3e871b317886221",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 6.44
+              },
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "7,5",
+                    "1",
+                    "¼",
+                    "7"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ],
+                    "fraction": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "7,5",
+                    "1",
+                    "¼",
+                    "7"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    0,
+                    1
+                  ]
+                },
+                "id": "px-23",
+                "realtime_factor": 3.420436,
+                "replay_ms": 57463.321,
+                "segments": [
+                  {
+                    "decode_ms": 14293.073,
+                    "feed_end_ms": 3620.0,
+                    "frames": 52736,
+                    "pcm_fnv1a64": "a72c6ea901956a34",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14485.451,
+                    "feed_end_ms": 9800.0,
+                    "frames": 86016,
+                    "pcm_fnv1a64": "80293e4df40e6812",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14314.171,
+                    "feed_end_ms": 12240.0,
+                    "frames": 38912,
+                    "pcm_fnv1a64": "9aadc4b7a34ee326",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14305.58,
+                    "feed_end_ms": 15040.0,
+                    "frames": 26112,
+                    "pcm_fnv1a64": "b2a8bba4ba777d9f",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 16.8
+              },
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "80",
+                    "½",
+                    "½",
+                    "2"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ],
+                    "fraction": [
+                      2,
+                      2
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "80",
+                    "½",
+                    "½",
+                    "2"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-584",
+                "realtime_factor": 2.840003,
+                "replay_ms": 43168.044,
+                "segments": [
+                  {
+                    "decode_ms": 14370.464,
+                    "feed_end_ms": 6180.0,
+                    "frames": 61440,
+                    "pcm_fnv1a64": "4a3c19d6e3f92074",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14314.968,
+                    "feed_end_ms": 9860.0,
+                    "frames": 58880,
+                    "pcm_fnv1a64": "5dbfa464a403f695",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14423.699,
+                    "feed_end_ms": 14540.0,
+                    "frames": 49664,
+                    "pcm_fnv1a64": "f0cd6a097d9bda6a",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 15.2
+              },
+              {
+                "checks": {
+                  "silent": true
+                },
+                "id": "silence",
+                "realtime_factor": 0.003713,
+                "replay_ms": 29.703,
+                "segments": [],
+                "speech_seconds": 8.0
+              }
+            ]
+          }
+        }
+      },
+      {
+        "1.8.5": {
+          "cold": {
+            "initialize_ms": 200.075,
+            "memory": {
+              "peak_private_commit_bytes_sampled": 1971245056,
+              "peak_working_set_bytes_sampled": 834449408,
+              "sample_ms": 50,
+              "samples": 168
+            },
+            "process_wall_ms": 15381.784,
+            "rows": [
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-826",
+                "realtime_factor": 2.312084,
+                "replay_ms": 14889.818,
+                "segments": [
+                  {
+                    "decode_ms": 14865.125,
+                    "feed_end_ms": 5040.0,
+                    "frames": 74240,
+                    "pcm_fnv1a64": "f3e871b317886221",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 6.44
+              }
+            ]
+          },
+          "warm": {
+            "initialize_ms": 175.119,
+            "memory": {
+              "peak_private_commit_bytes_sampled": 1982488576,
+              "peak_working_set_bytes_sampled": 844713984,
+              "sample_ms": 50,
+              "samples": 1408
+            },
+            "process_wall_ms": 135839.673,
+            "rows": [
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-826",
+                "realtime_factor": 2.340249,
+                "replay_ms": 15071.201,
+                "segments": [
+                  {
+                    "decode_ms": 15046.711,
+                    "feed_end_ms": 5040.0,
+                    "frames": 74240,
+                    "pcm_fnv1a64": "f3e871b317886221",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 6.44
+              },
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "7,5",
+                    "1",
+                    "¼",
+                    "7"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ],
+                    "fraction": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "7,5",
+                    "1",
+                    "¼",
+                    "7"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    0,
+                    1
+                  ]
+                },
+                "id": "px-23",
+                "realtime_factor": 3.569003,
+                "replay_ms": 59959.253,
+                "segments": [
+                  {
+                    "decode_ms": 14955.422,
+                    "feed_end_ms": 3620.0,
+                    "frames": 52736,
+                    "pcm_fnv1a64": "a72c6ea901956a34",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 15110.128,
+                    "feed_end_ms": 9800.0,
+                    "frames": 86016,
+                    "pcm_fnv1a64": "80293e4df40e6812",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14914.618,
+                    "feed_end_ms": 12240.0,
+                    "frames": 38912,
+                    "pcm_fnv1a64": "9aadc4b7a34ee326",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14914.401,
+                    "feed_end_ms": 15040.0,
+                    "frames": 26112,
+                    "pcm_fnv1a64": "b2a8bba4ba777d9f",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 16.8
+              },
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "80",
+                    "½",
+                    "½",
+                    "2"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ],
+                    "fraction": [
+                      2,
+                      2
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "80",
+                    "½",
+                    "½",
+                    "2"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-584",
+                "realtime_factor": 2.963569,
+                "replay_ms": 45046.255,
+                "segments": [
+                  {
+                    "decode_ms": 14992.742,
+                    "feed_end_ms": 6180.0,
+                    "frames": 61440,
+                    "pcm_fnv1a64": "4a3c19d6e3f92074",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14985.458,
+                    "feed_end_ms": 9860.0,
+                    "frames": 58880,
+                    "pcm_fnv1a64": "5dbfa464a403f695",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 15010.414,
+                    "feed_end_ms": 14540.0,
+                    "frames": 49664,
+                    "pcm_fnv1a64": "f0cd6a097d9bda6a",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 15.2
+              },
+              {
+                "checks": {
+                  "silent": true
+                },
+                "id": "silence",
+                "realtime_factor": 0.003639,
+                "replay_ms": 29.108,
+                "segments": [],
+                "speech_seconds": 8.0
+              }
+            ]
+          }
+        },
+        "1.9.5": {
+          "cold": {
+            "initialize_ms": 179.98,
+            "memory": {
+              "peak_private_commit_bytes_sampled": 1970737152,
+              "peak_working_set_bytes_sampled": 834551808,
+              "sample_ms": 50,
+              "samples": 164
+            },
+            "process_wall_ms": 15423.956,
+            "rows": [
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-826",
+                "realtime_factor": 2.321434,
+                "replay_ms": 14950.034,
+                "segments": [
+                  {
+                    "decode_ms": 14925.12,
+                    "feed_end_ms": 5040.0,
+                    "frames": 74240,
+                    "pcm_fnv1a64": "f3e871b317886221",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 6.44
+              }
+            ]
+          },
+          "warm": {
+            "initialize_ms": 203.416,
+            "memory": {
+              "peak_private_commit_bytes_sampled": 1981001728,
+              "peak_working_set_bytes_sampled": 844685312,
+              "sample_ms": 50,
+              "samples": 1402
+            },
+            "process_wall_ms": 131145.601,
+            "rows": [
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "20",
+                    "1"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-826",
+                "realtime_factor": 2.248534,
+                "replay_ms": 14480.562,
+                "segments": [
+                  {
+                    "decode_ms": 14455.3,
+                    "feed_end_ms": 5040.0,
+                    "frames": 74240,
+                    "pcm_fnv1a64": "f3e871b317886221",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 6.44
+              },
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "7,5",
+                    "1",
+                    "¼",
+                    "7"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ],
+                    "fraction": [
+                      1,
+                      1
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "7,5",
+                    "1",
+                    "¼",
+                    "7"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    0,
+                    1
+                  ]
+                },
+                "id": "px-23",
+                "realtime_factor": 3.428768,
+                "replay_ms": 57603.304,
+                "segments": [
+                  {
+                    "decode_ms": 14381.605,
+                    "feed_end_ms": 3620.0,
+                    "frames": 52736,
+                    "pcm_fnv1a64": "a72c6ea901956a34",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14505.172,
+                    "feed_end_ms": 9800.0,
+                    "frames": 86016,
+                    "pcm_fnv1a64": "80293e4df40e6812",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14346.512,
+                    "feed_end_ms": 12240.0,
+                    "frames": 38912,
+                    "pcm_fnv1a64": "9aadc4b7a34ee326",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14304.187,
+                    "feed_end_ms": 15040.0,
+                    "frames": 26112,
+                    "pcm_fnv1a64": "b2a8bba4ba777d9f",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 16.8
+              },
+              {
+                "checks": {
+                  "actual_numeric_sequence": [
+                    "80",
+                    "½",
+                    "½",
+                    "2"
+                  ],
+                  "administered_form_amounts_equal": true,
+                  "critical_span_presence": {
+                    "dose": [
+                      1,
+                      1
+                    ],
+                    "fraction": [
+                      2,
+                      2
+                    ]
+                  },
+                  "duration_amounts_equal": true,
+                  "expected_numeric_sequence": [
+                    "80",
+                    "½",
+                    "½",
+                    "2"
+                  ],
+                  "fraction_spans_ordered": true,
+                  "no_added_concentration": true,
+                  "no_added_negation": true,
+                  "no_negative_number": true,
+                  "numeric_sequence_equal": true,
+                  "passed": true,
+                  "terms": [
+                    1,
+                    1
+                  ]
+                },
+                "id": "px-584",
+                "realtime_factor": 2.883103,
+                "replay_ms": 43823.166,
+                "segments": [
+                  {
+                    "decode_ms": 14959.896,
+                    "feed_end_ms": 6180.0,
+                    "frames": 61440,
+                    "pcm_fnv1a64": "4a3c19d6e3f92074",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14362.31,
+                    "feed_end_ms": 9860.0,
+                    "frames": 58880,
+                    "pcm_fnv1a64": "5dbfa464a403f695",
+                    "phase": "pause"
+                  },
+                  {
+                    "decode_ms": 14442.441,
+                    "feed_end_ms": 14540.0,
+                    "frames": 49664,
+                    "pcm_fnv1a64": "f0cd6a097d9bda6a",
+                    "phase": "pause"
+                  }
+                ],
+                "speech_seconds": 15.2
+              },
+              {
+                "checks": {
+                  "silent": true
+                },
+                "id": "silence",
+                "realtime_factor": 0.00367,
+                "replay_ms": 29.359,
+                "segments": [],
+                "speech_seconds": 8.0
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "median_paired_warm_ratio": 0.9480419432270799,
+    "mode": "Windows AVX2 CPU ClangCL",
+    "packet_frames": 320,
+    "pair_checks": [
+      {
+        "exact_text_equal": true,
+        "id": "px-826",
+        "phase": "cold",
+        "regressions": [],
+        "repeat": 1,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "px-826",
+        "phase": "warm",
+        "regressions": [],
+        "repeat": 1,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "px-23",
+        "phase": "warm",
+        "regressions": [],
+        "repeat": 1,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "px-584",
+        "phase": "warm",
+        "regressions": [],
+        "repeat": 1,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "silence",
+        "phase": "warm",
+        "regressions": [],
+        "repeat": 1,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "px-826",
+        "phase": "cold",
+        "regressions": [],
+        "repeat": 2,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "px-826",
+        "phase": "warm",
+        "regressions": [],
+        "repeat": 2,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "px-23",
+        "phase": "warm",
+        "regressions": [],
+        "repeat": 2,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "px-584",
+        "phase": "warm",
+        "regressions": [],
+        "repeat": 2,
+        "same_pcm_and_pauses": true
+      },
+      {
+        "exact_text_equal": true,
+        "id": "silence",
+        "phase": "warm",
+        "regressions": [],
+        "repeat": 2,
+        "same_pcm_and_pauses": true
+      }
+    ],
+    "pause_ms": 576,
+    "phase_order": [
+      "cold",
+      "warm"
+    ],
+    "platform": {
+      "arch": "AMD64",
+      "logical_cpus": 4,
+      "os_version": "10.0.20348"
+    },
+    "public_screen": {
+      "covers_asserted_negations": false,
+      "identical_segments": true,
+      "identical_transcripts": true,
+      "no_regression_in_tested_spans": true,
+      "qualified_for_release": false,
+      "stable_transcripts": true,
+      "warm_ratio_at_most_0_80": false,
+      "warm_segment_p95_not_worse": true
+    },
+    "repeats": 2,
+    "schema_version": 1,
+    "silence_control_pcm_sha256": "24a046dc04fefdb652e4077b41162490b344a4dd45f918505477f84c592f3070",
+    "timing_summary": {
+      "1.8.5": {
+        "cold_model_init_median_ms": 189.69,
+        "cold_process_median_ms": 15496.2425,
+        "warm_median_ms": 45598.354,
+        "warm_median_realtime_factor": 2.9998915000000004,
+        "warm_segment_median_ms": 15102.628,
+        "warm_segment_p95_empirical_ms": 15690.105,
+        "warm_segments": 16
+      },
+      "1.9.5": {
+        "cold_model_init_median_ms": 187.81,
+        "cold_process_median_ms": 16221.3465,
+        "warm_median_ms": 43495.604999999996,
+        "warm_median_realtime_factor": 2.861553,
+        "warm_segment_median_ms": 14376.0345,
+        "warm_segment_p95_empirical_ms": 14959.896,
+        "warm_segments": 16
+      }
+    },
+    "unstable_cases": [],
+    "vad_threads": 1,
+    "versions": [
+      "1.8.5",
+      "1.9.5"
+    ],
+    "wav_sha256": {
+      "px-23": "264cc0dbca562aa7a936f01daa2e026775b6cf89efcca151694e2c8a9a96e323",
+      "px-584": "0003f0c6065832b0591dfb5a56a4734769d4fb3c9d45d45f9966dae72b69ed70",
+      "px-826": "c0fa5fb0f58eb9b13d4b7c9d786259f95e33711d4ae0e64bf9768425e0377d10",
+      "silence": null
+    }
+  },
+  "decision": {
+    "external_validity": "CI host only; no asserted negation, physical 8 GB PC or microphone validation.",
+    "keep": "1.8.5 (production build with upstream RNG-reset backport and OpenBLAS)",
+    "not_promoted": "1.9.5",
+    "reason": "Warm paired median improvement below 20% development threshold; no quality gain on these fixtures."
+  },
+  "environment": {
+    "cpu": [
+      {
+        "Name": "AMD EPYC 7763 64-Core Processor                ",
+        "NumberOfCores": 2,
+        "NumberOfLogicalProcessors": 4
+      }
+    ],
+    "memory_total_bytes": 17174360064,
+    "microphone_tested": false,
+    "os_version": "Microsoft Windows NT 10.0.20348.0",
+    "physical_8gb_pc_tested": false,
+    "schema_version": 1
+  },
+  "provenance": {
+    "archive_json_sha256": {
+      "asr-ab-environment.json": "fbe66be0391ac0e91fbc817c1ce97f0fcae22d518a2bb42e85ce4b52ac799ed3",
+      "notevive-asr-ab/report.json": "fcfaf3cee2708412b0602c0c481f5896b3135f617e8b8e538f0a30aa72a535b4"
+    },
+    "metrics_archive_sha256": "cd7255295bd4f8c37f753ab1de3ac967e207f1626ec5f1e5c6ba79252de02295",
+    "metrics_archive_sha256_scope": "GitHub Actions metrics artifact ZIP, not the NoteVive product ZIP",
+    "metrics_artifact_id": 14142633245,
+    "metrics_artifact_name": "ASR-Windows-AB",
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43667755235",
+    "source_head": "54428823e7cd87e70df565db0d730b54dbc325e9",
+    "windows_job_id": 132670833970
+  },
+  "schema_version": 1
+}

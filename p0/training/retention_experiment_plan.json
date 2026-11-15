@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "experiment": "px-retention-ce-kl-50",
+  "purpose": "Test whether frozen-base retention helps a short LoRA adaptation preserve recognised critical spans while gaining drug names.",
+  "arms_in_order": [
+    {"id": "ce50", "cross_entropy_weight": 1.0, "base_retention_kl_weight": 0.0},
+    {"id": "kl50", "cross_entropy_weight": 1.0, "base_retention_kl_weight": 0.35}
+  ],
+  "matching": {
+    "initialisation": "zero-effect LoRA on the same locked Whisper Turbo base",
+    "roles": "Same locked PxCorpus export and train-only examples, shared seed and ordering.",
+    "seed": 20261114,
+    "updates_per_arm": 50,
+    "epochs": 1,
+    "accumulation": 4,
+    "peak_learning_rate": 0.0001,
+    "checkpoint_every": 0,
+    "validation_loss_clips": 8,
+    "device": "mps",
+    "dtype": "float16",
+    "threads": 4,
+    "min_free_gib": 2,
+    "no_resume": true
+  },
+  "generation": {
+    "base_repeated_with_each_arm": true,
+    "references_passed_to_generation": false,
+    "windows_in_order": [
+      {"id": "historical32", "offset": 0, "count": 32, "role": "Historical descriptive comparison; known difficult cases."},
+      {"id": "additional64", "offset": 32, "count": 64, "role": "Additional development clips, same eight voices; not an independent holdout."}
+    ],
+    "grid_freeze": "Before any free generation in this experiment, bind both critical grids to selected reference SHA-256 and freeze the scoring code.",
+    "reserved_benchmark_85": "Do not score or inspect this reserve to tune either treatment. Use an independently prepared confirmation set for any subsequent adoption."
+  },
+  "decision": {
+    "gate_each_window": [
+      "No introduced failure for any scored medication, dose, fraction, decimal, sign, unit, negation, duration, numbers or association; record unmeasured categories and audit regression cases.",
+      "All clips terminate with the end token.",
+      "Cumulative and median generation time each at most 110 percent of the paired base; timings are exploratory on MPS."
+    ],
+    "gate_additional64": [
+      "Fewer total word edits than the paired base.",
+      "At least one correctly recognised drug-name gain and no loss of a drug known to the paired base."
+    ],
+    "paired_base_disagreement": "Report per-clip baseline differences; if nonzero, make no causal comparison of arm differences without an independent replay.",
+    "tie_and_failure": "If neither passes retain the shipped model. If both pass report both treatments; favour simpler CE unless KL gives a clear critical gain. No threshold, weight, seed, validation window or checkpoints chosen after seeing results.",
+    "limit": "A pass is eligible only for a separate exported and quantised comparison on new voices; neither merge nor export runs here."
+  }
+}

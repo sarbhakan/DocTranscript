@@ -1,6 +1,8 @@
 # Ajustement local de Whisper pour NoteVive
 
-État au **14 novembre 2026 : l’entraînement est terminé et les trois sauvegardes évaluées sont refusées pour l’intégration**. Une passe complète a bien modifié les adaptateurs du modèle. Elle a réduit le nombre total d’erreurs sur le petit lot de développement, mais a aussi dégradé des noms de médicaments que la base reconnaissait correctement. **NoteVive conserve donc son modèle de base.** Aucun modèle adapté n’a été exporté ou ajouté à l’application.
+**Dernière expérience, 15 novembre 2026 :** le [lot médical et vitesse](precision-vitesse-041.md) ajoute un essai court sur 200 clips, une évaluation sur 96 dictées et des contrôles renforcés. Le bras terminé introduit encore des erreurs critiques ; le bras avec rétention est interrompu pour calcul non fini. Aucun de ces poids n'est intégré. Les [33 scripts fictifs](dictees-fiabilisation.md) préparent la suite avec le médecin volontaire.
+
+**Historique du 14 novembre 2026 : l’entraînement ci-dessous est terminé et les trois sauvegardes évaluées sont refusées pour l’intégration.** Une passe complète a bien modifié les adaptateurs du modèle. Elle a réduit le nombre total d’erreurs sur le petit lot de développement, mais a aussi dégradé des noms de médicaments que la base reconnaissait correctement. **NoteVive conserve donc son modèle de base.** Aucun modèle adapté n’a été exporté ou ajouté à l’application.
 
 Ce document explique ce qui a été exécuté, pourquoi le candidat n’est pas adopté et comment poursuivre avec un médecin volontaire. Les commandes et les contrôles techniques figurent dans le [guide d’entraînement](../p0/training/README.md). Le médecin n’a pas besoin d’installer cette chaîne pour utiliser ou tester NoteVive.
 

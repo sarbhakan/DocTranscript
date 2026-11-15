@@ -163,6 +163,14 @@ def validation_selection(rows: list[dict], count: int) -> list[dict]:
     return selected
 
 
+def validation_window(rows: list[dict], count: int, offset: int = 0) -> list[dict]:
+    """Slice the same voice-balanced ranking without changing historical selection."""
+    if type(offset) is not int or not 0 <= offset < len(rows) or type(count) is not int or count < 0:
+        raise ValueError("Fenêtre de validation invalide")
+    end = offset + count if count else 0
+    return validation_selection(rows, end)[offset:]
+
+
 def accumulation_groups(rows: list, size: int):
     if size < 1:
         raise ValueError("Accumulation positive requise")
@@ -350,23 +358,54 @@ def audio_features(rt, processor, corpus: Path, row: dict, device: str, dtype_na
             values.attention_mask.to(device=device))
 
 
-def forward_loss(rt, model, base, features, labels: list[int], device: str, dtype_name: str):
+def token_retention(torch, student, teacher, real_tokens: int):
+    """KL(base || adapter), averaged over lexical tokens and EOS, not vocabulary."""
+    begin = len(PREFIX) - 1  # Do not distil the three forced task/language tokens.
+    if student.shape != teacher.shape or len(student.shape) != 3 or student.shape[0] == 0 \
+            or not begin < real_tokens <= student.shape[1]:
+        raise ValueError("Dimensions de la rétention par jeton invalides")
+    logits = student[:, begin:real_tokens].float()
+    target = teacher.detach()[:, begin:real_tokens].float()
+    return torch.nn.functional.kl_div(
+        torch.log_softmax(logits, dim=-1), torch.log_softmax(target, dim=-1),
+        reduction="sum", log_target=True) / (student.shape[0] * (real_tokens - begin))
+
+
+def forward_loss(rt, model, base, features, labels: list[int], device: str, dtype_name: str,
+                 retention_weight: float = 0.0):
     torch = rt["torch"]
     targets = torch.tensor([labels], dtype=torch.long, device=device)
     decoder = torch.tensor([shift_labels(labels)], dtype=torch.long, device=device)
+    real_tokens = sum(value != -100 for value in labels)
     # The frozen encoder never retains a backward graph. Decoder LoRA does.
     with torch.no_grad(), torch.autocast(device_type=device, dtype=torch.float16,
                                          enabled=dtype_name == "float16"):
         encoded = base.get_encoder()(input_features=features, return_dict=True)
+    teacher = None
+    if retention_weight:
+        # PEFT toggles `requires_grad` when disabling adapters. Run the frozen
+        # teacher first so this never touches an existing student graph.
+        was_training, encoder_training = model.training, base.get_encoder().training
+        try:
+            model.eval()
+            with model.disable_adapter(), torch.no_grad(), torch.autocast(
+                    device_type=device, dtype=torch.float16, enabled=dtype_name == "float16"):
+                teacher = model(encoder_outputs=encoded, decoder_input_ids=decoder,
+                                use_cache=False, return_dict=True).logits
+        finally:
+            model.train(was_training)
+            base.get_encoder().train(encoder_training)
     with torch.autocast(device_type=device, dtype=torch.float16, enabled=dtype_name == "float16"):
         logits = model(encoder_outputs=encoded, decoder_input_ids=decoder,
                        use_cache=False, return_dict=True).logits
     # Explicit FP32 CE: transformers 4.57.3's Whisper loss itself does not cast.
-    loss = torch.nn.functional.cross_entropy(logits.float().reshape(-1, logits.shape[-1]),
-                                             targets.reshape(-1), ignore_index=-100)
+    ce = torch.nn.functional.cross_entropy(logits.float().reshape(-1, logits.shape[-1]),
+                                           targets.reshape(-1), ignore_index=-100)
+    kl = token_retention(torch, logits, teacher, real_tokens) if teacher is not None else None
+    loss = ce if kl is None else ce + retention_weight * kl
     if not bool(torch.isfinite(loss).item()):
         raise ValueError("Perte non finie : essai interrompu")
-    return loss, sum(value != -100 for value in labels)
+    return loss, real_tokens, ce.detach(), kl.detach() if kl is not None else None
 
 
 def validation_loss(rt, model, base, processor, corpus, rows, labels, args, output) -> dict:
@@ -377,7 +416,7 @@ def validation_loss(rt, model, base, processor, corpus, rows, labels, args, outp
     with torch.no_grad():
         for index, row in enumerate(rows, 1):
             features, _ = audio_features(rt, processor, corpus, row, args.device, args.dtype)
-            loss, length = forward_loss(rt, model, base, features, labels[row["id"]], args.device, args.dtype)
+            loss, length, _, _ = forward_loss(rt, model, base, features, labels[row["id"]], args.device, args.dtype)
             numerator += float(loss.item()) * length
             tokens += length
             del loss, features
@@ -389,7 +428,16 @@ def validation_loss(rt, model, base, processor, corpus, rows, labels, args, outp
     return result
 
 
+def require_finite_adapters(rt, tensors) -> None:
+    torch = rt["torch"]
+    with torch.no_grad():
+        if not tensors or any(tensor.dtype != torch.float32 or not torch.isfinite(tensor).all().item()
+                              for tensor in tensors):
+            raise ValueError("Poids LoRA absents, de type inattendu ou non finis ; sauvegarde refusée")
+
+
 def checkpoint(rt, model, output: Path, update: int, contract_hash: str, validation=None) -> Path:
+    require_finite_adapters(rt, list(rt["state"](model).values()))
     checkpoints = output / "checkpoints"
     checkpoints.mkdir(exist_ok=True)
     destination = checkpoints / f"update-{update:06d}"
@@ -464,6 +512,14 @@ def train(args):
                 "development_only": True, "upstream_pretraining_overlap": "unknown",
                 "starts_from": "verified_original_base_plus_new_zero_effect_LoRA",
                 "resume": False, "micro_trial": total <= 8,
+                "training_objective": {"cross_entropy_weight": 1.0,
+                                       "base_retention_kl_weight": args.retention_weight,
+                                       "kl_tokens": "lexical_and_eos_no_forced_prefix_or_padding",
+                                       "teacher": "same_frozen_base_eval_no_grad_adapter_disabled",
+                                       "teacher_inputs": "same_train_audio_and_shifted_train_reference",
+                                       "validation_loss_uses_teacher": False},
+                "trainer_source_sha256": sha256(Path(__file__)),
+                "validate_finite_adapter_weights_after_step_and_before_save": True,
                 "bitwise_MPS_reproducibility_validated": False}
     output.mkdir(mode=0o700)
     atomic_json(output / "contract.json", contract)
@@ -494,14 +550,19 @@ def train(args):
                 model.train()
                 base.get_encoder().eval()
                 optimizer.zero_grad(set_to_none=True)
-                step_started, loss_sum = time.monotonic(), 0.0
+                step_started, loss_sum, ce_sum, kl_sum = time.monotonic(), 0.0, 0.0, 0.0
                 for row in group:
                     features, _ = audio_features(rt, processor, corpus, row, args.device, args.dtype)
-                    loss, _ = forward_loss(rt, model, base, features, labels[row["id"]], args.device, args.dtype)
-                    loss_sum += float(loss.item())
+                    loss, _, ce, kl = forward_loss(rt, model, base, features, labels[row["id"]],
+                                                   args.device, args.dtype, args.retention_weight)
+                    ce_value = float(ce.item())
+                    ce_sum += ce_value
+                    loss_sum += ce_value if kl is None else float(loss.item())
+                    if kl is not None:
+                        kl_sum += float(kl.item())
                     scaler.scale(loss / len(group)).backward()
                     consumed += 1
-                    del loss, features
+                    del loss, ce, kl, features
                 if any(parameter.grad is not None for name, parameter in model.named_parameters() if "lora_" not in name):
                     raise ValueError("Un paramètre de base gelé a reçu un gradient")
                 scaler.unscale_(optimizer)
@@ -519,12 +580,16 @@ def train(args):
                 scaler.update()
                 if actual["updates"] != next_update:
                     raise ValueError("L’optimiseur a ignoré une mise à jour")
+                require_finite_adapters(rt, trainable)
                 aggregate = {"phase": "train", "update": actual["updates"], "epoch": epoch + 1,
                              "clips_consumed": consumed, "clips_in_update": len(group),
                              "mean_clip_loss": loss_sum / len(group), "learning_rate": rate,
                              "unclipped_gradient_norm": float(norm.item()), "gradient_scale": scaler.get_scale(),
                              "update_seconds": time.monotonic() - step_started,
                              "elapsed_seconds": time.monotonic() - started}
+                if args.retention_weight:
+                    aggregate.update({"mean_clip_cross_entropy": ce_sum / len(group),
+                                      "mean_clip_base_retention_kl": kl_sum / len(group)})
                 echo = actual["updates"] == 1 or actual["updates"] % 5 == 0 or actual["updates"] == total
                 if echo:
                     aggregate.update(resources(rt, output, args.device))
@@ -608,7 +673,7 @@ def generated_sequence(generated) -> tuple[list[int], bool]:
 
 def evaluate(args):
     corpus, source, adapter, output, summary, provenance, partitions, hashes = prepare(args)
-    selected = validation_selection(partitions["validation"], args.count)
+    selected = validation_window(partitions["validation"], args.count, args.offset)
     metadata = verify_adapter(adapter, provenance, hashes) if adapter else None
     rt = load_runtime(args.device)
     torch = rt["torch"]
@@ -623,6 +688,7 @@ def evaluate(args):
     contract = {"schema": 1, "base": provenance, "adapter": metadata,
                 "manifest_sha256": hashes, "validation_selection_key": SELECTION_KEY,
                 "selected_rows_sha256": json_digest([row["id"] for row in selected]),
+                "validation_offset": args.offset,
                 "selected_clips": len(selected), "selected_speakers": len({r["speaker_id"] for r in selected}),
                 "generation": GENERATION, "dtype": args.dtype, "device": args.device,
                 "return_dict_in_generate": True,
@@ -701,10 +767,13 @@ def parser():
     training.add_argument("--epochs", type=int, default=1)
     training.add_argument("--accumulation", type=int, default=4)
     training.add_argument("--lr", type=float, default=1e-4)
+    training.add_argument("--retention-weight", type=float, default=0.0,
+                          help="Coefficient KL vers la base gelée ; 0 conserve la perte historique")
     training.add_argument("--validation-limit", type=int, default=0, help="0 = les 282 clips ; 8 pour un mini-essai")
     training.add_argument("--checkpoint-every", type=int, default=50)
     evaluation.add_argument("--adapter", type=Path)
     evaluation.add_argument("--count", type=int, default=32, help="Clips de validation ; 0 = tous")
+    evaluation.add_argument("--offset", type=int, default=0, help="Clips classés à écarter au début de la validation")
     return result
 
 
@@ -717,7 +786,8 @@ def main():
         if args.command == "train":
             if (min(args.max_updates, args.epochs, args.accumulation) < 1
                     or args.validation_limit < 0 or args.checkpoint_every < 0
-                    or not math.isfinite(args.lr) or not 0 < args.lr <= 1e-3):
+                    or not math.isfinite(args.lr) or not 0 < args.lr <= 1e-3
+                    or not math.isfinite(args.retention_weight) or not 0 <= args.retention_weight <= 1):
                 raise ValueError("Paramètres d’entraînement invalides")
             train(args)
         else:
