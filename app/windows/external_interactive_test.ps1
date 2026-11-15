@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$ProbeExe,
-    [ValidateSet('Native','Edge','EdgeFiltered')][string]$Case = 'Native',
+    [ValidateSet('Native','Edge','EdgeFiltered','WPF')][string]$Case = 'Native',
     [string]$ResultFile
 )
 $ErrorActionPreference = 'Stop'
@@ -13,6 +13,8 @@ function Invoke-Recipe {
     if ($Case -eq 'Native') {
         & $ProbeExe
         if ($LASTEXITCODE) { throw "Native external target probe exited with code $LASTEXITCODE." }
+    } elseif ($Case -eq 'WPF') {
+        & (Join-Path $PSScriptRoot 'external_wpf_test.ps1') -ProbeExe $ProbeExe
     } elseif ($Case -eq 'EdgeFiltered') {
         & (Join-Path $PSScriptRoot 'external_edge_test.ps1') -ProbeExe $ProbeExe -HostedFilteredRecipe
     } elseif ($ResultFile) {
@@ -104,10 +106,14 @@ try {
         exit
     }
     Copy-Item -LiteralPath $scriptFile -Destination (Join-Path $work 'external_interactive_test.ps1')
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'external_edge_test.ps1') -Destination $work
+    if ($Case -eq 'WPF') {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'external_wpf_test.ps1') -Destination $work
+    } else {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'external_edge_test.ps1') -Destination $work
+    }
     $result = Join-Path $out 'result'
     $bootstrap = @'
-param([ValidateSet('Edge','EdgeFiltered')][string]$RecipeCase = 'Edge')
+param([ValidateSet('Edge','EdgeFiltered','WPF')][string]$RecipeCase = 'Edge')
 $ErrorActionPreference = 'Stop'
 try {
     $probe = Join-Path $PSScriptRoot 'external-target-test.exe'
@@ -119,6 +125,22 @@ try {
 }
 '@
     Set-Content -LiteralPath (Join-Path $work 'edge-bootstrap.ps1') -Value $bootstrap
+    if ($Case -eq 'WPF') {
+        # The ordinary native launcher suffices for this generic UIA fixture.
+        # Do not grant Edge/AppContainer namespace access for WPF.
+        $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        & $ProbeExe --launch-standard $powerShell '-NoProfile -NonInteractive -STA -File .\edge-bootstrap.ps1 -RecipeCase WPF' $work
+        $status = $LASTEXITCODE
+        foreach ($name in @('bootstrap.log', 'result.log')) {
+            $log = Join-Path $out $name
+            if (Test-Path -LiteralPath $log -PathType Leaf) { Get-Content -LiteralPath $log }
+        }
+        if ($status -or -not (Test-Path -LiteralPath $result -PathType Leaf) -or
+            (Get-Content -LiteralPath $result -Raw) -ne '0') {
+            throw 'The WPF UI Automation recipe failed under the standard account.'
+        }
+        exit
+    }
     if ($Case -eq 'EdgeFiltered') {
         & $ProbeExe --launch-edge-filtered $work
         $status = $LASTEXITCODE

@@ -145,6 +145,10 @@ jobs:
         if: ${{ !cancelled() }}
         shell: powershell
         run: ./app/windows/external_interactive_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-external-tests/external-target-test.exe" -Case Edge
+      - name: Tester UI Automation et les frappes Unicode dans WPF
+        if: ${{ !cancelled() }}
+        shell: powershell
+        run: ./app/windows/external_interactive_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-external-tests/external-target-test.exe" -Case WPF
   release:
     needs: [windows, external]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.4.0]')

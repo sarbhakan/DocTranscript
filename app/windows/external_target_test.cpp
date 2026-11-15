@@ -995,6 +995,153 @@ bool observe_lowbox_creation(DWORD session) {
     return standard_passed && restricted_passed;
 }
 
+int observe_npfs_ancestors() {
+    // A disposable standard account can observe only the traced synthetic
+    // package and its exact local, same-session pipe directory ancestors.
+    if (!ordinary_token() || !disposable_recipe_account()) return 1;
+    LocalHandle self;
+    DWORD session = 0, token_session = 0, size = 0;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &self.value) ||
+        !ProcessIdToSessionId(GetCurrentProcessId(), &session) || !session ||
+        !GetTokenInformation(self.value, TokenSessionId, &token_session, sizeof(token_session), &size) ||
+        token_session != session) return 1;
+    char input[257]{};
+    if (!std::fgets(input, sizeof(input), stdin)) return 2;
+    const auto length = std::strcspn(input, "\r\n");
+    if (!length || !input[length]) return 2;
+    std::wstring path;
+    for (size_t i = 0; i < length; ++i) {
+        const unsigned char letter = input[i];
+        if (letter < 0x20 || letter >= 0x7f) return 2;
+        path += static_cast<wchar_t>(letter);
+    }
+    const auto begins = [&](const std::wstring& known) {
+        return path.size() > known.size() && CompareStringOrdinal(path.c_str(), static_cast<int>(known.size()),
+            known.c_str(), static_cast<int>(known.size()), TRUE) == CSTR_EQUAL;
+    };
+    std::wstring root;
+    for (const std::wstring known : {L"\\Device\\NamedPipe", L"\\??\\pipe", L"\\DosDevices\\pipe"}) {
+        if (begins(known + L"\\")) { root = path.substr(0, known.size()); break; }
+    }
+    if (root.empty()) return 2;
+    std::wstring sessions;
+    for (const std::wstring leaf : {L"\\Sessions", L"\\Session", L"\\LOCAL\\Sessions", L"\\LOCAL\\Session"}) {
+        if (begins(root + leaf + L"\\")) { sessions = path.substr(0, root.size() + leaf.size()); break; }
+    }
+    const auto scoped = sessions + L"\\" + std::to_wstring(session);
+    const auto branch = scoped + L"\\AppContainerNamedObjects";
+    if (sessions.empty() || !begins(branch + L"\\S-1-15-2-")) return 2;
+    const auto sid_text = path.substr(branch.size() + 1);
+    PSID package = nullptr;
+    if (!ConvertStringSidToSidW(sid_text.c_str(), &package)) return 2;
+    struct SidMemory { PSID value; ~SidMemory() { LocalFree(value); } } package_memory{package};
+    const SID_IDENTIFIER_AUTHORITY packages = SECURITY_APP_PACKAGE_AUTHORITY;
+    if (!IsValidSid(package) || *GetSidSubAuthorityCount(package) != 8 || *GetSidSubAuthority(package, 0) != 2 ||
+        std::memcmp(GetSidIdentifierAuthority(package), &packages, sizeof(packages))) return 2;
+    std::vector<BYTE> user_values, logon_values;
+    if (!token_part(self.value, TokenUser, user_values) || user_values.size() < sizeof(TOKEN_USER) ||
+        !token_part(self.value, TokenLogonSid, logon_values) || logon_values.size() < sizeof(TOKEN_GROUPS)) return 1;
+    const auto user = reinterpret_cast<const TOKEN_USER*>(user_values.data())->User.Sid;
+    const auto logon = reinterpret_cast<const TOKEN_GROUPS*>(logon_values.data());
+    if (!IsValidSid(user) || logon->GroupCount != 1 || !IsValidSid(logon->Groups[0].Sid)) return 1;
+    const auto label_sid = [&](PSID p) -> const char* {
+        if (!p || !IsValidSid(p)) return "unknown";
+        if (EqualSid(p, user)) return "recipe-user";
+        if (EqualSid(p, logon->Groups[0].Sid)) return "recipe-logon";
+        if (EqualSid(p, package)) return "synthetic-package";
+        if (IsWellKnownSid(p, WinLocalSystemSid)) return "system";
+        if (IsWellKnownSid(p, WinBuiltinAdministratorsSid)) return "administrators";
+        if (IsWellKnownSid(p, WinBuiltinUsersSid)) return "users";
+        if (IsWellKnownSid(p, WinWorldSid)) return "everyone";
+        if (IsWellKnownSid(p, WinAuthenticatedUserSid)) return "authenticated";
+        if (IsWellKnownSid(p, WinInteractiveSid)) return "interactive";
+        if (IsWellKnownSid(p, WinCreatorOwnerSid)) return "creator-owner";
+        if (IsWellKnownSid(p, WinBuiltinAnyPackageSid)) return "all-app-packages";
+        if (*GetSidSubAuthorityCount(p) == 2 && *GetSidSubAuthority(p, 0) == 2 &&
+            *GetSidSubAuthority(p, 1) == 2 &&
+            !std::memcmp(GetSidIdentifierAuthority(p), &packages, sizeof(packages))) return "all-restricted-packages";
+        const SID_IDENTIFIER_AUTHORITY nt_authority = SECURITY_NT_AUTHORITY;
+        if (*GetSidSubAuthorityCount(p) == 3 && *GetSidSubAuthority(p, 0) == SECURITY_LOGON_IDS_RID &&
+            !std::memcmp(GetSidIdentifierAuthority(p), &nt_authority, sizeof(nt_authority))) return "other-logon";
+        return "other";
+    };
+    using OpenFile = NTSTATUS (NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PIO_STATUS_BLOCK, ULONG, ULONG);
+    const auto ntdll = GetModuleHandleW(L"ntdll.dll");
+    const auto address = ntdll ? GetProcAddress(ntdll, "NtOpenFile") : nullptr;
+    if (!address) return 1;
+    OpenFile open_file = nullptr;
+    static_assert(sizeof(address) == sizeof(open_file));
+    std::memcpy(&open_file, &address, sizeof(open_file));
+    const auto probe = [&](const char* role, std::wstring target) {
+        const auto length_bytes = static_cast<USHORT>(target.size() * sizeof(wchar_t));
+        UNICODE_STRING name{length_bytes, static_cast<USHORT>(length_bytes + sizeof(wchar_t)), target.data()};
+        OBJECT_ATTRIBUTES attributes{};
+        InitializeObjectAttributes(&attributes, &name, OBJ_CASE_INSENSITIVE, nullptr, nullptr);
+        const auto read = [&](ACCESS_MASK access, LocalHandle& output) {
+            IO_STATUS_BLOCK ios{};
+            // NtOpenFile is FILE_OPEN (existing only). FILE_DIRECTORY_FILE is
+            // the same directory semantics as the observed failing request.
+            return static_cast<DWORD>(open_file(&output.value, access, &attributes, &ios,
+                FILE_SHARE_READ | FILE_SHARE_WRITE, 0x1));
+        };
+        LocalHandle attrs, traverse, security;
+        const auto attr_status = read(FILE_READ_ATTRIBUTES, attrs);
+        const auto traverse_status = read(FILE_TRAVERSE, traverse);
+        const auto dacl_status = read(READ_CONTROL, security);
+        std::printf("NPFS %s open attributes=0x%08lx traverse=0x%08lx read_control=0x%08lx\n", role,
+            static_cast<unsigned long>(attr_status), static_cast<unsigned long>(traverse_status),
+            static_cast<unsigned long>(dacl_status));
+        if (dacl_status || !security.value) return;
+        constexpr SECURITY_INFORMATION requested = OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION;
+        DWORD bytes = 0;
+        GetKernelObjectSecurity(security.value, requested, nullptr, 0, &bytes);
+        std::vector<BYTE> raw(bytes >= sizeof(SECURITY_DESCRIPTOR_RELATIVE) && bytes <= 65536 ? bytes : 0);
+        if (raw.empty() || !GetKernelObjectSecurity(security.value, requested, raw.data(), bytes, &bytes) ||
+            !IsValidSecurityDescriptor(raw.data())) {
+            std::printf("NPFS %s descriptor unavailable win32=%lu\n", role, static_cast<unsigned long>(GetLastError()));
+            return;
+        }
+        PSID owner = nullptr;
+        PACL dacl = nullptr;
+        BOOL present = FALSE, ignored = FALSE;
+        if (!GetSecurityDescriptorOwner(raw.data(), &owner, &ignored) ||
+            !GetSecurityDescriptorDacl(raw.data(), &present, &dacl, &ignored) ||
+            (dacl && !IsValidAcl(dacl))) return;
+        std::printf("NPFS %s descriptor owner=%s dacl=%s ace_count=%u\n", role, label_sid(owner),
+            !present ? "absent" : dacl ? "present" : "null", dacl ? static_cast<unsigned>(dacl->AceCount) : 0);
+        for (DWORD i = 0; dacl && i < dacl->AceCount && i < 24; ++i) {
+            void* entry = nullptr;
+            if (!GetAce(dacl, i, &entry)) break;
+            const auto* header = static_cast<const ACE_HEADER*>(entry);
+            constexpr size_t sid_offset = offsetof(ACCESS_ALLOWED_ACE, SidStart);
+            if ((header->AceType == ACCESS_ALLOWED_ACE_TYPE || header->AceType == ACCESS_DENIED_ACE_TYPE) &&
+                header->AceSize >= sid_offset + 8) {
+                const auto* ace = static_cast<const ACCESS_ALLOWED_ACE*>(entry);
+                const auto* sid_bytes = reinterpret_cast<const BYTE*>(&ace->SidStart);
+                const auto count = sid_bytes[1];
+                PSID sid = count <= SID_MAX_SUB_AUTHORITIES && header->AceSize >= sid_offset + 8 + 4 * count
+                    ? const_cast<BYTE*>(sid_bytes) : nullptr;
+                std::printf("NPFS %s ace kind=%s sid=%s mask=0x%08lx flags=0x%02x\n", role,
+                    header->AceType == ACCESS_ALLOWED_ACE_TYPE ? "allow" : "deny",
+                    label_sid(sid), static_cast<unsigned long>(ace->Mask),
+                    static_cast<unsigned>(header->AceFlags));
+            } else {
+                std::printf("NPFS %s ace kind=other type=%u flags=0x%02x\n", role,
+                    static_cast<unsigned>(header->AceType), static_cast<unsigned>(header->AceFlags));
+            }
+        }
+    };
+    probe("pipe-root", root);
+    if (sessions.size() > root.size() + 6 &&
+        CompareStringOrdinal(sessions.c_str() + root.size(), 6, L"\\LOCAL", 6, TRUE) == CSTR_EQUAL)
+        probe("local-root", sessions.substr(0, root.size() + 6));
+    probe("sessions-root", sessions);
+    probe("session", scoped);
+    probe("appcontainer", path.substr(0, branch.size()));
+    probe("synthetic-package", path); // Existing only, never creates this leaf.
+    return 0;
+}
+
 int edge_namespace_control() {
     if (!_wfreopen(L"out\\edge-namespace-control.log", L"wb", stdout)) return 3;
     require(ordinary_token(), "Edge namespace control is not a standard account");
@@ -2242,6 +2389,7 @@ int wmain(int argc, wchar_t** argv) {
             const auto session = report_session("edge_lowbox_trace", GetCurrentProcessId(), GetCurrentProcess());
             return observe_lowbox_creation(session) ? 0 : 1;
         }
+        if (argc == 2 && std::wcscmp(argv[1], L"--edge-npfs-readonly") == 0) return observe_npfs_ancestors();
         if (argc == 2 && std::wcscmp(argv[1], L"--edge-namespace-control") == 0)
             return edge_namespace_control();
         if (argc == 2 && std::wcscmp(argv[1], L"--environment") == 0) return environment();

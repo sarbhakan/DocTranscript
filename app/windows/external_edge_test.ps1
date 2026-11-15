@@ -233,13 +233,62 @@ g
             }
             return "$session/$appDir/$($sids.Count)/$logon/$package/$capability"
         }
+        function Read-NpfsAncestors([string]$Name) {
+            # Transfer only the isolated trace's validated path over stdin.
+            # The native probe rechecks its own token, session and path shape.
+            if ($Name.Length -gt 256 -or $Name -notmatch '^\\(?:Device\\NamedPipe|\?\?\\pipe|DosDevices\\pipe)\\(?:LOCAL\\)?Sessions?\\[0-9]{1,10}\\AppContainerNamedObjects\\S-1-15-2(?:-[0-9]{1,10}){7}$') {
+                Write-Output 'NPFS observation: traced name did not match the bounded same-session package form.'
+                return
+            }
+            $probeStart = [Diagnostics.ProcessStartInfo]::new()
+            $probeStart.FileName = $ProbeExe
+            $probeStart.Arguments = '--edge-npfs-readonly'
+            $probeStart.UseShellExecute = $false
+            $probeStart.CreateNoWindow = $true
+            $probeStart.RedirectStandardInput = $true
+            $probeStart.RedirectStandardOutput = $true
+            $probeStart.RedirectStandardError = $true
+            $observer = $null
+            try {
+                $observer = [Diagnostics.Process]::Start($probeStart)
+                $privateOut = $observer.StandardOutput.ReadToEndAsync()
+                $privateError = $observer.StandardError.ReadToEndAsync()
+                $observer.StandardInput.WriteLine($Name)
+                $observer.StandardInput.Close()
+                if (-not $observer.WaitForExit(4000)) {
+                    $observer.Kill()
+                    $null = $observer.WaitForExit(1000)
+                    Write-Output 'NPFS observation: read-only probe deadline reached.'
+                    return
+                }
+                if (-not $privateOut.Wait(500) -or -not $privateError.Wait(500)) {
+                    Write-Output 'NPFS observation: probe stream did not close.'
+                    return
+                }
+                $role = '(?:pipe-root|local-root|sessions-root|session|appcontainer|synthetic-package)'
+                $sid = '(?:unknown|recipe-user|recipe-logon|synthetic-package|system|administrators|users|everyone|authenticated|interactive|creator-owner|all-app-packages|all-restricted-packages|other-logon|other)'
+                $hex = '0x[0-9a-f]{8}'
+                $message = "(?:open attributes=$hex traverse=$hex read_control=$hex|descriptor unavailable win32=[0-9]{1,10}|descriptor owner=$sid dacl=(?:absent|present|null) ace_count=[0-9]{1,5}|ace kind=(?:allow|deny) sid=$sid mask=$hex flags=0x[0-9a-f]{2}|ace kind=other type=[0-9]{1,3} flags=0x[0-9a-f]{2})"
+                $privateOut.Result -split "`r?`n" | Where-Object { $_ -match "^NPFS $role $message`$" } |
+                    Select-Object -First 160 | Write-Output
+                Write-Output "NPFS observation: read-only probe exit=$($observer.ExitCode)."
+            } catch {
+                Write-Output "NPFS observation: probe failed ($($_.Exception.GetBaseException().GetType().Name))."
+            } finally {
+                if ($observer) {
+                    if (-not $observer.HasExited) { $observer.Kill() }
+                    $observer.Dispose()
+                }
+            }
+        }
         $raw = if (Test-Path -LiteralPath $rawLog -PathType Leaf) { Get-Content -LiteralPath $rawLog -Raw } else { $stdout.Result }
         $kept = @()
         $pending = $null
         $factoryStatus = 'unobserved'
+        $npfsPath = ''
         foreach ($line in ($raw -split "`r?`n")) {
             if ($line -cmatch '^\s*NV_NT_CALL=ZwCreateFile\s*$') {
-                $pending = @{request='unobserved'; root='unobserved'; root_kind='unobserved'; name_kind='unobserved'; flags='unobserved'; root_shape='unobserved'; name_shape='unobserved'}
+                $pending = @{request='unobserved'; root='unobserved'; root_kind='unobserved'; name_kind='unobserved'; flags='unobserved'; root_shape='unobserved'; name_shape='unobserved'; private_name=''}
             } elseif ($pending -and $line -match '^\s*NV_FILE_REQUEST=(?<values>[0-9a-f]{8}(?:/[0-9a-f]{8}){3})\s*$') {
                 $pending.request = $Matches.values
             } elseif ($pending -and $line -match '^\s*NV_FILE_ROOT=(?<root>[0-9a-f`]+) flags=(?<flags>[0-9a-f]{8})\s*$') {
@@ -249,6 +298,7 @@ g
                 if ($pending.root -eq 'null') { $pending.root_kind = 'absent' }
             } elseif ($pending -and $line -match '^\s*NV_FILE_NAME=(?<name>.*)$') {
                 $name = $Matches.name.Trim()
+                $pending.private_name = $name
                 $pending.name_kind = Get-ObjectKind $name
                 $pending.name_shape = Get-ObjectShape $name
             } elseif ($pending -and $line -match '^\s+Name\s+(?<name>.*)$') {
@@ -258,6 +308,11 @@ g
             } elseif ($pending -and $line -match '^\s*NV_NT_STATUS=(?<status>[0-9a-f]{8})\s*$') {
                 $status = $Matches.status
                 $kept += "Synthetic LowBox trace ZwCreateFile ntstatus=0x$status access/share/disposition/options=$($pending.request) object_flags=$($pending.flags) root=$($pending.root) root_kind=$($pending.root_kind) name_kind=$($pending.name_kind) root_shape=$($pending.root_shape) name_shape=$($pending.name_shape) [shape=session/appdir/sids/logon/package/capability]"
+                if (-not $npfsPath -and $status -eq 'c0000022' -and $pending.root -eq 'null' -and $pending.flags -eq '00000042' -and
+                    $pending.name_kind -eq 'named-pipe-child' -and $pending.name_shape -eq '1/1/1/0/1/0' -and
+                    $pending.request -eq '001f0006/00000003/00000003/00000001') {
+                    $npfsPath = $pending.private_name
+                }
                 $pending = $null
             } elseif ($line -match '^\s*NV_FACTORY_STATUS=(?<status>[0-9a-f]{8})\s*$') {
                 $factoryStatus = '0x' + $Matches.status
@@ -265,6 +320,7 @@ g
         }
         $kept | Select-Object -Last 80 | Write-Output
         Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); factory_result=$factoryStatus; debugger_exited=$($debugger.HasExited)."
+        if ($npfsPath) { Read-NpfsAncestors $npfsPath }
         if (-not $kept.Count) {
             $diagnosis = $raw + $stderr.Result
             Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-ZwCreateFile'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
