@@ -1,0 +1,66 @@
+name: ASR — comparaison CPU Windows
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/asr-runtime-ab.yml'
+      - 'p0/windows/runtime_ab.py'
+      - 'p0/windows/runtime_ab_build.py'
+      - 'p0/windows/runtime_ab.lock.json'
+      - 'p0/bench/test_runtime_ab.py'
+      - 'app/native/WhisperBridge.cpp'
+      - 'app/native/WhisperBridge.h'
+      - 'app/macos/native/PauseState.h'
+      - 'app/macos/native/SileroPause.h'
+      - 'app/build_whisper_windows.py'
+      - 'app/whisper_patch.py'
+      - 'app/fixture_checks.py'
+      - 'p0/fixtures/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paired-runtime:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    concurrency:
+      group: asr-runtime-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Vérifier les garde-fous du banc
+        run: |
+          python -m unittest p0.bench.test_runtime_ab
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Relever le matériel du même hôte pour les deux moteurs
+        run: |
+          $inventory = [ordered]@{
+            schema_version = 1
+            cpu = @(Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors)
+            memory_total_bytes = [uint64](Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory
+            os_version = [Environment]::OSVersion.VersionString
+            microphone_tested = $false
+            physical_8gb_pc_tested = $false
+          }
+          $inventory | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 "$env:RUNNER_TEMP/asr-ab-environment.json"
+      - name: Construire puis comparer les deux moteurs avec les mêmes poids
+        run: |
+          python -m p0.windows.runtime_ab --output "$env:RUNNER_TEMP/notevive-asr-ab" --jobs 4 --repeats 2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Conserver uniquement les mesures et la provenance
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ASR-Windows-AB
+          path: |
+            ${{ runner.temp }}/notevive-asr-ab/report.json
+            ${{ runner.temp }}/asr-ab-environment.json
+          retention-days: 30
+          if-no-files-found: error
