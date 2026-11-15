@@ -2,14 +2,21 @@
 import argparse
 import hashlib
 import json
+import os
 import platform
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
 import zipfile
+
+if __package__:
+    from .catalogue_package import extend, validate
+else:
+    from catalogue_package import extend, validate
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = json.loads((ROOT / 'app/inputs.lock.json').read_text(encoding='utf-8'))
@@ -17,6 +24,8 @@ CATALOGUE_ARCHIVE = {
     'url': 'https://github.com/sarbhakan/DocTranscript/releases/download/v0.1.0-essai/NoteVive-Windows-x64-Essai.zip',
     'hash': '43711335e4ec8aaf38d2179615de92de2d086943c1de4abc6db29edd33d59c28',
 }
+BASE_CATALOGUE_SHA256 = 'd23ba8cb29b02e3f00d769ed670ae3c3b8cd4ad4a6c9cbdbdf4ab279787f4ccc'
+PUBLIC_MANIFEST = ROOT / 'lexique/manifest-essai-041.json'
 
 
 def digest(path, spec):
@@ -46,27 +55,54 @@ def fetch(path, spec):
     print(f'Vérifié : {path.name}', flush=True)
 
 
+def prepare_catalogue(destination, downloads):
+    if destination.exists() or destination.is_symlink():
+        validate(destination, PUBLIC_MANIFEST, LOCK['catalogue'])
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.catalogue-041-', dir=destination.parent) as temporary:
+        stage = Path(temporary)
+        base = stage / 'base.sqlite'
+        existing_base = ROOT / 'lexique/private/catalogue-essai-public.sqlite'
+        if existing_base.is_file() and digest(existing_base, {}) == BASE_CATALOGUE_SHA256:
+            shutil.copyfile(existing_base, base)
+        else:
+            archive = downloads / 'catalogue-source-v0.1.0.zip'
+            fetch(archive, CATALOGUE_ARCHIVE)
+            with zipfile.ZipFile(archive) as source:
+                data = source.read('NoteVive/runtime/catalogue.sqlite')
+            if hashlib.sha256(data).hexdigest() != BASE_CATALOGUE_SHA256:
+                raise ValueError('Catalogue de base altéré.')
+            base.write_bytes(data)
+        additions = stage / 'additions.sqlite'
+        subprocess.run([sys.executable, '-m', 'lexique.prepare_041', '--fetch',
+                        '--downloads', str(downloads / 'lexique-041'), '--output', str(additions)],
+                       check=True, cwd=ROOT)
+        domains = json.loads((ROOT / 'lexique/orphanet-domains.lock.json').read_text(encoding='utf-8'))
+        orphanet = downloads / 'lexique-041' / domains['file']
+        fetch(orphanet, {'url': domains['url'], 'hash': domains['sha256']})
+        mapping_path = stage / 'orphanet-domains.json'
+        subprocess.run([sys.executable, '-m', 'lexique.orphanet_domains', '--archive', str(orphanet),
+                        '--output', str(mapping_path)], check=True, cwd=ROOT)
+        mapping_bytes = mapping_path.read_bytes()
+        if hashlib.sha256(mapping_bytes).hexdigest() != LOCK['catalogue']['domain_mapping_sha256']:
+            raise ValueError('Affectations Orphanet différentes du verrou public.')
+        complete = stage / 'complete.sqlite'
+        extend(base, additions, complete, json.loads(mapping_bytes))
+        validate(complete, PUBLIC_MANIFEST, LOCK['catalogue'])
+        os.link(complete, destination)
+    print('Catalogue enrichi vérifié : sources, domaines et index de recherche.', flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--downloads', type=Path, default=ROOT / 'app/private/downloads')
-    parser.add_argument('--catalogue', type=Path, default=ROOT / 'lexique/private/catalogue-essai-public.sqlite')
+    parser.add_argument('--catalogue', type=Path, default=ROOT / 'lexique/private/catalogue-essai-041.sqlite')
     parser.add_argument('--toolchain', type=Path, default=ROOT / 'app/private/toolchain')
     args = parser.parse_args()
     for name, spec in LOCK['downloads'].items():
         fetch(args.downloads / name, spec)
-    if args.catalogue.exists():
-        if digest(args.catalogue, LOCK['catalogue']) != LOCK['catalogue']['hash']:
-            raise ValueError('Le catalogue existant ne correspond pas à l’instantané du paquet.')
-    else:
-        archive = args.downloads / 'catalogue-source-v0.1.0.zip'
-        fetch(archive, CATALOGUE_ARCHIVE)
-        with zipfile.ZipFile(archive) as source:
-            data = source.read('NoteVive/runtime/catalogue.sqlite')
-        if hashlib.sha256(data).hexdigest() != LOCK['catalogue']['hash']:
-            raise ValueError('Catalogue public altéré.')
-        args.catalogue.parent.mkdir(parents=True, exist_ok=True)
-        with args.catalogue.open('xb') as stream:
-            stream.write(data)
+    prepare_catalogue(args.catalogue.resolve(), args.downloads.resolve())
     host = ('windows-x64' if platform.system() == 'Windows' and platform.machine().lower() in {'amd64','x86_64'}
             else 'macos-arm64' if platform.system() == 'Darwin' and platform.machine() == 'arm64' else None)
     if host is None:

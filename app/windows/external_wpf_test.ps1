@@ -192,13 +192,15 @@ try {
 
 $ProbeExe = (Resolve-Path -LiteralPath $ProbeExe).Path
 $clock = [Diagnostics.Stopwatch]::StartNew()
-function Start-WpfChild([string]$File, [string]$Arguments, [switch]$CaptureGuards) {
+function Start-WpfChild([string]$File, [string]$Arguments, [switch]$CaptureGuards, [switch]$DropFocusEvents) {
     $info = [Diagnostics.ProcessStartInfo]::new($File, $Arguments)
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardInput = $true
     $info.RedirectStandardError = $CaptureGuards.IsPresent
+    $info.EnvironmentVariables.Remove('NOTEVIVE_WPF_RECIPE_NO_FOCUS_EVENTS')
+    if ($DropFocusEvents) { $info.EnvironmentVariables['NOTEVIVE_WPF_RECIPE_NO_FOCUS_EVENTS'] = '1' }
     return [Diagnostics.Process]::Start($info)
 }
 function Remaining-WpfTime([int]$Cap) { return [Math]::Max(0, [Math]::Min($Cap, 65000 - [int]$clock.ElapsedMilliseconds)) }
@@ -315,9 +317,30 @@ try {
     Assert-WpfText $first $second 'fresh capture in the second field' -WaitForText
     Send-WpfCommand $probe 'quit'
     Assert-Wpf ($probe.WaitForExit((Remaining-WpfTime 4000)) -and $probe.ExitCode -eq 0) 'The production-path probe did not shut down cleanly.'
+
+    # Repeat the A→B→A guard with both notification routes deliberately omitted
+    # in the diagnostic executable only. B stays focused until check-change
+    # reports a refusal. Check the identity guard ran and never wrote to B or A.
+    Stop-WpfChild $probe $guardTask
+    $probe = $null
+    $guardTask = $null
+    $probe = Start-WpfChild $ProbeExe "--edge-probe $($fixtureProcess.Id)" -CaptureGuards -DropFocusEvents
+    $guardTask = $probe.StandardError.ReadToEndAsync()
+    Require-WpfReply $probe '' 'OK'
+    Require-WpfReply $fixtureProcess 'focus-a' 'focused'
+    Require-WpfReply $probe 'capture' 'ready'
+    Require-WpfReply $fixtureProcess 'focus-b' 'focused'
+    Require-WpfReply $probe 'check-change' 'target_changed'
+    Require-WpfReply $fixtureProcess 'focus-a' 'focused'
+    Require-WpfReply $probe 'send' 'target_changed'
+    Assert-WpfText $first $second 'invalidated target after lost notifications'
+    Send-WpfCommand $probe 'quit'
+    Assert-Wpf ($probe.WaitForExit((Remaining-WpfTime 4000)) -and $probe.ExitCode -eq 0) 'The dropped-notification probe did not shut down cleanly.'
+    Assert-Wpf ($guardTask.Wait((Remaining-WpfTime 1000)) -and
+        $guardTask.Result -cmatch '(?m)^NoteVive external guard uia\.idle_identity_lost status=0x00000000\r?$') 'The worker did not prove the missing-event identity check.'
     Send-WpfCommand $fixtureProcess 'quit'
     Assert-Wpf ($fixtureProcess.WaitForExit((Remaining-WpfTime 4000)) -and $fixtureProcess.ExitCode -eq 0) 'The WPF fixture did not shut down cleanly.'
-    Write-Output 'WPF UI Automation / SendInput: exact Unicode, unrelated fields, focus invalidation, selection and protected fields passed.'
+    Write-Output 'WPF UI Automation / SendInput: Unicode, isolated fields, focus invalidation with and without notifications, selection and protected fields passed.'
 } finally {
     try { Stop-WpfChild $probe $guardTask } finally { Stop-WpfChild $fixtureProcess }
 }

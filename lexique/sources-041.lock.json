@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "reviewed_on": "2026-11-15",
+  "scope": "catalogue-consultatif-local",
+  "downloads": [
+    {
+      "id": "ruim",
+      "file": "ref_interop_med-2026-10-01.zip",
+      "url": "https://smt.esante.gouv.fr/wp-json/ans/terminologies/zip?terminologyId=terminologie-ref_interop_med&version=2026-10-01&licenceConsent=true&dataTransferConsent=false&sizeConsent=false",
+      "size": 22915793,
+      "sha256": "7ff0d3cddb42f821937b60f85513a071619510f443a6487b3ac47941d7dedc76",
+      "csv_archive": {
+        "path": "dat/terminologie-ref_interop_med-2026-10_csv_files.zip",
+        "size": 5454385,
+        "sha256": "a707abe29bf1178b0b1d1ababfb0f5b4f707f70cc8c2f08e67bdda6e185412cc"
+      },
+      "members": {
+        "CIS.csv": {
+          "size": 4326129,
+          "sha256": "277b961557e1abb99219a6e3ef79cc9371906920edb5a643bd6ef2c997b6763d"
+        },
+        "Substances.csv": {
+          "size": 415757,
+          "sha256": "09165a2c60d9c9fb7231f7c56b87649e7794fe9da1e1f3f816a55b680ff1b46d"
+        },
+        "Formes.csv": {
+          "size": 35205,
+          "sha256": "264595bd9d8b0a0b540e364d9247352d315097ae974fa6b24fbc4de435548bf0"
+        },
+        "Voies.csv": {
+          "size": 7972,
+          "sha256": "9b2c67d6da192fb99091ffdfaa1dd5a8cef9d28a8bbb831b58e479e9795b97d1"
+        }
+      }
+    },
+    {
+      "id": "adicap",
+      "file": "adicap-2024-10.zip",
+      "url": "https://smt.esante.gouv.fr/wp-json/ans/terminologies/zip?terminologyId=terminologie-adicap&version=2024-10&licenceConsent=true&dataTransferConsent=false&sizeConsent=false",
+      "size": 3111414,
+      "sha256": "ccbe9e45ac82209d4328cb05aa5b33a4e6b236120874e28ff267224457942c0c",
+      "rdf": {
+        "path": "dat/terminologie-adicap-2024-10.rdf",
+        "size": 4347516,
+        "sha256": "bc07cbf3ce870cb4a00fb900ad7f93b2b029e8cf255187f4858b2e31425db95e"
+      }
+    },
+    {
+      "id": "lahn",
+      "file": "lahn-2026-04.fhir.json",
+      "url": "https://smt.esante.gouv.fr/fhir/CodeSystem/terminologie-lahn/_history/10?_format=json",
+      "size": 371782,
+      "sha256": "ce37ad53c06da8fcc4f9bfb670fc9b82db2fc77ad616a30cfae4563b28c82f16"
+    }
+  ]
+}

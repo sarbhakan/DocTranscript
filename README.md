@@ -6,9 +6,9 @@
 
 ## Télécharger et essayer l’application
 
-### [Télécharger NoteVive 0.4.0 pour Windows — ZIP prêt à ouvrir](https://github.com/sarbhakan/DocTranscript/releases/download/v0.4.0-essai/NoteVive-Windows-x64-Essai.zip)
+### [Télécharger NoteVive 0.4.1 pour Windows — ZIP prêt à ouvrir](https://github.com/sarbhakan/DocTranscript/releases/download/v0.4.1-essai/NoteVive-Windows-x64-Essai.zip)
 
-[Voir la Release et son fichier de contrôle](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.0-essai) · Un seul paquet, environ 544 Mo, modèle inclus.
+[Voir la Release et son fichier de contrôle](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.1-essai) · Un seul paquet, modèle et catalogue inclus.
 
 **[Ouvrir le guide pas à pas pour débuter](docs/guide-essai-windows.md)**
 
@@ -16,11 +16,11 @@ Le téléchargement est public : aucun compte GitHub ou NoteVive n’est nécess
 
 **Version d’essai : utilisez uniquement des dictées fictives.** La transcription peut se tromper, notamment sur les doses et les négations. Le texte apparaît après les pauses et le calcul, dont la durée dépend du PC. L’application n’est pas qualifiée pour les dossiers patients.
 
-1. **Téléchargez `NoteVive-Windows-x64-Essai.zip`** avec le lien direct ci-dessus ou dans les fichiers de la Release 0.4.0. Attendez la fin du téléchargement, puis retrouvez le ZIP, souvent dans **Téléchargements**.
+1. **Téléchargez `NoteVive-Windows-x64-Essai.zip`** avec le lien direct ci-dessus ou dans les fichiers de la Release 0.4.1. Attendez la fin du téléchargement, puis retrouvez le ZIP, souvent dans **Téléchargements**.
 2. **Faites un clic droit sur le ZIP, puis « Extraire tout ».** Ouvrez le dossier obtenu, puis le dossier **NoteVive** qu’il contient. Gardez tous les fichiers ensemble.
 3. **Double-cliquez sur `NoteVive.exe`.** Windows peut afficher simplement **NoteVive**, avec le type **Application**. C’est le fichier à ouvrir à chaque utilisation ; il n’y a pas d’assistant d’installation.
-4. **Cliquez sur « + Transcription »**, donnez un titre, puis cliquez sur **Dicter**. Attendez le message **Micro ouvert**. Dites « Pas de douleur à la cheville droite », puis laissez une pause pour voir le texte apparaître.
-5. **Cliquez sur « Arrêter »**, attendez la fin du traitement, relisez et cliquez sur **Enregistrer**. Une fois la sauvegarde confirmée, fermez et rouvrez l’application pour retrouver votre note.
+4. **Cliquez sur « Nouvelle note »**, donnez un titre, puis cliquez sur **Dicter**. Attendez le message **Micro ouvert**. Dites « Pas de douleur à la cheville droite », puis laissez une pause pour voir le texte apparaître.
+5. **Cliquez sur « Arrêter »**, attendez la fin du traitement, relisez et attendez la confirmation de sauvegarde automatique. Une fois la sauvegarde confirmée, fermez et rouvrez l’application pour retrouver votre note.
 
 Si Windows bloque le lancement, suivez la rubrique [dépannage](docs/guide-essai-windows.md#depannage). Le paquet d’essai est non signé ; certains postes demandent l’intervention du service informatique.
 
@@ -38,26 +38,24 @@ La dictée Windows exige un processeur compatible **AVX2** et ses extensions ass
 ## Ce que vous pouvez tester
 
 - Dicter dans la fenêtre NoteVive, puis modifier le texte et le titre.
-- Créer des dossiers et des sous-dossiers ; ranger une note avec **Classer…**.
+- Créer des dossiers et des sous-dossiers ; ranger une note avec **Actions → Classer la note…**.
 - Rechercher dans les titres et le texte ; trier par modification, création ou titre.
 - Fermer puis rouvrir l’application pour retrouver les notes du même compte Windows sur le même PC.
-- Avec **Copier le texte** ou **Ctrl+Maj+C**, copier uniquement le corps de la note pour le coller vous-même.
+- Avec **Copier** ou **Ctrl+Maj+C**, copier uniquement le corps de la note pour le coller vous-même.
 - Avec **Ctrl+Alt+Espace**, essayer la dictée vers un champ externe compatible. NoteVive crée une note locale par session et y sauvegarde chaque passage confirmé avant de l’envoyer.
-- Consulter le catalogue médical local avec **Vocabulaire**.
+- Consulter le catalogue médical local avec **Actions → Vocabulaire médical…**.
 
 Le [guide d’utilisation](docs/guide-essai-windows.md#organiser-les-notes) détaille ces gestes. Les notes sont sauvegardées séparément du dossier de l’application et chiffrées pour le compte Windows courant. Aucun enregistrement audio n’est conservé.
 
-Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez uniquement un document ou un champ fictif. **Edge et Word restent à qualifier sur un poste Windows réel.** Si le champ est refusé, dictez dans NoteVive puis utilisez **Copier le texte** après relecture. La compatibilité dépend du champ et la destination peut synchroniser ce qu’elle reçoit. Gardez le curseur dans le même champ et vérifiez le résultat après l’envoi. Le texte copié reste lisible par les applications locales qui ont accès au presse-papiers. **F9** continue d’agir dans la fenêtre NoteVive ; **Vocabulaire** reste un catalogue de consultation. Les fonctions du prototype Mac peuvent différer.
+Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez uniquement un document ou un champ fictif. **Edge et Word restent à qualifier sur un poste Windows réel.** Si le champ est refusé, dictez dans NoteVive puis utilisez **Copier** après relecture. La compatibilité dépend du champ et la destination peut synchroniser ce qu’elle reçoit. Gardez le curseur dans le même champ et vérifiez le résultat après l’envoi. Le texte copié reste lisible par les applications locales qui ont accès au presse-papiers. **F9** continue d’agir dans la fenêtre NoteVive ; **Vocabulaire médical** reste un catalogue de consultation. Les fonctions du prototype Mac peuvent différer.
 
 ## Ce qui change dans cet essai
 
-La version 0.4.0 revoit la fenêtre autour de la bibliothèque et de l’éditeur, ajoute la copie explicite et propose une dictée vers un champ externe compatible. Le [guide Windows](docs/guide-essai-windows.md) explique les gestes et leur dépannage. Le [rapport de validation 0.4.0](docs/validation-040.md) distingue les contrôles effectués des essais encore nécessaires.
+La version **0.4.1** simplifie la fenêtre : **Nouvelle note**, **Dicter / Arrêter**, **Copier** et **Actions** sont les quatre commandes visibles. Le menu Actions rassemble le classement, les dossiers, les tris et les fonctions occasionnelles. La recherche reste dans la bibliothèque et le texte occupe l’essentiel de l’écran. Le [guide du carnet](docs/ui-041.md) explique ce parcours.
 
-![Interface Windows de NoteVive 0.4.0 : bibliothèque à gauche, note et copie à droite](assets/notevive-windows-040.png)
+Le [vocabulaire enrichi](docs/lexique-041.md) contient **100 175 libellés**, dont les médicaments et substances du RUIM de l’ANSM, avec des domaines et des types pour affiner la recherche. Les maladies rares sont rattachées aux **33 classifications françaises d’Orphanet**. Ces domaines se recouvrent ; le nombre de libellés n’est ni un taux de précision ni une couverture complète de toutes les spécialités. Le glossaire est consultatif et ne remplace aucun mot ou dosage automatiquement.
 
-*Capture réelle de la recette Windows, avec des notes fictives de test. Le contour de la fenêtre peut varier selon votre version de Windows.*
-
-Les [derniers essais de précision et de vitesse](docs/precision-vitesse-041.md) évaluent un nouvel adaptateur sur 96 dictées de développement et comparent deux versions du moteur sur Windows. L'adaptation améliore certains mots, mais dégrade aussi des médicaments et des doses : elle est refusée. Le gain de vitesse observé avec le moteur plus récent reste limité. **Le modèle et le moteur du ZIP 0.4.0 sont conservés.** Les contrôles ont été renforcés et [33 dictées fictives à lire](docs/dictees-fiabilisation.md) sont disponibles pour poursuivre les essais. L'[entraînement précédent](docs/entrainement-local.md) et les [mesures du paquet 0.3.1](docs/audit-consolidation-031.md) restent consultables.
+Le [bilan de consolidation](docs/consolidation-041.md) distingue le correctif d’entraînement, les comparaisons de reconnaissance et les vérifications Windows. Le moteur et le modèle distribués sont conservés tant qu’un candidat introduit de nouvelles erreurs critiques. Les [33 dictées fictives à lire](docs/dictees-fiabilisation.md) permettent de poursuivre les essais. Les [expériences précédentes sur 96 extraits](docs/precision-vitesse-041.md) et l’[entraînement initial](docs/entrainement-local.md) restent consultables.
 
 ## Besoin d’aide ou envie de transmettre un résultat ?
 
@@ -80,7 +78,7 @@ Pour essayer l’application, le **ZIP de la Release** et le **guide pas à pas*
 <details>
 <summary><strong>Documentation technique et contribution</strong></summary>
 
-Le paquet Windows s’appuie sur **Whisper Large-v3 Turbo, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 70 517 libellés de six référentiels, sans BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
+Le paquet Windows s’appuie sur **Whisper Large-v3 Turbo, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 100 175 libellés de douze sources déclarées, avec les entrées RUIM et sans extrait des fichiers BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
 
 | Document | Ce qu’il permet de comprendre |
 | --- | --- |
@@ -90,9 +88,9 @@ Le paquet Windows s’appuie sur **Whisper Large-v3 Turbo, whisper.cpp 1.8.5, Op
 | [Résultats comparés](p0/asr_benchmark.md) · [Choix du moteur](docs/p0-choix-moteur.md) | Mesures disponibles, erreurs observées et limites de performance. |
 | [Banc P0](p0/README.md) · [Procédure Windows](docs/p0-windows.md) · [Recette par lot](docs/recette-iterative.md) | Préparation des essais, reproduction et critères de vérification. |
 | [Veille des moteurs](docs/veille-moteurs.md) · [Réemploi](docs/reemploi.md) | Alternatives, licences et rôle de Dev Toolkit Orchestrator. |
-| [Refonte Windows](docs/ui-040.md) · [Toolkit et composants retenus](docs/toolkit-040.md) | Choix d’interface, accessibilité, sources réutilisées et périmètre des outils. |
+| [Carnet simplifié](docs/ui-041.md) · [Toolkit et composants retenus](docs/toolkit-040.md) | Choix d’interface, accessibilité, sources réutilisées et périmètre des outils. |
 | [Entraînement local](docs/entrainement-local.md) · [Outils de reproduction](p0/training/README.md) | Données séparées, adaptation LoRA, contrôles critiques et décision sur les poids. |
-| [Derniers essais médicaux et Windows](docs/precision-vitesse-041.md) · [Dictées fictives](docs/dictees-fiabilisation.md) | Résultats sur 96 enregistrements, échecs conservés, comparaison Windows appariée et scripts accessibles. |
+| [Derniers essais médicaux et Windows](docs/consolidation-041.md) · [Dictées fictives](docs/dictees-fiabilisation.md) | Résultats sur 96 enregistrements, échecs conservés, comparaison Windows appariée et scripts accessibles. |
 | [Qualité médicale](docs/qualite-medicale.md) · [Adaptation lexicale](docs/adaptation-lexicale.md) | Vocabulaire, évaluation des erreurs critiques et effets des lexiques. |
 | [Référentiels médicaux](docs/referentiels-medicaux.md) · [Catalogue local](lexique/README.md) | Sources françaises, licences et imports reproductibles. |
 | [Expérience praticien](docs/experience-praticien.md) · [Données et usage professionnel](docs/donnees-et-usage.md) | Scénarios d’usage, flux des données et conditions préalables à un pilote. |

@@ -1,0 +1,241 @@
+{
+  "schema": 1,
+  "url": "https://www.orphacode.org/data/packs/Orphanet_Nomenclature_Pack_FR.zip",
+  "file": "Orphanet_Nomenclature_Pack_FR.zip",
+  "size": 8758578,
+  "sha256": "809461ba5e085382e9256895b6ed58d907fc5feb749c104874267e88f10b0b5a",
+  "classifications": [
+    {
+      "id": "146",
+      "title": "Classification Orphanet des maladies cardiaques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_146_rare_cardiac_diseases_fr_2026.xml",
+      "size": 213158,
+      "sha256": "b65ef8a3743171096bfda31f1a687c293bdc64fba17329c5e02d72f9436d3236"
+    },
+    {
+      "id": "147",
+      "title": "Classification Orphanet des anomalies du développement embryonnaire rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_147_rare_developmental_anomalies_during_embryogenesis_fr_2026.xml",
+      "size": 5148194,
+      "sha256": "31358a21d33400aaea210a664a366cdd5ab43457d5047030dee125f9b48dfad4"
+    },
+    {
+      "id": "148",
+      "title": "Classification Orphanet des malformations cardiaques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_148_rare_cardiac_malformations_fr_2026.xml",
+      "size": 224984,
+      "sha256": "f03243b3c216a568641ee8a6fab0c81207a633b4819c771553d938af548decc9"
+    },
+    {
+      "id": "150",
+      "title": "Classification Orphanet des maladies métaboliques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_150_rare_inborn_errors_of_metabolism_fr_2026.xml",
+      "size": 930477,
+      "sha256": "fab2da07cd6c0bcf88e331044a181b7a7e8ea9508c71705fed30c84c20cc3b3a"
+    },
+    {
+      "id": "152",
+      "title": "Classification Orphanet des maladies gastroentérologiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_152_rare_gastroenterological_diseases_fr_2026.xml",
+      "size": 322151,
+      "sha256": "46627470640d74b17b9a4593fbec7988c98903b9368b4e5c8aa21cca954c8af8"
+    },
+    {
+      "id": "156",
+      "title": "Classification Orphanet des maladies génétiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_156_rare_genetic_diseases_fr_2026.xml",
+      "size": 16070962,
+      "sha256": "75355f5b26dc382e46e6370840e187b88ed8a6c47e0d496363b0764b19030023"
+    },
+    {
+      "id": "181",
+      "title": "Classification Orphanet des maladies neurologiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_181_rare_neurological_diseases_fr_2026.xml",
+      "size": 4639020,
+      "sha256": "52fdb3c10ff59e3f1cc10bec0b8bedb11fb25228f8419d5a2447df1e842b9795"
+    },
+    {
+      "id": "182",
+      "title": "Classification Orphanet de maladies chirurgicales abdominales rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_182_rare_abdominal_surgical_diseases_fr_2026.xml",
+      "size": 194501,
+      "sha256": "84fd670d0532c6a92bfb11854b80ba35f6cf2edce5a93f88ce2135ef43c78fc2"
+    },
+    {
+      "id": "183",
+      "title": "Classification Orphanet des maladies hépatiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_183_rare_hepatic_diseases_fr_2026.xml",
+      "size": 169994,
+      "sha256": "66a50c3181353a5e3fef97044a71cfbd701719f03da2432b62537782f971a1af"
+    },
+    {
+      "id": "184",
+      "title": "Classification Orphanet de maladies respiratoires rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_184_rare_respiratory_diseases_fr_2026.xml",
+      "size": 230742,
+      "sha256": "d5c998e22effaa42bef68c4f01018c7a685f9417edb1c9dfc20320cbb673d767"
+    },
+    {
+      "id": "185",
+      "title": "Classification Orphanet des maladies génito-urinaires rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_185_rare_urogenital_diseases_fr_2026.xml",
+      "size": 190959,
+      "sha256": "fb6ea134649532302c2773a46afd5eb9bd380305ad2888f482c4fae069c085be"
+    },
+    {
+      "id": "186",
+      "title": "Classification Orphanet des maladies thoraciques chirurgicales rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_186_rare_surgical_thoracic_diseases_fr_2026.xml",
+      "size": 69402,
+      "sha256": "eb7eab8ad9cf9df1c2b6c9ade934dbc32855d51d1cc5ea5b25fc25cfac4dc7ed"
+    },
+    {
+      "id": "187",
+      "title": "Classification Orphanet des maladies dermatologiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_187_rare_skin_diseases_fr_2026.xml",
+      "size": 932948,
+      "sha256": "31a62f069edc6f0d9c8cc42059607e6e4695a43b11fc3962a0c8b5f867b12cea"
+    },
+    {
+      "id": "188",
+      "title": "Classification Orphanet des maladies rénales rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_188_rare_renal_diseases_fr_2026.xml",
+      "size": 390801,
+      "sha256": "95c26ffa9d876d8f19d179c556f20a181540ad32ee0b05dfae1038efd670f698"
+    },
+    {
+      "id": "189",
+      "title": "Classification Orphanet des maladies ophtalmiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_189_rare_ophthalmic_diseases_fr_2026.xml",
+      "size": 1421468,
+      "sha256": "67f9a01199b95343a66c2cadf811abc91ebc5cf9a40adfe83f00ee873a97b814"
+    },
+    {
+      "id": "193",
+      "title": "Classification Orphanet des maladies endocriniennes rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_193_rare_endocrine_diseases_fr_2026.xml",
+      "size": 770937,
+      "sha256": "fd09eb06282d106ba6491107a6c1bb644a52069dd9a9fdd9c12f34659811b957"
+    },
+    {
+      "id": "194",
+      "title": "Classification Orphanet des maladies hématologiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_194_rare_hematological_diseases_fr_2026.xml",
+      "size": 557662,
+      "sha256": "09709cf23af0e22d182a1830e0eb2ba655eddf9df572c0986eecd54cdaf38692"
+    },
+    {
+      "id": "195",
+      "title": "Classification Orphanet des maladies immunologiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_195_rare_immunological_diseases_fr_2026.xml",
+      "size": 383157,
+      "sha256": "9782db7288b3de7b0fd174fa912c37f5ffac4cbe666ace325e2208339ff70090"
+    },
+    {
+      "id": "196",
+      "title": "Classification Orphanet des maladies systémiques et rhumatologiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_196_rare_systemic_and_rheumatological_diseases_fr_2026.xml",
+      "size": 276547,
+      "sha256": "2bde9327b4413f9a6f21751c7139f57413bcc5358dcae15812fd420a3ffc961d"
+    },
+    {
+      "id": "197",
+      "title": "Classification Orphanet des maladies odontologiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_197_rare_odontological_diseases_fr_2026.xml",
+      "size": 98632,
+      "sha256": "b73771eda1757135d16ed06daeb6286ba84c30938dcacc57a1f44c26121dbeaf"
+    },
+    {
+      "id": "198",
+      "title": "Classification Orphanet des maladies rares du système circulatoire",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_198_rare_circulatory_system_diseases_fr_2026.xml",
+      "size": 323510,
+      "sha256": "270b863df13692a21c379f0a150bf72828d848c023eb45d752e05c6c926a119c"
+    },
+    {
+      "id": "199",
+      "title": "Classification Orphanet des maladies osseuses rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_199_rare_bone_diseases_fr_2026.xml",
+      "size": 828915,
+      "sha256": "8b3f4e4ad487dedfd41f554fff362e41efd397ce48043815963d662da0f00497"
+    },
+    {
+      "id": "200",
+      "title": "Classification Orphanet des maladies oto-rhino-laryngologiques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_200_rare_otorhinolaryngological_diseases_fr_2026.xml",
+      "size": 383849,
+      "sha256": "1f21fc845de5b30edc278e2b34ba0506638cc039d9dc695fb1592731681b95a5"
+    },
+    {
+      "id": "201",
+      "title": "Classification Orphanet des causes rares d'infertilité",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_201_rare_infertility_disorders_fr_2026.xml",
+      "size": 165334,
+      "sha256": "475e9de2c8b8aba31d8ef037082113566a18d4445ed2a1aecf03e56b6ce43225"
+    },
+    {
+      "id": "202",
+      "title": "Classification Orphanet des maladies néoplasiques",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_202_rare_neoplastic_diseases_fr_2026.xml",
+      "size": 1123519,
+      "sha256": "6f316c300ac38ee29394bb319c4828a276f830b89b2db9e2b66796e75801e910"
+    },
+    {
+      "id": "203",
+      "title": "Classification Orphanet des maladies infectieuses rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_203_rare_infectious_diseases_fr_2026.xml",
+      "size": 154489,
+      "sha256": "511aeede26e1c6ad02659305f0a4b7c8e6aad332c95250e94d7601ea655c3da9"
+    },
+    {
+      "id": "204",
+      "title": "Classification Orphanet des maladies rares dues à des effets toxiques",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_204_rare_diseases_due_to_toxic_effects_fr_2026.xml",
+      "size": 44144,
+      "sha256": "b19899b9c186152031c3e92e890f541e6f9cfe7f4424bc4920d824909129ad8a"
+    },
+    {
+      "id": "205",
+      "title": "Classification Orphanet des maladies gynéco-obstétriques rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_205_rare_gynecological_and_obstetric_diseases_fr_2026.xml",
+      "size": 252677,
+      "sha256": "f72d9ea1a6eb46a7d2d0b21331d41c6c797197e3e8568e42415e5e1772b50175"
+    },
+    {
+      "id": "209",
+      "title": "Classification Orphanet des maladies rares en chirurgie maxillo-faciale",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_209_rare_surgical_maxillo-facial_diseases_fr_2026.xml",
+      "size": 182886,
+      "sha256": "2114b6f4ae1e8415bf7d3dbbc0e7d8ac8bee223053ab68e16f4d910f9e9ca67e"
+    },
+    {
+      "id": "212",
+      "title": "Classification Orphanet des allergies rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_212_rare_allergic_disease_fr_2026.xml",
+      "size": 9829,
+      "sha256": "6374ccd699722edd46cca49687790cba7d12062da7efa41075d871b19aa09ac7"
+    },
+    {
+      "id": "216",
+      "title": "Classification Orphanet des maladies d'origine tératologique rares",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_216_rare_teratologic_diseases_fr_2026.xml",
+      "size": 26614,
+      "sha256": "331c4315d4841eac06993d09b6c515f85b2e7e94861b3bb5113d432fe2cb4e38"
+    },
+    {
+      "id": "231",
+      "title": "Classification Orphanet des maladies systémiques ou rhumatologiques rares de l'enfant",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_231_rare_systemic_and_rheumatological_diseases_of_childhood_fr_2026.xml",
+      "size": 95851,
+      "sha256": "d6a73e7c1d3b4e677db9d30e171e18b4190c7773b2b5c8eedad438642c0f83ac"
+    },
+    {
+      "id": "233",
+      "title": "Classification Orphanet des maladies rares associées à la transplantation",
+      "path": "Orphanet_Nomenclature_Pack_FR/Classifications/ORPHAclassification_233_rare_transplant-related_diseases_fr_2026.xml",
+      "size": 1610644,
+      "sha256": "7445c27a9be0bda0615a97f0e12eae3175679bf5b0df8d8d5644f944f6e5a71b"
+    }
+  ],
+  "mapping_sha256": "6fa79fbdc0d64d0597db8c404837063a81cbe9bd716b581572aa402cd0342de5"
+}

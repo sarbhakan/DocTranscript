@@ -76,83 +76,83 @@ HFONT make_ui_font(HDC dc, int height, int weight) {
 
 } // namespace
 
-Layout layout(int width, int height, UINT dpi, bool copy_button, bool external_button) {
+Layout layout(int width, int height, UINT dpi, bool separate_passage, bool hidden) {
     if (!dpi) dpi = 96;
     const auto px = [dpi](int value) { return scale(value, dpi); };
     Layout out;
     const auto put = [&](Slot slot, int x, int y, int w, int h) {
-        out.slots[at(slot)] = {x, y, x + std::max(w, 0), y + std::max(h, 0)};
+        // Work areas can be smaller than the requested minimum at high DPI.
+        const int left = std::clamp(x, 0, width);
+        const int top = std::clamp(y, 0, height);
+        out.slots[at(slot)] = {left, top, std::clamp(x + w, left, width), std::clamp(y + h, top, height)};
     };
-    const int pad = px(20), right = width - pad, usable = std::max(0, right - pad);
-    const bool compact = width < px(850) || height < px(600);
-    const bool tight = height < px(540);
-    const int brand_width = std::max(0, usable - px(213));
-    put(Slot::brand, pad, px(tight ? 6 : 12), brand_width, px(35));
-    put(Slot::subtitle, pad, px(tight ? 38 : 46), brand_width, px(21));
-    put(Slot::badge, right - px(193), px(tight ? 13 : 21), px(193), px(27));
+    width = std::max(0, width);
+    height = std::max(0, height);
+    const bool compact = width < px(810) || height < px(540);
+    const int pad = px(compact ? 12 : 20);
+    const int right = width - pad, usable = std::max(0, right - pad);
+    const int actions_w = px(104);
+    const bool show_badge = usable >= px(600);
+    const int brand_width = usable - actions_w - px(show_badge ? 185 : 10);
+    put(Slot::brand, pad, px(11), brand_width, px(34));
+    put(Slot::subtitle, pad, px(43), brand_width, px(19));
+    put(Slot::actions, right - actions_w, px(18), actions_w, px(34));
+    if (show_badge)
+        put(Slot::badge, right - actions_w - px(172), px(20), px(152), px(28));
 
-    int x = pad, y = px(tight ? 63 : compact ? 71 : 77);
-    auto action = [&](Slot slot, int w) {
-        if (x > pad && x + px(w) > right) { x = pad; y += px(compact ? 39 : 43); }
-        put(slot, x, y, std::min(usable, px(w)), px(compact ? 33 : 36));
-        x += px(w + 8);
-    };
-    action(Slot::dictate, 160);
-    action(Slot::save, 108);
-    if (copy_button) action(Slot::copy, 123);
-    action(Slot::privacy, 136);
-    action(Slot::vocabulary, 106);
-    if (external_button) action(Slot::external, 135);
-
-    const int status_y = y + px(compact ? 40 : 46);
-    // Two lines at compact widths, including the last known external target.
-    put(Slot::microphone, pad + px(27), status_y + px(5), usable - px(39), px(39));
-    const int card_top = status_y + px(55), card_bottom = std::max(card_top, height - px(tight ? 31 : 40));
-    const int gap = px(12), inset = px(tight ? 9 : 12);
-    const int side = std::min(std::clamp(usable * 33 / 100, px(230), px(350)), usable);
-    const int left = pad + inset, left_width = std::max(0, side - 2 * inset);
+    const int card_top = px(compact ? 67 : 72), card_bottom = std::max(card_top, height - px(31));
+    if (hidden) {
+        put(Slot::masked_info, pad + px(14), card_top + px(14), usable - px(28), px(46));
+        put(Slot::microphone, pad + px(30), card_top + px(72), usable - px(44), px(45));
+        return out;
+    }
+    const int gap = px(compact ? 8 : 12), inset = px(compact ? 10 : 15);
+    const int side = std::min(std::clamp(usable * 31 / 100, px(218), px(328)), usable * 45 / 100);
+    const int left = pad + inset, left_w = side - 2 * inset;
     const int card_x = pad + side + gap, inner_x = card_x + inset, inner_right = right - inset;
-    const int inner_width = std::max(0, inner_right - inner_x);
+    const int inner_w = inner_right - inner_x;
     put(Slot::library_card, pad, card_top, side, card_bottom - card_top);
     put(Slot::note_card, card_x, card_top, right - card_x, card_bottom - card_top);
 
     int row = card_top + inset;
-    const int folder_btn = px(82), split = px(6);
-    put(Slot::new_note, left, row, left_width - folder_btn - split, px(32));
-    put(Slot::new_folder, left + left_width - folder_btn, row, folder_btn, px(32));
-    row += px(tight ? 33 : compact ? 37 : 39);
-    put(Slot::folders_label, left, row + px(3), left_width - px(89), px(20));
-    put(Slot::folder_actions, left + left_width - px(83), row, px(83), px(25));
-    row += px(tight ? 26 : compact ? 27 : 29);
-    const int tree_budget = card_bottom - 2 * inset - row - px(tight ? 92 : 101) - px(19) - px(7) - px(40);
-    const int folder_h = std::clamp(std::min((card_bottom - card_top - px(157)) / 3, tree_budget),
-        px(tight ? 32 : 38), px(164));
-    put(Slot::folder_tree, left, row, left_width, folder_h);
-    row += folder_h + px(7);
-    put(Slot::search_label, left, row, left_width, px(18));
-    put(Slot::search, left, row + px(18), left_width, px(tight ? 24 : 27));
-    put(Slot::search_all, left, row + px(tight ? 44 : 48), left_width, px(19));
-    put(Slot::sort, left, row + px(tight ? 64 : 70), left_width, px(140)); // Native combo dropdown height.
-    row += px(tight ? 92 : 101);
-    put(Slot::library_label, left, row, left_width, px(18));
-    put(Slot::library, left, row + px(19), left_width, card_bottom - inset - row - px(19));
+    put(Slot::new_note, left, row, left_w, px(34));
+    row += px(44);
+    put(Slot::search_label, left, row, left_w, px(17));
+    put(Slot::search, left, row + px(18), left_w, px(28));
+    row += px(56);
+    put(Slot::folders_label, left, row, left_w, px(18));
+    row += px(20);
+    const int tree_budget = card_bottom - inset - row - px(78);
+    const int folder_h = std::max(0, std::min(tree_budget,
+        std::clamp((card_bottom - card_top) / 4, px(43), px(147))));
+    put(Slot::folder_tree, left, row, left_w, folder_h);
+    row += folder_h + px(11);
+    put(Slot::library_label, left, row, left_w, px(18));
+    put(Slot::library, left, row + px(20), left_w, card_bottom - inset - row - px(20));
 
     row = card_top + inset;
-    const int action_w = px(93);
-    put(Slot::title_label, inner_x, row, inner_width, px(17));
-    put(Slot::title, inner_x, row + px(18), inner_width - action_w - split, px(35));
-    put(Slot::move_note, inner_right - action_w, row + px(18), action_w, px(35));
-    put(Slot::note_info, inner_x, row + px(57), inner_width, px(18));
-    put(Slot::note_dates, inner_x, row + px(76), inner_width, px(18));
-    put(Slot::body_label, inner_x, row + px(99), inner_width, px(18));
-    const int draft_height = std::clamp((card_bottom - card_top) / 7, px(37), px(70));
-    const int draft_y = card_bottom - inset - draft_height;
-    put(Slot::body, inner_x, row + px(118), inner_width, draft_y - row - px(147));
-    put(Slot::draft_label, inner_x, draft_y - px(23), inner_width, px(20));
-    put(Slot::draft, inner_x, draft_y, inner_width, draft_height);
-    const int storage_y = card_bottom + px(tight ? 4 : 9);
-    put(Slot::storage, pad + px(4), storage_y, usable - px(8), std::max(0, height - storage_y));
-    put(Slot::masked_info, pad + px(15), card_top + px(15), usable - px(30), px(50));
+    put(Slot::title_label, inner_x, row, inner_w, px(17));
+    put(Slot::title, inner_x, row + px(18), inner_w, px(34));
+    put(Slot::note_info, inner_x, row + px(58), inner_w, px(17));
+    put(Slot::note_dates, inner_x, row + px(76), inner_w, px(18));
+    put(Slot::body_label, inner_x, row + px(101), inner_w, px(18));
+    const int dock = std::max(row + px(155), card_bottom - inset - px(83));
+    const int editor_top = row + px(120);
+    int editor_bottom = dock - px(10);
+    if (separate_passage) {
+        // Keep the microphone controls fixed; reserve room for the only
+        // visible copy of a rejected passage even on a short work area.
+        const int passage_h = std::clamp((editor_bottom - editor_top - px(25)) / 2, px(24), px(62));
+        put(Slot::draft, inner_x, editor_bottom - passage_h, inner_w, passage_h);
+        put(Slot::draft_label, inner_x, editor_bottom - passage_h - px(22), inner_w, px(18));
+        editor_bottom -= passage_h + px(30);
+    }
+    put(Slot::body, inner_x, editor_top, inner_w, editor_bottom - editor_top);
+    const int dict_w = std::min(px(153), std::max(0, inner_w - px(88)));
+    put(Slot::dictate, inner_x, dock, dict_w, px(36));
+    put(Slot::copy, inner_x + dict_w + px(8), dock, std::min(px(101), inner_w - dict_w - px(8)), px(36));
+    put(Slot::microphone, inner_x + px(18), dock + px(44), inner_w - px(18), px(38));
+    put(Slot::storage, pad + px(4), card_bottom + px(5), usable - px(8), px(22));
     return out;
 }
 
@@ -240,16 +240,15 @@ void Theme::draw_background(HDC dc, const RECT& clip, const Layout& bounds, bool
         }
     }
     auto badge = bounds[Slot::badge];
-    InflateRect(&badge, px(7), px(4));
-    rounded(dc, badge, px(21), contrast_ ? paper : hint, line);
-    auto status = bounds[Slot::microphone];
-    status.left -= px(27); status.right += px(12);
-    status.top -= px(5); status.bottom += px(5);
-    rounded(dc, status, px(14), paper, line);
+    if (badge.right > badge.left) {
+        InflateRect(&badge, px(7), px(4));
+        rounded(dc, badge, px(21), contrast_ ? paper : hint, line);
+    }
+    const auto status = bounds[Slot::microphone];
     const COLORREF dot = contrast_ ? GetSysColor(COLOR_WINDOWTEXT) :
         mic == Mic::recording || mic == Mic::error ? recording :
         mic == Mic::pending || mic == Mic::preparing ? amber : accent;
-    RECT indicator{status.left + px(11), status.top + px(12), status.left + px(19), status.top + px(20)};
+    RECT indicator{status.left - px(16), status.top + px(4), status.left - px(8), status.top + px(12)};
     rounded(dc, indicator, px(8), dot, dot);
     if (hidden) {
         auto obscured = bounds[Slot::masked_info];

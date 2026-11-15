@@ -14,17 +14,21 @@ import zipfile
 
 if __package__:
     from .build_whisper_windows import validate_staged, DLL_NAMES, DECODER_PATCH
+    from .catalogue_package import domain_header, validate as validate_catalogue
 else:
     from build_whisper_windows import validate_staged, DLL_NAMES, DECODER_PATCH
+    from catalogue_package import domain_header, validate as validate_catalogue
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WIN = ROOT / "app/windows"
 LOCK = json.loads((ROOT / "app/inputs.lock.json").read_text(encoding="utf-8"))
-PUBLIC_CATALOGUE_MANIFEST = ROOT / "lexique/manifest-essai-public.json"
+PUBLIC_CATALOGUE_MANIFEST = ROOT / "lexique/manifest-essai-041.json"
 WHISPER_NOTICES = WIN / "vendor/whisper-notices"
 BASE_FLAGS = ["-target", "x86_64-windows-gnu", "-O2", "-DUNICODE", "-D_UNICODE"]
-CXX_FLAGS = [*BASE_FLAGS, "-std=c++17", "-Wall", "-Wextra"]
+VERSION = "0.4.1-essai"
+CXX_FLAGS = [*BASE_FLAGS, "-std=c++17", "-Wall", "-Wextra",
+             f'-DNOTEVIVE_RELEASE_LABEL=L"{VERSION.removesuffix("-essai")}"']
 
 
 def digest(path, algo="sha256"):
@@ -103,30 +107,14 @@ def stage_inputs(downloads, staging, catalogue, whisper_runtime):
     for source in lex["sources"]:
         del source["file"]
     (notices / "Referentiels.json").write_text(json.dumps(lex, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    shutil.copyfile(ROOT / "lexique/orphanet-domains.lock.json", notices / "Domaines-Orphanet.json")
+    shutil.copyfile(ROOT / "docs/lexique-041.md", notices / "Vocabulaire-041.md")
     shutil.copyfile(ROOT / "app/LIRE-AVANT-ESSAI.txt", package / "LIRE-AVANT-ESSAI.txt")
     return work, package
 
 
 def check_public_catalogue(path):
-    spec = LOCK["catalogue"]
-    check(path, spec)
-    if path.stat().st_size != spec["bytes"]:
-        raise ValueError("Taille inattendue pour le catalogue public")
-    lex = json.loads(PUBLIC_CATALOGUE_MANIFEST.read_text(encoding="utf-8"))
-    sources = {entry["id"]: entry for entry in lex["sources"]}
-    if (sorted(sources) != spec["sources"] or len(sources) != len(lex["sources"])
-            or any(s["format"].startswith("bdpm") for s in sources.values())):
-        raise ValueError("Le manifeste d’essai doit couvrir uniquement les six référentiels autorisés")
-    with sqlite3.connect(path.resolve().as_uri() + "?mode=ro&immutable=1", uri=True) as con:
-        present = con.execute("SELECT id, sha256 FROM source").fetchall()
-        if (con.execute("PRAGMA user_version").fetchone() != (spec["schema"],)
-                or con.execute("SELECT count(*) FROM term").fetchone() != (spec["entries"],)
-                or dict(present) != {key: s["sha256"] for key, s in sources.items()}
-                or con.execute("SELECT 1 FROM term WHERE category IN ('medicament','substance') LIMIT 1").fetchone()
-                or con.execute("PRAGMA integrity_check").fetchone() != ("ok",)
-                or con.execute("PRAGMA foreign_key_check").fetchone()):
-            raise ValueError("Le catalogue d’essai ne correspond pas aux sources vérifiées")
-    return lex
+    return validate_catalogue(path, PUBLIC_CATALOGUE_MANIFEST, LOCK["catalogue"])
 
 
 def run(zig, args, cache):
@@ -136,13 +124,19 @@ def run(zig, args, cache):
 
 def compile_bundle(zig, work, package, cache, whisper_runtime, preview_exe=None):
     make_resources(work / "notevive.res")
-    spec = LOCK["catalogue"]
+    catalogue = package / "runtime/catalogue.sqlite"
+    domain_labels = ROOT / "lexique/domain_labels.json"
+    (work / "catalogue_domains.h").write_text(domain_header(domain_labels), encoding="utf-8")
     (work / "catalogue_integrity.h").write_text(
-        f'#define NOTEVIVE_CATALOGUE_SIZE {spec["bytes"]}\n'
-        f'#define NOTEVIVE_CATALOGUE_SHA256 "{spec["hash"]}"\n', encoding="ascii")
+        f'#define NOTEVIVE_CATALOGUE_SIZE {catalogue.stat().st_size}\n'
+        f'#define NOTEVIVE_CATALOGUE_SHA256 "{digest(catalogue)}"\n', encoding="ascii")
     (package / "Build").mkdir()
+    (package / "Build/catalogue.json").write_text(json.dumps({
+        **LOCK["catalogue"], "bytes": catalogue.stat().st_size, "sha256": digest(catalogue),
+        "domain_labels_sha256": digest(domain_labels),
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (package / "Build/version.json").write_text(json.dumps({
-        "product": "NoteVive", "version": "0.4.0-essai",
+        "product": "NoteVive", "version": VERSION,
         "source_commit": os.environ.get("GITHUB_SHA", "local-build"),
         "asr": "whisper.cpp-1.8.5", "model": "large-v3-turbo-q5_0",
         "decoder_upstream_fix": DECODER_PATCH["upstream_commit"],
@@ -214,7 +208,7 @@ def main():
     parser.add_argument("--zig", type=Path, required=True)
     parser.add_argument("--downloads", type=Path, default=ROOT / "app/private/downloads")
     parser.add_argument("--whisper-runtime", type=Path, default=ROOT / "app/private/whisper-build")
-    parser.add_argument("--catalogue", type=Path, default=ROOT / "lexique/private/catalogue-essai-public.sqlite")
+    parser.add_argument("--catalogue", type=Path, default=ROOT / "lexique/private/catalogue-essai-041.sqlite")
     parser.add_argument("--build-cache", type=Path, default=ROOT / "app/private/build-cache")
     parser.add_argument("--output", type=Path, default=ROOT / "dist/NoteVive-Windows-x64-Essai.zip")
     parser.add_argument("--preview-exe", type=Path, help="Binaire séparé de capture UI fictive, jamais ajouté au ZIP")

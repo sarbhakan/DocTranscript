@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "experiment": "px-stabilised-adamw-three-arms-24",
+  "frozen_before_any_candidate_free_generation": true,
+  "purpose": "Verify repeatable finite training after isolating the AdamW update on CPU, and compare a frozen-base KL penalty and a drug-only token loss weighting against matched CE.",
+  "diagnostic": {
+    "schedule_updates": 50,
+    "max_optimizer_steps": 3,
+    "subsequent_forward_check": true,
+    "mps_fp16_original": "8 finite forward losses; AdamW step 2 called; guard refused nonfinite LoRA weights; 0 checkpoints.",
+    "cpu_shadow_adamw_mps_fp16": "3 guarded CPU optimizer updates and 13 finite forwards; no stored checkpoint.",
+    "interpretation": "The explicit CPU optimizer route avoids the reproduced failure at this horizon. The precise MPS operation or underlying numerical mechanism is unproven. The conditional FP32 fallback was not needed."
+  },
+  "arms_in_order": [
+    {"id": "ce24", "cross_entropy_weight": 1.0, "base_retention_kl_weight": 0.0, "drug_subtoken_weight": 1.0},
+    {"id": "kl24", "cross_entropy_weight": 1.0, "base_retention_kl_weight": 0.35, "drug_subtoken_weight": 1.0},
+    {"id": "drug24", "cross_entropy_weight": 1.0, "base_retention_kl_weight": 0.0, "drug_subtoken_weight": 2.0}
+  ],
+  "matching": {
+    "base": "Same verified original Whisper Turbo checkpoint; zero-effect LoRA, fixed rank and targets.",
+    "adamw_backend": "cpu-shadow",
+    "device": "mps",
+    "dtype": "float16",
+    "seed": 20261114,
+    "epochs": 1,
+    "updates": 24,
+    "accumulation": 4,
+    "train_clips": 96,
+    "peak_learning_rate": 0.0001,
+    "gradient_clip": 1.0,
+    "threads": 4,
+    "validation_loss_clips": 8,
+    "checkpoint_every": 0,
+    "no_resume": true,
+    "min_free_gib": 2
+  },
+  "drug_weighting": "Only source-verified B-drug/I-drug entities in the fixed train rows; discard orphan continuation and entities with digits, units, number words or negation markers. Require identical tokenizer IDs and valid offsets. Only subtokens fully inside a valid entity (ignoring whitespace). No extra weight for force/dose tags, prompt, forced prefix, EOS, or padding. No evaluation reference or lexicon in generation.",
+  "generation": {
+    "reference_audio": "Published simulated prescriptions in PxCorpus v4 under CC BY 4.0. The 96 clips remain development, not independent held-out clinical audio.",
+    "comparisons": "Base and each arm paired on the same PCM; also compare KL and drug-weighted CE to the matched CE arm on the same clips.",
+    "windows_in_order": [
+      {"id": "historical32", "offset": 0, "count": 32, "grid_sha256": "e68b37befd34ae93870d14be4a5b54c2d3889c2b1a1f417f808326d718f7ebd7"},
+      {"id": "additional64", "offset": 32, "count": 64, "grid_sha256": "9befe2239fef61caf51de8a046562e16e08ce182a1dc2605d309dd15e9049c4a"}
+    ],
+    "grid_scorer_sha256": "52fdb6884331a40e84b3399274da02ffeae321111956c1c10c962baa6c68e78d",
+    "synthetic_negation_supplement": "Separate fixed fictitious French panel, if available with local installed voice. All test text, PCM and applicable positive/negative controls must be frozen before any generation for this panel. Report TTS limitations and actual coverage separately; without audio, text guards only. Zero paired regression on covered critical fields including negation and laterality; no safety claim if there is no qualified speech sample.",
+    "reserve": "No benchmark generation, tuning or scoring on the 85 WAV reserve. The source archive is still validated for provenance and split exclusion."
+  },
+  "decisions": {
+    "each_window": "Zero new scored critical failures versus the base and versus matched CE; report losses, gains, denominators, clips affected, and manual review of losses. EOS present for all paired clips. Both cumulative and median generation seconds at most 110% of the paired base. Note MPS benchmarking order and avoid claiming Windows latency.",
+    "additional64": "Strictly more correctly recognised drug spans and fewer word errors than both base and matched CE, in addition to the zero-regression gates.",
+    "base_replay": "Require identical base text on every repeated clip before drawing between-arm conclusions.",
+    "interruption": "Record failed or incomplete arms, no weights admitted via training loss alone, no change to coefficient/seed/train rows/checkpoints after looking at outputs.",
+    "adoption": "Research screening only. No quantised/exported model, product weight substitution, new-voice qualification or clinical claim. A candidate passing needs fixed tests on independent voices and the intended runtime."
+  }
+}

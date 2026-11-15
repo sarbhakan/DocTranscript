@@ -19,7 +19,8 @@ from xml.etree import ElementTree as ET
 MANIFEST_VERSION = 1
 CATALOGUE_VERSION = 2
 CATEGORIES = {"maladie", "symptome", "acte", "examen", "dispositif", "produit-prestation",
-              "medicament", "substance", "anatomie", "motif-plainte", "diagnostic-soins-primaires"}
+              "medicament", "substance", "anatomie", "motif-plainte", "diagnostic-soins-primaires",
+              "forme-pharmaceutique", "voie-administration", "terme-anatomopathologique"}
 FORMATS = {"csv", "bdpm-cis", "bdpm-compo", "orphanet-nomenclature-fr"}
 KEY = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}\Z")
 SHA = re.compile(r"[0-9a-f]{64}\Z")

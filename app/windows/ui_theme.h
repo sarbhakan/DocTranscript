@@ -15,21 +15,20 @@
 namespace doct::ui {
 
 enum class Slot : std::size_t {
-    brand, subtitle, badge, dictate, save, copy, privacy, vocabulary, external, microphone,
-    library_card, note_card, new_note, new_folder, folders_label, folder_actions, folder_tree,
-    search_label, search, search_all, sort, library_label, library, title_label, title, move_note,
-    note_info, note_dates, body_label, body, draft_label, draft, storage, masked_info, count
+    brand, subtitle, badge, actions, dictate, copy, microphone,
+    library_card, note_card, new_note, folders_label, folder_tree, search_label, search, library_label, library,
+    title_label, title, note_info, note_dates, body_label, body, draft_label, draft, storage, masked_info, count
 };
 
 struct Layout {
-    static constexpr int min_client_width = 690;
-    static constexpr int min_client_height = 540;
+    static constexpr int min_client_width = 650;
+    static constexpr int min_client_height = 490;
     using Rects = std::array<RECT, static_cast<std::size_t>(Slot::count)>;
     Rects slots{};
     const RECT& operator[](Slot slot) const noexcept { return slots[static_cast<std::size_t>(slot)]; }
 };
 
-Layout layout(int width, int height, UINT dpi, bool copy_button, bool external_button);
+Layout layout(int width, int height, UINT dpi, bool separate_passage, bool hidden);
 void place(HWND control, const RECT& bounds);
 
 enum class Font { body, brand, heading, note_title, small, button, count };

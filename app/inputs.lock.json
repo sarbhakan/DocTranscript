@@ -55,18 +55,24 @@
     }
   },
   "catalogue": {
-    "hash": "d23ba8cb29b02e3f00d769ed670ae3c3b8cd4ad4a6c9cbdbdf4ab279787f4ccc",
-    "bytes": 27385856,
     "schema": 2,
-    "entries": 70517,
+    "entries": 100175,
     "sources": [
+      "adicap-ans",
       "ccam-ans",
       "cisp2-ans",
       "emdn-ans",
+      "lahn-ans",
       "lpp-cnam",
       "nabm-ans",
-      "orphanet-fr"
-    ]
+      "orphanet-fr",
+      "ruim-cis",
+      "ruim-formes",
+      "ruim-substances",
+      "ruim-voies"
+    ],
+    "content_sha256": "f1efb69c83447c3c725c6610ce43efe13b12357799d441bb20ec0c501254a01c",
+    "domain_mapping_sha256": "6fa79fbdc0d64d0597db8c404837063a81cbe9bd716b581572aa402cd0342de5"
   },
   "runtime_notices": {
     "LLVM-libcxx.txt": {
