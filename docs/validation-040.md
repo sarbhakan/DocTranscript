@@ -1,6 +1,6 @@
 # Validation de NoteVive Windows 0.4.0
 
-État au 15 novembre 2026 : recette du candidat en cours, sans publication 0.4.0 à ce stade. Cette page sépare les preuves de fonctionnement, la comparaison des poids et la qualification d’un usage médical. La version reste un essai sur des données fictives.
+État au 15 novembre 2026 : recettes du produit, des champs Win32 et du chemin UI Automation WPF réussies. Construction finale de la préversion en préparation ; les références du paquet publié seront ajoutées après sa livraison. Cette page sépare les preuves de fonctionnement, la comparaison des poids et la qualification d’un usage médical. La version reste un essai sur des données fictives.
 
 ## Changements examinés
 
@@ -28,11 +28,15 @@ Les preuves finales, l’empreinte du paquet et les éventuels écarts sont cons
 
 ## Périmètre de la porte de publication
 
-La préversion fictive exige la réussite de la construction du ZIP, du stockage et de la récupération, des contrôles audio, de l’interface, des champs Win32 et du chemin UI Automation / `SendInput` sur des champs WPF synthétiques. Le [premier test WPF](https://github.com/sarbhakan/DocTranscript/actions/runs/43662506430/job/132654688388) a renvoyé `unsupported` à la capture, avant tout envoi. Il reste bloquant tant que la cause n’est pas résolue et que les assertions strictes ne passent pas.
+La préversion fictive exige la réussite de la construction du ZIP, du stockage et de la récupération, des contrôles audio, de l’interface, des champs Win32 et du chemin UI Automation / `SendInput` sur des champs WPF synthétiques. Le [premier test WPF](https://github.com/sarbhakan/DocTranscript/actions/runs/43662506430/job/132654688388) a renvoyé `unsupported` à la capture, avant tout envoi. Cet échec a été conservé et diagnostiqué avant toute publication. Les clients natif et managé ne voyaient alors que la fenêtre, sans les champs du fournisseur WPF.
 
 Le même run isole le blocage préalable du rendu Edge : Windows refuse l’accès au répertoire NPFS AppContainer du compte secondaire. La lecture non mutante des ancêtres confirme notamment le refus de lecture de cette branche. Aucun droit NPFS n’est modifié ; les droits temporaires des autres objets sont restaurés et vérifiés. Le test n’atteint aucune assertion de saisie dans Edge. Il ne constitue donc ni une réussite de compatibilité, ni une preuve de panne du produit dans une session Windows ordinaire.
 
-Après revue indépendante, ce contrôle d’environnement reste disponible sous sa forme stricte avec l’entrée manuelle `diagnostic_edge` du workflow. Il est séparé des critères de cette préversion ; son absence dans un run ordinaire signifie **non exécuté**, pas validé. La recette Edge inchangée doit être exécutée dans une vraie session Windows 11 avec un compte standard avant toute annonce de compatibilité navigateur. Word demande aussi une recette réelle. La réussite WPF, lorsqu’elle sera obtenue, qualifiera seulement la voie technique testée. La copie explicite reste le recours proposé pour les logiciels non qualifiés.
+Après revue indépendante, ce contrôle d’environnement reste disponible sous sa forme stricte avec l’entrée manuelle `diagnostic_edge` du workflow. Il est séparé des critères de cette préversion ; son absence dans un run ordinaire signifie **non exécuté**, pas validé. La recette Edge inchangée doit être exécutée dans une vraie session Windows 11 avec un compte standard avant toute annonce de compatibilité navigateur. Word demande aussi une recette réelle. La réussite WPF qualifie seulement la voie technique testée. La copie explicite reste le recours proposé pour les logiciels non qualifiés.
+
+Le [test `97a6510`](https://github.com/sarbhakan/DocTranscript/actions/runs/43664261422/job/132660044750) réussit ensuite Win32 et WPF avec les mêmes contrôles et les mêmes assertions. Le seul changement concerne le compte de recette : accès temporaire `0xF` à `BaseNamedObjects`, déjà mesuré nécessaire à la création d’un mutex local sur ce serveur. Le bureau Native, le confinement et les protections du produit restent inchangés ; aucun accès AppContainer n’est ajouté pour WPF. L’accès précédemment refusé est vérifié, puis la DACL d’origine est restaurée et relue après l’arrêt des descendants.
+
+La capture WPF réussit dès la première tentative. Les caractères `é` et `½` arrivent exactement au curseur dans deux champs distincts ; les autres champs conservent leur contenu. Le changement de focus invalide définitivement la cible, et les sélections, champs en lecture seule et mots de passe sont refusés. Les diagnostics conditionnels restent absents du binaire de production. Ces résultats ne valident ni Word ni Edge et ne mesurent pas une dictée au microphone.
 
 ## Entraînement réellement exécuté, modèle distribué conservé
 

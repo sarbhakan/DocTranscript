@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "date_utc": "2026-11-14",
+  "date_utc": "2026-11-15",
   "purpose": "Windows 0.4.0 fictional trial validation; not clinical qualification",
   "candidate": {
     "source_head": "bd8f7ee1c81cf663652b956e81d64d8101c27503",
@@ -204,12 +204,38 @@
     "physical_8gb_pc": false,
     "word": false,
     "medical_qualification": false,
-    "adapted_weights_shipped": false
+    "adapted_weights_shipped": false,
+    "edge": false,
+    "wpf_synthetic_controls": true
   },
   "limitations": [
     "Fixture timing includes process startup and is not latency after a live pause.",
     "The exact term Imovane remains missing from px-23.",
     "Finite numerical fixtures do not establish clinical negation or drug accuracy.",
     "VMs differ across runs; no causal performance gain is claimed."
-  ]
+  ],
+  "external_candidate": {
+    "source_head": "97a651083ccf4be22d1602e7eafc3c251e6ab2d9",
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43664261422/job/132660044750",
+    "job_id": 132660044750,
+    "job_conclusion": "success",
+    "native_unicode_edit": true,
+    "wpf_uia_sendinput": true,
+    "checks": [
+      "Exact Unicode insertion at caret in two synthetic fields",
+      "Unrelated fields unchanged",
+      "Focus change permanently invalidates target",
+      "Selections, read-only fields and passwords refused"
+    ],
+    "hosted_setup": {
+      "standard_non_elevated_account": true,
+      "wpf_base_named_objects_mask": "0x0000000f",
+      "native_desktop_and_job_unchanged": true,
+      "wpf_appcontainer_grant": false,
+      "original_dacl_restored_and_verified": true
+    },
+    "edge_qualification": false,
+    "edge_blocked_run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43662506430/job/132654688388",
+    "edge_blocker": "NPFS AppContainer preparation on the secondary hosted account; renderer unavailable before input assertions"
+  }
 }
