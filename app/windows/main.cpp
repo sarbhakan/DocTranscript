@@ -1713,6 +1713,14 @@ bool shortcut(App& app, const MSG& message) {
     const bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
     const bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
     if (alt) return false;
+    if (!ctrl && message.wParam == VK_TAB && (message.hwnd == app.body || message.hwnd == app.draft) &&
+        GetFocus() == message.hwnd) {
+        // Multiline EDIT may claim Tab before IsDialogMessage can navigate.
+        // Use the native tab order so disabled or hidden controls are skipped.
+        const auto next = GetNextDlgTabItem(app.window, message.hwnd, shift ? TRUE : FALSE);
+        if (next && next != message.hwnd) SetFocus(next);
+        return true;
+    }
     int command = 0;
     if (!ctrl && !shift && message.wParam == VK_F9) command = Dictate;
     if (!ctrl && shift && message.wParam == VK_F10) command = Actions;

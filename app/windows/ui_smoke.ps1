@@ -723,9 +723,17 @@ try {
         if (-not [NvWindow]::TabFollows($handle, $tabChain[$i - 1], $tabChain[$i])) { throw 'Unexpected bidirectional keyboard navigation order.' }
     }
     $nextTab = if ([NvWindow]::IsWindowEnabled([NvWindow]::GetDlgItem($handle, 102))) { 102 } else { 123 }
+    if (-not [NvWindow]::TabFollows($handle, 108, $nextTab)) { throw 'The editor tab order does not skip unavailable actions.' }
+    Step 'establish keyboard focus in the editor'
+    $editor = ById 108
+    $editorHandle = Window-Handle $editor
+    if ([NvWindow]::UiFocus($handle, $process.Id) -ne $editorHandle) { $editor.SetFocus() }
+    $null = Wait-For { [NvWindow]::UiFocus($handle, $process.Id) -eq $editorHandle } 'start with focus in the editor'
+    $editorText = [NvWindow]::Text($editorHandle)
     Step 'verify actual Tab routing from the editor'
-    $null = Wait-For { [NvWindow]::TabFrom($handle, $process.Id, 108) } 'queue Tab in the focused editor'
+    if (-not [NvWindow]::TabFrom($handle, $process.Id, 108)) { throw 'Could not queue Tab in the focused editor.' }
     $null = Wait-For { [NvWindow]::UiFocus($handle, $process.Id) -eq [NvWindow]::GetDlgItem($handle, $nextTab) } 'move focus to the next visible action with Tab'
+    if ([NvWindow]::Text($editorHandle) -cne $editorText) { throw 'Tab altered the text of the note.' }
     $copyHandle = [NvWindow]::GetDlgItem($handle, 121)
     if ($copyHandle -eq [IntPtr]::Zero -or [NvWindow]::IsWindowEnabled($copyHandle)) {
         throw 'Copy must be disabled in the initial empty editor.'
