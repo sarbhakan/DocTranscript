@@ -1310,8 +1310,12 @@ struct FilteredIdentity {
     }
 
     bool same(const FilteredIdentity& other) const {
-        return session == other.session && auth.LowPart == other.auth.LowPart && auth.HighPart == other.auth.HighPart &&
-            user == other.user && logon == other.logon;
+        const bool session_ok = session == other.session, user_ok = user == other.user, logon_ok = logon == other.logon;
+        const bool auth_ok = auth.LowPart == other.auth.LowPart && auth.HighPart == other.auth.HighPart;
+        if (!session_ok || !auth_ok || !user_ok || !logon_ok)
+            std::fprintf(stderr, "Filtered identity mismatch: session=%d auth_luid=%d user_sid=%d logon_sid=%d.\n",
+                         session_ok, auth_ok, user_ok, logon_ok);
+        return session_ok && auth_ok && user_ok && logon_ok;
     }
 
     std::wstring digest() const {
@@ -1352,34 +1356,56 @@ bool same_process_session(DWORD pid, DWORD token_session) {
 }
 
 bool filtered_token(HANDLE token, PSID administrators) {
+    const auto query_failed = [](const char* name) {
+        std::fprintf(stderr, "Filtered token query %s failed (Windows error %lu).\n", name,
+                     static_cast<unsigned long>(GetLastError()));
+        return false;
+    };
+    const auto rejected = [](const char* name, DWORD mask) {
+        std::fprintf(stderr, "Filtered token rejected at %s: 0x%lx.\n", name, static_cast<unsigned long>(mask));
+        return false;
+    };
     TOKEN_ELEVATION elevation{};
     DWORD received = 0, ui_access = 1, app_container = 1;
-    if (!GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &received) || elevation.TokenIsElevated ||
-            !GetTokenInformation(token, TokenUIAccess, &ui_access, sizeof(ui_access), &received) || ui_access ||
-            !GetTokenInformation(token, TokenIsAppContainer, &app_container, sizeof(app_container), &received) || app_container)
-        return false;
+    if (!GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &received))
+        return query_failed("TokenElevation");
+    if (elevation.TokenIsElevated) return rejected("TokenElevation", elevation.TokenIsElevated);
+    if (!GetTokenInformation(token, TokenUIAccess, &ui_access, sizeof(ui_access), &received))
+        return query_failed("TokenUIAccess");
+    if (ui_access) return rejected("TokenUIAccess", ui_access);
+    if (!GetTokenInformation(token, TokenIsAppContainer, &app_container, sizeof(app_container), &received))
+        return query_failed("TokenIsAppContainer");
+    if (app_container) return rejected("TokenIsAppContainer", app_container);
     std::vector<BYTE> level, groups, privileges;
-    if (!token_part(token, TokenIntegrityLevel, level) || !token_part(token, TokenGroups, groups) ||
-            !token_part(token, TokenPrivileges, privileges) ||
-            !IsWellKnownSid(reinterpret_cast<const TOKEN_MANDATORY_LABEL*>(level.data())->Label.Sid, WinMediumLabelSid))
-        return false;
+    if (!token_part(token, TokenIntegrityLevel, level)) return query_failed("TokenIntegrityLevel");
+    if (!token_part(token, TokenGroups, groups)) return query_failed("TokenGroups");
+    if (!token_part(token, TokenPrivileges, privileges)) return query_failed("TokenPrivileges");
+    const auto integrity = reinterpret_cast<const TOKEN_MANDATORY_LABEL*>(level.data())->Label.Sid;
+    if (!IsWellKnownSid(integrity, WinMediumLabelSid)) {
+        const auto count = IsValidSid(integrity) ? *GetSidSubAuthorityCount(integrity) : 0;
+        return rejected("TokenIntegrityLevel RID", count ? *GetSidSubAuthority(integrity, count - 1) : 0);
+    }
     bool deny_only = false;
     const auto* group_info = reinterpret_cast<const TOKEN_GROUPS*>(groups.data());
     for (DWORD i = 0; i < group_info->GroupCount; ++i) {
         const auto& group = group_info->Groups[i];
         if (EqualSid(group.Sid, administrators)) {
             constexpr DWORD mask = SE_GROUP_ENABLED | SE_GROUP_ENABLED_BY_DEFAULT | SE_GROUP_USE_FOR_DENY_ONLY;
-            if ((group.Attributes & mask) != SE_GROUP_USE_FOR_DENY_ONLY) return false;
+            if ((group.Attributes & mask) != SE_GROUP_USE_FOR_DENY_ONLY)
+                return rejected("Administrators group attributes", group.Attributes & mask);
             deny_only = true;
         }
     }
     LUID traverse{};
-    if (!deny_only || !LookupPrivilegeValueW(nullptr, L"SeChangeNotifyPrivilege", &traverse)) return false;
+    if (!deny_only) return rejected("Administrators group present", 0);
+    if (!LookupPrivilegeValueW(nullptr, L"SeChangeNotifyPrivilege", &traverse))
+        return query_failed("LookupPrivilegeValueW for the traverse privilege");
     const auto* privilege_info = reinterpret_cast<const TOKEN_PRIVILEGES*>(privileges.data());
     for (DWORD i = 0; i < privilege_info->PrivilegeCount; ++i) {
         const auto& privilege = privilege_info->Privileges[i];
         if ((privilege.Attributes & SE_PRIVILEGE_ENABLED) &&
-                (privilege.Luid.LowPart != traverse.LowPart || privilege.Luid.HighPart != traverse.HighPart)) return false;
+                (privilege.Luid.LowPart != traverse.LowPart || privilege.Luid.HighPart != traverse.HighPart))
+            return rejected("unexpected enabled privilege attributes", privilege.Attributes);
     }
     return true;
 }
@@ -1468,12 +1494,16 @@ int launch_filtered(const wchar_t* directory) {
             !CreateWellKnownSid(WinMediumLabelSid, nullptr, medium, &medium_size))
         return failure("cannot identify the elevated interactive runner");
     SID_AND_ATTRIBUTES disable{administrators, 0};
-    if (!CreateRestrictedToken(runner.value, DISABLE_MAX_PRIVILEGE, 1, &disable, 0, nullptr, 0, nullptr, &filtered.value))
+    // Preserve the historical filtered launcher's LUA and privilege flags.
+    constexpr DWORD flags = DISABLE_MAX_PRIVILEGE | LUA_TOKEN;
+    if (!CreateRestrictedToken(runner.value, flags, 1, &disable, 0, nullptr, 0, nullptr, &filtered.value))
         return failure("CreateRestrictedToken");
     TOKEN_MANDATORY_LABEL mandatory{{medium, SE_GROUP_INTEGRITY}};
-    if (!SetTokenInformation(filtered.value, TokenIntegrityLevel, &mandatory, sizeof(mandatory) + medium_size) ||
-            !filtered_token(filtered.value, administrators) || !selected.read(filtered.value) || !selected.same(original))
-        return failure("filtered token must be Medium, non-elevated, Administrators DenyOnly and preserve logon identity");
+    if (!SetTokenInformation(filtered.value, TokenIntegrityLevel, &mandatory, sizeof(mandatory) + medium_size))
+        return failure("set filtered token integrity to Medium");
+    if (!filtered_token(filtered.value, administrators)) return failure("verify restricted runner token");
+    if (!selected.read(filtered.value)) return failure("read restricted runner token identity");
+    if (!selected.same(original)) return failure("preserve the original runner logon identity");
     const auto expected = original.digest();
     if (expected.size() != 64) return failure("hash the original logon identity");
 
