@@ -33,6 +33,7 @@ namespace {
 
 constexpr DWORD kMessageMs = 100, kProviderMs = 300, kReleaseMs = 400;
 constexpr ULONGLONG kCaptureMs = 4000, kQueueMs = 2500;
+constexpr ULONGLONG kIdleUiaPollMs = 250, kIdleUiaBudgetMs = 1000;
 constexpr std::size_t kMaxSegment = 1024, kMaxQueued = 4;
 constexpr DWORD kNoGui = GUI_INMOVESIZE | GUI_INMENUMODE | GUI_SYSTEMMENUMODE | GUI_POPUPMENUMODE;
 // A closing UI never joins an external COM provider. Limit outstanding lanes
@@ -53,6 +54,16 @@ inline bool veto(const char* guard, unsigned long status = 0) noexcept {
 inline bool com_ok(const char* guard, HRESULT status) noexcept {
     return SUCCEEDED(status) || veto(guard, static_cast<unsigned long>(status));
 }
+#ifdef NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS
+bool suppress_recipe_focus_events() noexcept {
+    // Only the diagnostic fixture can reproduce a provider dropping focus events.
+    static const bool suppress = [] {
+        wchar_t value[2]{};
+        return GetEnvironmentVariableW(L"NOTEVIVE_WPF_RECIPE_NO_FOCUS_EVENTS", value, 2) == 1 && value[0] == L'1';
+    }();
+    return suppress;
+}
+#endif
 inline bool win32_veto(const char* guard) noexcept {
 #ifdef NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS
     return veto(guard, GetLastError());
@@ -363,6 +374,9 @@ public:
         return count;
     }
     HRESULT STDMETHODCALLTYPE HandleFocusChangedEvent(IUIAutomationElement*) override {
+#ifdef NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS
+        if (suppress_recipe_focus_events()) return S_OK;
+#endif
         // A provider callback needn't complete a COM request or share a UI
         // lock. A queued change invalidates the session even if focus returns.
         ++epoch;
@@ -569,8 +583,10 @@ struct Target::State {
             result = Result::ready;
             in_flight = false;
         }
+        ULONGLONG next_uia_identity_check = GetTickCount64() + kIdleUiaPollMs;
         for (;;) {
             Segment segment;
+            bool verify_idle_uia = false;
             {
                 std::unique_lock lock(mutex);
                 // Even with no text queued, invalidate a DOM focus change
@@ -581,12 +597,31 @@ struct Target::State {
                     lock.unlock();
                     return fail(Result::target_changed);
                 }
-                if (queue.empty()) continue;
-                segment = std::move(queue.front());
-                queue.pop_front();
-                in_flight = true;
-                send_by = segment.queued_at + kQueueMs;
-                result = Result::queued;
+                if (queue.empty()) {
+                    if (is_edit || GetTickCount64() < next_uia_identity_check) continue;
+                    verify_idle_uia = true;
+                } else {
+                    segment = std::move(queue.front());
+                    queue.pop_front();
+                    in_flight = true;
+                    send_by = segment.queued_at + kQueueMs;
+                    result = Result::queued;
+                }
+            }
+            if (verify_idle_uia) {
+                // Several windowless controls can share one HWND. Providers
+                // need not deliver a timely focus event for a change between them.
+                // On the existing worker, read only the focused RuntimeId;
+                // don't pause UI, hold the queue lock, or read the field value.
+                const auto deadline = GetTickCount64() + kIdleUiaBudgetMs;
+                if (!still_target(deadline)) return fail(Result::target_changed);
+                if (!same_uia_target(uia.uia, id)) {
+                    veto("uia.idle_identity_lost");
+                    return fail(Result::target_changed);
+                }
+                if (!still_target(deadline) || uia.events->epoch != epoch) return fail(Result::target_changed);
+                next_uia_identity_check = GetTickCount64() + kIdleUiaPollMs;
+                continue;
             }
             const auto deadline = segment.queued_at + kQueueMs;
             const auto line = external_line(segment.text, wrote);
@@ -594,6 +629,7 @@ struct Target::State {
             const auto outcome = is_edit ? send_edit(line, deadline) : send_uia(uia, id, epoch, line, deadline);
             if (outcome != Result::inserted && outcome != Result::submitted) return fail(outcome);
             wrote = true;
+            next_uia_identity_check = GetTickCount64() + kIdleUiaPollMs;
             {
                 std::lock_guard lock(mutex);
                 if (cancelled) return;
@@ -612,6 +648,9 @@ Target::~Target() { reset(); }
 
 void CALLBACK Target::on_event(HWINEVENTHOOK hook, DWORD event, HWND window,
                                LONG id_object, LONG id_child, DWORD tid, DWORD event_time) {
+#ifdef NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS
+    if (suppress_recipe_focus_events()) return;
+#endif
     auto* self = monitoring_;
     if (!self || !self->state_ || (hook != self->foreground_hook_ && hook != self->focus_hook_)) return;
     const auto& state = *self->state_;

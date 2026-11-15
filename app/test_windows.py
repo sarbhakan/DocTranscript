@@ -18,10 +18,12 @@ TOOLSET = 'v143,host=x64'  # Test compiler is independent from the decoder compi
 
 
 def headers(directory, worker):
-    spec = LOCK['catalogue']
+    catalogue = worker.parent / 'catalogue.sqlite'
+    size = catalogue.stat().st_size if catalogue.is_file() else 0
+    fingerprint = hashlib.sha256(catalogue.read_bytes()).hexdigest() if size else '0' * 64
     directory.mkdir(parents=True, exist_ok=True)
     (directory / 'catalogue_integrity.h').write_text(
-        f'#define NOTEVIVE_CATALOGUE_SIZE {spec["bytes"]}\n#define NOTEVIVE_CATALOGUE_SHA256 "{spec["hash"]}"\n')
+        f'#define NOTEVIVE_CATALOGUE_SIZE {size}\n#define NOTEVIVE_CATALOGUE_SHA256 "{fingerprint}"\n')
     (directory / 'worker_integrity.h').write_text(
         f'#define NOTEVIVE_WORKER_SIZE {worker.stat().st_size}\n#define NOTEVIVE_WORKER_SHA256 "{hashlib.sha256(worker.read_bytes()).hexdigest()}"\n')
 

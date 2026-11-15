@@ -22,7 +22,9 @@ import tempfile
 import time
 
 from p0.bench.scoring import edit_distance, words
+from p0.training.drug_objective import training_drug_positions
 from p0.training.prepare_px import RATE, PX_SHA256, read_pcm, safe_artifact, sha256, verify_export
+from p0.training.shadow_optimizer import cpu_shadow_adamw
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -371,8 +373,19 @@ def token_retention(torch, student, teacher, real_tokens: int):
         reduction="sum", log_target=True) / (student.shape[0] * (real_tokens - begin))
 
 
+def cross_entropy(torch, logits, targets, drug_positions: list[int] | None, drug_weight: float):
+    flat_logits, flat_targets = logits.float().reshape(-1, logits.shape[-1]), targets.reshape(-1)
+    if not drug_positions or drug_weight == 1.0:
+        return torch.nn.functional.cross_entropy(flat_logits, flat_targets, ignore_index=-100)
+    # A full-target mean by total weight keeps clips comparable in scale.
+    losses = torch.nn.functional.cross_entropy(flat_logits, flat_targets, ignore_index=-100, reduction="none")
+    indices = torch.tensor(drug_positions, device=logits.device, dtype=torch.long)
+    weighted = losses.sum() + (drug_weight - 1.0) * losses.index_select(0, indices).sum()
+    return weighted / ((flat_targets != -100).sum() + (drug_weight - 1.0) * len(drug_positions))
+
+
 def forward_loss(rt, model, base, features, labels: list[int], device: str, dtype_name: str,
-                 retention_weight: float = 0.0):
+                 retention_weight: float = 0.0, drug_positions: list[int] | None = None, drug_weight: float = 1.0):
     torch = rt["torch"]
     targets = torch.tensor([labels], dtype=torch.long, device=device)
     decoder = torch.tensor([shift_labels(labels)], dtype=torch.long, device=device)
@@ -399,8 +412,7 @@ def forward_loss(rt, model, base, features, labels: list[int], device: str, dtyp
         logits = model(encoder_outputs=encoded, decoder_input_ids=decoder,
                        use_cache=False, return_dict=True).logits
     # Explicit FP32 CE: transformers 4.57.3's Whisper loss itself does not cast.
-    ce = torch.nn.functional.cross_entropy(logits.float().reshape(-1, logits.shape[-1]),
-                                           targets.reshape(-1), ignore_index=-100)
+    ce = cross_entropy(torch, logits, targets, drug_positions, drug_weight)
     kl = token_retention(torch, logits, teacher, real_tokens) if teacher is not None else None
     loss = ce if kl is None else ce + retention_weight * kl
     if not bool(torch.isfinite(loss).item()):
@@ -497,6 +509,16 @@ def train(args):
         torch.mps.manual_seed(args.seed)
     selected = validation_selection(partitions["validation"], args.validation_limit)
     total = min(args.max_updates, args.epochs * math.ceil(len(partitions["train"]) / args.accumulation))
+    # Resolve the exact training subsets once for both the objective and loop.
+    train_epochs, remaining = [], total
+    for epoch in range(args.epochs):
+        if not remaining:
+            break
+        ordered = list(partitions["train"])
+        random.Random(args.seed + epoch).shuffle(ordered)
+        selected_train = ordered[:remaining * args.accumulation]
+        train_epochs.append(selected_train)
+        remaining -= math.ceil(len(selected_train) / args.accumulation)
     contract = {"schema": 1, "base": provenance, "corpus_source_sha256": PX_SHA256,
                 "manifest_sha256": hashes, "partitions": summary, "seed": args.seed,
                 "versions": rt["versions"], "platform": platform.platform(),
@@ -506,6 +528,8 @@ def train(args):
                 "batch_size": 1, "accumulation": args.accumulation, "epochs_requested": args.epochs,
                 "optimizer_updates_planned": total, "peak_learning_rate": args.lr,
                 "warmup_fraction": 0.1, "optimizer": "AdamW", "weight_decay": 0.01,
+                "adamw_backend": args.adamw_backend,
+                "training_rows_sha256": json_digest([[row["id"] for row in rows] for rows in train_epochs]),
                 "max_grad_norm": 1.0, "validation_selection_key": SELECTION_KEY,
                 "validation_rows_sha256": json_digest([row["id"] for row in selected]),
                 "validation_rows": len(selected), "validation_choice": "token_weighted_cross_entropy",
@@ -514,6 +538,8 @@ def train(args):
                 "resume": False, "micro_trial": total <= 8,
                 "training_objective": {"cross_entropy_weight": 1.0,
                                        "base_retention_kl_weight": args.retention_weight,
+                                       "drug_subtoken_weight": args.drug_weight,
+                                       "drug_annotation_source": "locked train-only PxSLU BIO",
                                        "kl_tokens": "lexical_and_eos_no_forced_prefix_or_padding",
                                        "teacher": "same_frozen_base_eval_no_grad_adapter_disabled",
                                        "teacher_inputs": "same_train_audio_and_shifted_train_reference",
@@ -529,9 +555,17 @@ def train(args):
     try:
         model, base, processor = model_setup(rt, source, args.device, args.dtype, True)
         labels = encode_labels(processor, partitions)
+        drug_positions, drug_stats = {}, None
+        if args.drug_weight != 1.0:
+            selected_rows = {row["id"]: row for rows in train_epochs for row in rows}
+            drug_positions, drug_stats = training_drug_positions(
+                args.px_archive, processor.tokenizer, list(selected_rows.values()), labels, PREFIX, EOS)
+            event(output, {"phase": "drug_weights", "unique_training_rows": len(selected_rows), **drug_stats})
         initial_base, initial_adapter = tensor_digest(model, False), tensor_digest(model, True)
         trainable = [parameter for parameter in model.parameters() if parameter.requires_grad]
-        optimizer = torch.optim.AdamW(trainable, lr=args.lr, weight_decay=0.01, foreach=False)
+        optimizer = (cpu_shadow_adamw(torch, trainable, lr=args.lr, weight_decay=0.01)
+                     if args.adamw_backend == "cpu-shadow"
+                     else torch.optim.AdamW(trainable, lr=args.lr, weight_decay=0.01, foreach=False))
         def stepped(optimizer, positional, keywords):
             actual["updates"] += 1
         handle = optimizer.register_step_post_hook(stepped)
@@ -541,9 +575,7 @@ def train(args):
         event(output, {"phase": "ready", "updates_planned": total, "trainable_parameters": LORA_PARAMETERS,
                        "base_parameters_sha256": initial_base, "adapter_parameters_sha256": initial_adapter,
                        **resources(rt, output, args.device)})
-        for epoch in range(args.epochs):
-            ordered = list(partitions["train"])
-            random.Random(args.seed + epoch).shuffle(ordered)
+        for epoch, ordered in enumerate(train_epochs):
             for group in accumulation_groups(ordered, args.accumulation):
                 if actual["updates"] >= total:
                     break
@@ -554,7 +586,8 @@ def train(args):
                 for row in group:
                     features, _ = audio_features(rt, processor, corpus, row, args.device, args.dtype)
                     loss, _, ce, kl = forward_loss(rt, model, base, features, labels[row["id"]],
-                                                   args.device, args.dtype, args.retention_weight)
+                                                   args.device, args.dtype, args.retention_weight,
+                                                   drug_positions.get(row["id"]), args.drug_weight)
                     ce_value = float(ce.item())
                     ce_sum += ce_value
                     loss_sum += ce_value if kl is None else float(loss.item())
@@ -629,6 +662,7 @@ def train(args):
     except BaseException as error:
         atomic_json(output / "report.json", {"schema": 1, "status": "failed", "training_performed": actual["updates"] > 0,
                     "actual_optimizer_updates": actual["updates"], "promoted_to_application": False,
+                    "contract_sha256": contract_hash,
                     "error_type": type(error).__name__, "elapsed_seconds": time.monotonic() - started})
         raise
 
@@ -769,6 +803,10 @@ def parser():
     training.add_argument("--lr", type=float, default=1e-4)
     training.add_argument("--retention-weight", type=float, default=0.0,
                           help="Coefficient KL vers la base gelée ; 0 conserve la perte historique")
+    training.add_argument("--adamw-backend", choices=("native", "cpu-shadow"), default="native",
+                          help="Essai explicite : conserver le calcul MPS, effectuer le pas LoRA AdamW sur CPU")
+    training.add_argument("--drug-weight", type=float, default=1.0,
+                          help="Poids CE des seuls jetons médicament PxSLU train ; 1 laisse la CE inchangée")
     training.add_argument("--validation-limit", type=int, default=0, help="0 = les 282 clips ; 8 pour un mini-essai")
     training.add_argument("--checkpoint-every", type=int, default=50)
     evaluation.add_argument("--adapter", type=Path)
@@ -787,7 +825,9 @@ def main():
             if (min(args.max_updates, args.epochs, args.accumulation) < 1
                     or args.validation_limit < 0 or args.checkpoint_every < 0
                     or not math.isfinite(args.lr) or not 0 < args.lr <= 1e-3
-                    or not math.isfinite(args.retention_weight) or not 0 <= args.retention_weight <= 1):
+                    or not math.isfinite(args.retention_weight) or not 0 <= args.retention_weight <= 1
+                    or not math.isfinite(args.drug_weight) or not 1 <= args.drug_weight <= 4
+                    or args.drug_weight != 1 and args.retention_weight != 0):
                 raise ValueError("Paramètres d’entraînement invalides")
             train(args)
         else:

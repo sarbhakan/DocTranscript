@@ -31,6 +31,17 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
+      - name: Vérifier la syntaxe des recettes PowerShell 5.1
+        shell: powershell
+        run: |
+          foreach ($recipeFile in @(Get-ChildItem -LiteralPath app/windows -Filter '*.ps1' -File)) {
+            $recipeTokens = $null
+            $recipeErrors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile($recipeFile.FullName, [ref]$recipeTokens, [ref]$recipeErrors)
+            if ($recipeErrors.Count) {
+              throw ("Invalid PowerShell recipe: " + $recipeFile.Name + [Environment]::NewLine + ($recipeErrors -join [Environment]::NewLine))
+            }
+          }
       - name: Vérifier le banc et le lexique
         run: |
           python -m unittest discover -s p0/bench -t . -p "test_*.py"
@@ -156,7 +167,7 @@ jobs:
         run: ./app/windows/external_interactive_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-external-tests/external-target-test.exe" -Case WPF
   release:
     needs: [windows, external]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.4.0]')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.4.1]')
     runs-on: windows-2022
     timeout-minutes: 15
     permissions:
@@ -175,5 +186,5 @@ jobs:
           $archive = 'dist/NoteVive-Windows-x64-Essai.zip'
           $expected = (Get-Content "$archive.sha256").Split(' ')[0]
           if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'ZIP altéré' }
-          gh release create v0.4.0-essai --target "$env:RELEASE_COMMIT" --prerelease --latest=false --title "NoteVive 0.4.0 — nouveau carnet et dictée externe, essai Windows" --notes-file app/RELEASE-0.4.0.md $archive "$archive.sha256"
+          gh release create v0.4.1-essai --target "$env:RELEASE_COMMIT" --prerelease --latest=false --title "NoteVive 0.4.1 — carnet simplifié et vocabulaire enrichi" --notes-file app/RELEASE-0.4.1.md $archive "$archive.sha256"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

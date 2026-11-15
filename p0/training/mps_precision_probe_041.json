@@ -1,0 +1,109 @@
+{
+  "evidence_sha256": {
+    "fp32_effective_script": "a67cc97206a6f7c4462e5acd5fcabbfb3c3b7b710355301002f34dbc3ce30804",
+    "fp32_protocol_frozen": "74a6f8617631ca5506813edf7ea439e331fe0caaf8355e2f11a48a0e902caaac",
+    "fp32_result": "dcc3603ee4cd81cafe039a2c67ff8e27ece2121c3b840f61a166fb8fe287f108",
+    "fp32_supervisor_result": "b1201a331901b63acc94303c9f5be2bfe0f8b2cc02336d93aaf7ab5e9041fa8c",
+    "historical_fp16_report": "d6a753994b78d2ced0e51fedbe25355c2dd9ebf4937d40a3d833aa4b03fb6f81"
+  },
+  "fixed_run_configuration": {
+    "attention_frames": 309,
+    "device": "MPS (Apple M1 Pro, 16 GiB memory)",
+    "different_precision_autocast_routes": true,
+    "distinct_processes_and_times": true,
+    "feature_shape": [
+      1,
+      128,
+      3000
+    ],
+    "generation": {
+      "do_sample": false,
+      "language": "fr",
+      "max_new_tokens": 444,
+      "num_beams": 1,
+      "return_timestamps": false,
+      "task": "transcribe",
+      "use_cache": true
+    },
+    "generation_config_sha256": "62718b40c3c77ba36b5072c9df2ed66280b0c4887f7fa7feca1202df5afbe1c0",
+    "interrupt_requested_after_s": 232,
+    "lexical_prompt_present": false,
+    "mps_cpu_fallback": false,
+    "same_eval_mode_tokenizer_and_suppress_tokens": true,
+    "sdpa": true,
+    "seed": 20261114,
+    "suppress_tokens_sha256": "26f8d4099df32671baa84f2fbefe095c2bf4dbf2954c8f033741e9d57f4a67d7",
+    "threads": 4,
+    "tokenizer_prefix": [
+      50258,
+      50265,
+      50360,
+      50364
+    ],
+    "versions": {
+      "numpy": "2.2.6",
+      "peft": "0.18.0",
+      "safetensors": "0.6.2",
+      "torch": "2.9.1",
+      "transformers": "4.57.3"
+    }
+  },
+  "historical_fp16_unadapted": {
+    "autocast_enabled": true,
+    "eos": 0,
+    "raw_sequence_sha256_for_both": "6de83a3afc0536146b46fdcc4de22dbf64bfca519119955555d276d40977eea4",
+    "repetitions_of_one_id_per_run": 444,
+    "runs": 2
+  },
+  "inference": {
+    "historical_failed_evaluations_not_rescored": true,
+    "no_clinical_or_product_qualification": true,
+    "no_dataset_replayed_or_reserve_accessed": true,
+    "no_logits_observed_in_historical_fp16_comparator": true,
+    "no_production_code_configuration_or_weights_changed": true,
+    "precision_route_makes_a_difference_on_this_case": true,
+    "primitive_not_identified": true
+  },
+  "model": {
+    "adapted_weights_used": false,
+    "repository": "openai/whisper-large-v3-turbo",
+    "revision": "41f01f3fe87f28c78e2fbf8b568835947dd65ed9",
+    "safetensors_sha256": "542566a422ae4f3fd23f1ba11add198fca01bbf82e66e6a2857b3f608b1eb9d1"
+  },
+  "schema": 1,
+  "separate_from_quantized_whisper_cpp": true,
+  "single_fp32_unadapted": {
+    "all_normalized_words_match": true,
+    "autocast_enabled": false,
+    "eos": 1,
+    "feature_values_all_finite": true,
+    "generated_ids_including_eos": 14,
+    "generation_seconds": 4.788998125004582,
+    "independent_forward_after_generation_at_last_prefix_position": {
+      "dtype": "torch.float32",
+      "fp16_comparative_logits_not_collected": true,
+      "not_a_check_of_all_generation_steps": true,
+      "raw_finite_logits": 51866,
+      "raw_logits": 51866,
+      "raw_logits_all_finite": true
+    },
+    "minimum_sampled_system_memory_free_estimate_percent": 22,
+    "normalized_words": 9,
+    "post_diagnostic_mps_driver_allocated_bytes_not_peak": 5034524672,
+    "raw_sequence_sha256": "8685eb0bd6b06bc143ef9aa2280f9df51aa4983ae2fd63abc0dc5be00f3174ee",
+    "runs": 1,
+    "system_memory_free_estimate_percent_before": 58,
+    "total_seconds_including_verification_loading_and_diagnostic": 35.22338033298729,
+    "unique_generated_ids": 14
+  },
+  "source_data": {
+    "fixed_nonmedical_synthetic_sentences": 1,
+    "pcm_sha256": "03423df448a0860571b8590adce3d8e6e082d409255b8efdbc580327c7b2f34e",
+    "reference_words_for_normalized_word_comparison": 9,
+    "sample_rate_hz": 16000,
+    "samples": 49370,
+    "transcript_or_audio_included": false,
+    "wav_sha256": "60c21858253758a6382e7f00c96793025b124b9e731be452c12c7ec90432465f"
+  },
+  "status": "completed_single_offgrid_mechanical_control"
+}

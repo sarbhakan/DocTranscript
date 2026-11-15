@@ -1,10 +1,10 @@
 # NoteVive : plan de progression vers un pilote médical
 
-**Proposition de travail du 14 novembre 2026, à partir du paquet Windows 0.3.0.** Ce document décrit les travaux à réaliser et leurs conditions de réussite. Il ne déclare ni un entraînement effectué, ni de nouveaux scores, ni une autorisation d’usage clinique. Hakan indique pouvoir probablement solliciter un médecin généraliste ; sa participation reste à confirmer.
+**Plan initial du 14 novembre 2026, actualisé le 15 novembre avec les essais de consolidation.** Ce document distingue les résultats observés, les pistes encore ouvertes et leurs conditions de réussite. Aucun de ces travaux ne constitue une autorisation d’usage clinique. Hakan indique pouvoir probablement solliciter un médecin généraliste ; sa participation reste à confirmer.
 
 Le premier objectif recommandé est une dictée post-consultation de médecine générale, sur Windows, entièrement locale, avec relecture obligatoire. Les autres spécialités seront évaluées progressivement dans **la même application**. Une bibliothèque de mots transversale peut exister dès maintenant ; une promesse de fiabilité pour toutes les spécialités demande des preuves propres à chaque usage.
 
-**Travaux réalisés depuis ce plan :** l’[audit de consolidation 0.3.1](audit-consolidation-031.md) décrit les correctifs Windows, le correctif amont du décodeur, la comparaison appariée et la préparation effective d’un corpus humain. Les poids n’ont pas été entraînés ; le mode d’essai guidé F1 et la qualification clinique restent des travaux à réaliser.
+**Travaux réalisés depuis ce plan :** l’[audit 0.3.1](audit-consolidation-031.md) a consolidé le moteur et préparé le corpus humain. L’[entraînement local initial](entrainement-local.md), puis les [trois méthodes de consolidation](consolidation-041.md), ont réellement été exécutés. La voie de mise à jour des paramètres a été stabilisée sur le Mac, mais aucun adaptateur ne conserve tous les contrôles critiques. Le [contexte lexical court mesuré dans whisper.cpp](../p0/lexical_cpp_041.md) améliore les noms dans un lot synthétique ciblé tout en faisant régresser doses, fractions et négations : il est refusé. Le catalogue enrichi reste consultatif et les poids livrés sont conservés. Le mode d’essai guidé F1, les deux PC physiques et la qualification clinique restent ouverts.
 
 ## 1. Notre point de départ réel
 
@@ -72,6 +72,8 @@ Un essai de reconnaissance d’une phrase plus complète peut être pertinent si
 
 ### F4 — Tester une petite aide lexicale qui agit réellement sur le moteur
 
+**État au 15 novembre : premier contexte global testé et refusé.** Le [comparatif](../p0/lexical_cpp_041.md) conserve les résultats négatifs et positifs, le coût et les pertes par dictée. Une autre sélection par pratique ou des favoris constituent une nouvelle hypothèse à figer et mesurer ; le gain sur les noms seul ne justifie pas leur activation.
+
 Conserver les grands catalogues locaux et leurs sources. Séparer leur fonction de consultation de la petite sélection transmise à la reconnaissance. Le catalogue Mac comporte déjà 14 profils de 6 222 à 10 000 entrées, avec des chevauchements ; ces effectifs ne signifient pas que le modèle sait reconnaître chaque entrée.
 
 Pour Whisper, tester un contexte court par pratique, puis éventuellement quelques favoris choisis explicitement. Le SDK [whisper.cpp 1.8.5](https://github.com/ggml-org/whisper.cpp/blob/v1.8.5/include/whisper.h) expose une amorce textuelle et une recherche parmi plusieurs hypothèses ; le contexte est borné. Vérifier le nombre de jetons du modèle exact, la réapplication de l’amorce et la remise à zéro entre dictées. Une liste de milliers de mots ne rentre pas dans ce mécanisme.
@@ -100,6 +102,8 @@ Faire les comparaisons sur le même PC, les mêmes audios et un nombre de fils c
 
 ### F6 — Faire un petit essai d’adaptation des poids
 
+**État au 15 novembre : faisabilité locale démontrée, candidat non qualifié.** Les [essais de rétention et de pondération des médicaments](../p0/training/retention_stability_notes.md) ont terminé sur M1 Pro, 16 Go, avec mise à jour AdamW des seuls paramètres LoRA sur CPU. Leurs régressions critiques interdisent l’export produit. Un [contrôle mécanique hors grille](../p0/training/mps_precision_probe_041.md) termine correctement en FP32 là où la route FP16/MPS répétait un jeton. Il porte sur une seule phrase synthétique non médicale : la cause précise et la validité sur plusieurs voix restent à établir. Les comparaisons invalides précédentes ne sont pas réinterprétées comme des gains. Le banc séparé whisper.cpp conserve une comparaison exploitable.
+
 Une liste de mots peut servir à construire des exemples et un contexte lexical. Pour apprendre à mieux reconnaître la parole, il faut des **enregistrements accompagnés de leur transcription exacte**. Lire quelques mots peut aider à diagnostiquer une prononciation ; cela ne produit pas instantanément un modèle médical général.
 
 Si les étapes précédentes laissent des erreurs systématiques, monter un essai limité sur une famille d’erreurs identifiée. Préparer un sous-ensemble autorisé, des voix variées, des notes courantes de contrôle et une validation humaine indépendante. Étudier une courbe d’apprentissage avec des volumes croissants : il n’existe pas de nombre d’heures que nous puissions promettre suffisant pour toutes les spécialités.
@@ -116,7 +120,7 @@ Ressources à réutiliser avec séparation stricte des usages :
 | [PxCorpus v4](https://zenodo.org/records/10080490) | Prescriptions simulées en français avec audio et annotations, sous CC BY 4.0. Utile pour élargir les voix ; conserver les attributions et séparer les locuteurs. Les prises déjà utilisées au benchmark ne redeviennent pas une validation inédite. |
 | [UltiMed-ASR-FR-v1](https://huggingface.co/datasets/Olicorne/UltiMed-ASR-FR-v1) | Sélectionner les sous-ensembles compatibles avec l’usage prévu ; le corpus principal est synthétique et monovoix. Le sous-ensemble PARROT a une licence distincte et reste exclu de notre entraînement produit. Ne pas télécharger tout le corpus pour démarrer. |
 | [Corti Med-Dictate](https://huggingface.co/datasets/corti/med-dictate/blob/main/LICENCE.md) | Réservé aux usages d’évaluation autorisés par sa licence. Aucun entraînement, adaptation, distillation ou utilisation comme signal d’entraînement. Les données et erreurs de ce lot ne doivent pas alimenter notre corpus d’ajustement. |
-| Référentiels de vocabulaire | Poursuivre les sources déjà documentées : Orphanet, HPO, CCAM, NABM, EMDN, CISP et Medic’AM. Exemple : [la CCAM publiée par l’ANS](https://smt.esante.gouv.fr/terminologie-ccam/) précise sa version et sa licence. Une disponibilité en ligne ne vaut pas autorisation de tous les usages. La BDPM reste exclue du paquet public actuel. |
+| Référentiels de vocabulaire | Poursuivre les sources déjà documentées : Orphanet, HPO, CCAM, NABM, EMDN, CISP et Medic’AM. Le [lot 0.4.1](lexique-041.md) ajoute RUIM, ADICAP et LAHN avec leurs provenances. Exemple : [la CCAM publiée par l’ANS](https://smt.esante.gouv.fr/terminologie-ccam/) précise sa version et sa licence. Une disponibilité en ligne ne vaut pas autorisation de tous les usages. La BDPM reste exclue du paquet public actuel. |
 
 **Preuve attendue :** amélioration confirmée sur des voix et formulations inédites, maintien du français courant, des doses et négations, puis reproduction après export et quantification. Sans gain suffisant, conserver le modèle de référence. La synthèse vocale produite pour entraîner ne sert pas à elle seule à valider le résultat.
 
@@ -146,7 +150,7 @@ Geler le candidat, les lexiques, le protocole et les seuils avant d’ouvrir la 
 | Utilité | Objectif initial d’au moins 20 % de temps gagné jusqu’à la note validée, correction comprise, sur des tâches comparables. Aucun résultat de ce type n’est actuellement acquis. |
 | Robustesse | Installation hors ligne sur poste propre, trois dictées de 15 minutes, micro débranché, veille, fermeture, mise à jour, reprise après panne et absence de perte des notes confirmées. |
 | Exploitation | Application signée, sauvegarde chiffrée et restauration testée sur un autre poste, suppression et conservation définies, support documenté, contrôles réseau et journaux sans contenu patient. |
-| Destination du texte | Parcours de validation puis transfert explicite vers une destination qualifiée. L’export et l’insertion externe ne sont pas présents dans le ZIP actuel ; leur intégration constitue un travail distinct. |
+| Destination du texte | La copie et l’insertion externe sont présentes dans le ZIP d’essai ; les recettes Win32 et WPF portent sur des champs fictifs. Qualifier les applications réellement utilisées et le parcours de relecture avant transfert. Word, Excel et les navigateurs restent à vérifier sur poste physique. |
 
 Les notes actuelles sont liées au compte Windows et au poste par DPAPI : recopier leur dossier ne suffit pas à démontrer une sauvegarde restaurable ailleurs. Ce point, les droits d’accès et la protection du poste doivent être traités avant l’usage professionnel.
 

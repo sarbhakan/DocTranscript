@@ -25,6 +25,11 @@
 namespace {
 namespace ui = doct::ui;
 constexpr wchar_t WindowClass[] = L"NoteVivePrototypeWindow";
+#ifdef NOTEVIVE_RELEASE_LABEL
+constexpr wchar_t WindowTitle[] = L"NoteVive " NOTEVIVE_RELEASE_LABEL L" · Carnet de dictée";
+#else
+constexpr wchar_t WindowTitle[] = L"NoteVive · Carnet de dictée · Développement";
+#endif
 constexpr UINT EngineMessage = WM_APP + 1;
 constexpr UINT_PTR SaveTimer = 1;
 constexpr UINT SaveDelayMs = 550;
@@ -38,12 +43,15 @@ constexpr UINT OverlayFailureMessage = WM_APP + 2;
 constexpr std::size_t TitleLimit = notes::kMaxTitle;
 constexpr std::size_t TextLimit = notes::kMaxText;
 constexpr wchar_t OriginalEditProc[] = L"NoteVive.OriginalEditProc";
+constexpr wchar_t MaskedMicStatus[] = L"Micro coupé · Note masquée. Aucune reprise automatique.";
+constexpr wchar_t RestoredMicStatus[] = L"Micro coupé · Note réaffichée. La dictée ne reprend pas seule.";
 
 enum Control : int {
     New = 101, Dictate, Save, Privacy, Vocabulary, Library, Title, Body, Draft,
-    FolderTree, SearchText, SearchAll, SortBy, NewFolder, FolderActions, MoveNote,
+    FolderTree, SearchText, SearchAll, NewFolder = 114, MoveNote = 116,
     RenameFolder, MoveFolder, RenameNote, NoteInfo,
-    CopyTranscript = 121, ExternalDictation = 122,
+    CopyTranscript = 121, ExternalDictation = 122, Actions = 123,
+    SortModified, SortCreated, SortTitle, MicStatus,
 };
 enum class Phase { idle, preparing, listening, stopping, finalizing };
 
@@ -280,11 +288,10 @@ struct LibraryPrompt {
 struct App {
     HINSTANCE instance{};
     HWND window{};
-    HWND banner{}, subtitle{}, local_badge{}, new_note{}, dictate{}, save_button{}, privacy{}, vocab{};
-    HWND copy_button{}, external_button{};
+    HWND banner{}, subtitle{}, local_badge{}, actions{}, new_note{}, dictate{}, copy_button{};
     HWND library_label{}, library{}, title_label{}, title{}, body_label{}, body{}, draft_label{}, draft{};
-    HWND folder_label{}, folder_tree{}, search_label{}, search_text{}, search_all{}, sort_by{}, new_folder{}, folder_actions{};
-    HWND note_info{}, note_dates{}, move_note{}, mic_status{}, storage_status{}, masked_info{}, active_dialog{};
+    HWND folder_label{}, folder_tree{}, search_label{}, search_text{};
+    HWND note_info{}, note_dates{}, mic_status{}, storage_status{}, masked_info{}, active_dialog{};
     HFONT font{}; // Non-owning Theme::body font also used by library dialogs.
     UINT dpi{96};
     ui::Theme theme;
@@ -308,6 +315,9 @@ struct App {
     bool refreshing_notes = false;
     bool list_complete = true;
     bool search_pending = false;
+    bool search_everywhere = false;
+    bool actions_open = false;
+    bool passage_visible = false;
     std::mutex event_mutex;
     std::deque<doct::EngineEvent> pending_events;
     bool engine_notice_pending = false; // Guarded by event_mutex.
@@ -342,26 +352,16 @@ struct App {
         dpi = GetDpiForWindow(window);
         if (!dpi) dpi = 96;
         banner = control(L"STATIC", L"NoteVive", SS_LEFT | SS_NOPREFIX);
-        subtitle = control(L"STATIC", L"Version 0.4.0 · Essai sur données fictives", SS_LEFT | SS_NOPREFIX);
-        local_badge = control(L"STATIC", L"Stockage local · Hors ligne", SS_CENTER | SS_CENTERIMAGE | SS_NOPREFIX);
-        new_note = control(L"BUTTON", L"+ &Transcription", WS_TABSTOP | BS_PUSHBUTTON, New);
-        new_folder = control(L"BUTTON", L"+ &Dossier", WS_TABSTOP | BS_PUSHBUTTON, NewFolder);
-        folder_actions = control(L"BUTTON", L"Dossier…", WS_TABSTOP | BS_PUSHBUTTON, FolderActions);
-        dictate = control(L"BUTTON", L"&Dicter (F9)", WS_TABSTOP | BS_PUSHBUTTON, Dictate);
-        save_button = control(L"BUTTON", L"&Enregistrer", WS_TABSTOP | BS_PUSHBUTTON, Save);
-        privacy = control(L"BUTTON", L"&Masquer la note", WS_TABSTOP | BS_PUSHBUTTON, Privacy);
-        vocab = control(L"BUTTON", L"&Vocabulaire", WS_TABSTOP | BS_PUSHBUTTON, Vocabulary);
-        // Enable these in update_controls only when the feature is ready.
-        copy_button = control(L"BUTTON", L"Copier le texte", WS_TABSTOP | WS_DISABLED | BS_PUSHBUTTON, CopyTranscript);
-        external_button = control(L"BUTTON", L"Dicter ailleurs", WS_TABSTOP | WS_DISABLED | BS_PUSHBUTTON, ExternalDictation);
-        folder_label = control(L"STATIC", L"&Dossiers", SS_LEFT);
+        subtitle = control(L"STATIC", L"Carnet de dictée · Essai sur données fictives", SS_LEFT | SS_NOPREFIX);
+        local_badge = control(L"STATIC", L"Local · Hors ligne", SS_CENTER | SS_CENTERIMAGE | SS_NOPREFIX);
+        // Creation order is Win32 Tab order: library, editor, then note actions.
+        new_note = control(L"BUTTON", L"Nou&velle note", WS_TABSTOP | BS_PUSHBUTTON, New);
+        search_label = control(L"STATIC", L"&Rechercher", SS_LEFT);
+        search_text = control(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, SearchText);
+        folder_label = control(L"STATIC", L"Do&ssiers", SS_LEFT);
         folder_tree = control(WC_TREEVIEWW, L"", WS_TABSTOP | TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS | TVS_SHOWSELALWAYS,
             FolderTree);
-        search_label = control(L"STATIC", L"&Rechercher dans le titre ou le texte", SS_LEFT);
-        search_text = control(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, SearchText);
-        search_all = control(L"BUTTON", L"Dans tous les dossiers", WS_TABSTOP | BS_AUTOCHECKBOX, SearchAll);
-        sort_by = control(L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL, SortBy);
-        library_label = control(L"STATIC", L"Transcriptions locales", SS_LEFT | SS_NOPREFIX);
+        library_label = control(L"STATIC", L"Notes", SS_LEFT | SS_NOPREFIX);
         library = control(L"LISTBOX", L"", WS_TABSTOP | WS_VSCROLL | LBS_NOTIFY |
             LBS_NOINTEGRALHEIGHT | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS,
             Library);
@@ -369,23 +369,25 @@ struct App {
         title = control(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, Title);
         note_info = control(L"STATIC", L"", SS_LEFT | SS_NOPREFIX | SS_ENDELLIPSIS, NoteInfo);
         note_dates = control(L"STATIC", L"", SS_LEFT | SS_NOPREFIX | SS_ENDELLIPSIS);
-        move_note = control(L"BUTTON", L"&Classer…", WS_TABSTOP | BS_PUSHBUTTON, MoveNote);
-        body_label = control(L"STATIC", L"T&exte de la note (modifiable)", SS_LEFT);
+        body_label = control(L"STATIC", L"Te&xte de la note", SS_LEFT);
         body = control(L"EDIT", L"", WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL,
             Body);
-        draft_label = control(L"STATIC", L"Dernier passage dicté — vérifier doses, unités et négations", SS_LEFT);
+        draft_label = control(L"STATIC", L"Passage provisoire", SS_LEFT | SS_NOPREFIX);
         draft = control(L"EDIT", L"", WS_TABSTOP | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL,
             Draft);
-        mic_status = control(L"STATIC", L"Micro coupé", SS_LEFT | SS_NOPREFIX);
+        dictate = control(L"BUTTON", L"&Dicter (F9)", WS_TABSTOP | BS_PUSHBUTTON, Dictate);
+        copy_button = control(L"BUTTON", L"&Copier", WS_TABSTOP | WS_DISABLED | BS_PUSHBUTTON, CopyTranscript);
+        actions = control(L"BUTTON", L"&Actions…", WS_TABSTOP | BS_PUSHBUTTON, Actions);
+        mic_status = control(L"STATIC", L"Micro coupé", SS_LEFT | SS_NOPREFIX, MicStatus);
         storage_status = control(L"STATIC", L"", SS_LEFT | SS_NOPREFIX);
-        masked_info = control(L"STATIC", L"Bibliothèque masquée. Réaffichez-la explicitement pour reprendre.", SS_LEFT);
+        masked_info = control(L"STATIC", L"Note masquée. Pour reprendre, choisissez Actions → Réafficher la note (Ctrl+M).", SS_LEFT);
         for (HWND item : controls()) if (!item) return false;
+        ShowWindow(draft_label, SW_HIDE);
+        ShowWindow(draft, SW_HIDE);
         for (HWND item : {title, body, draft, search_text}) if (!restrict_clipboard(item)) return false;
         SendMessageW(search_text, EM_SETLIMITTEXT, 240, 0);
-        SendMessageW(search_text, EM_SETCUEBANNER, FALSE, reinterpret_cast<LPARAM>(L"Rechercher une transcription"));
-        for (const wchar_t* label : {L"Dernière modification", L"Date de création", L"Titre (A à Z)"})
-            if (SendMessageW(sort_by, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label)) < 0) return false;
-        SendMessageW(sort_by, CB_SETCURSEL, 0, 0);
+        SendMessageW(search_text, EM_SETCUEBANNER, FALSE, reinterpret_cast<LPARAM>(L"Titre ou texte de la note"));
+        SendMessageW(title, EM_SETCUEBANNER, FALSE, reinterpret_cast<LPARAM>(L"Sans titre"));
         SendMessageW(title, EM_SETLIMITTEXT, TitleLimit, 0);
         SendMessageW(body, EM_SETLIMITTEXT, TextLimit, 0);
         SendMessageW(draft, EM_SETLIMITTEXT, TextLimit, 0);
@@ -428,18 +430,15 @@ struct App {
 
     using Widget = std::pair<HWND, ui::Slot>;
 
-    std::array<Widget, 32> widgets() const {
+    std::array<Widget, 24> widgets() const {
         using S = ui::Slot;
-        return {{{banner, S::brand}, {subtitle, S::subtitle}, {local_badge, S::badge},
-            {dictate, S::dictate}, {save_button, S::save}, {copy_button, S::copy},
-            {privacy, S::privacy}, {vocab, S::vocabulary}, {external_button, S::external},
-            {mic_status, S::microphone}, {new_note, S::new_note}, {new_folder, S::new_folder},
-            {folder_label, S::folders_label}, {folder_actions, S::folder_actions}, {folder_tree, S::folder_tree},
-            {search_label, S::search_label}, {search_text, S::search}, {search_all, S::search_all}, {sort_by, S::sort},
-            {library_label, S::library_label}, {library, S::library}, {title_label, S::title_label}, {title, S::title},
-            {move_note, S::move_note}, {note_info, S::note_info}, {note_dates, S::note_dates}, {body_label, S::body_label},
-            {body, S::body}, {draft_label, S::draft_label}, {draft, S::draft}, {storage_status, S::storage},
-            {masked_info, S::masked_info}}};
+        return {{{banner, S::brand}, {subtitle, S::subtitle}, {local_badge, S::badge}, {actions, S::actions},
+            {new_note, S::new_note}, {search_label, S::search_label}, {search_text, S::search},
+            {folder_label, S::folders_label}, {folder_tree, S::folder_tree}, {library_label, S::library_label},
+            {library, S::library}, {title_label, S::title_label}, {title, S::title}, {note_info, S::note_info},
+            {note_dates, S::note_dates}, {body_label, S::body_label}, {body, S::body},
+            {draft_label, S::draft_label}, {draft, S::draft}, {dictate, S::dictate}, {copy_button, S::copy},
+            {mic_status, S::microphone}, {storage_status, S::storage}, {masked_info, S::masked_info}}};
     }
 
     std::vector<HWND> controls() const {
@@ -464,8 +463,7 @@ struct App {
                 role = F::small; break;
             case S::folders_label: case S::library_label: case S::title_label: case S::body_label: case S::draft_label:
                 role = F::heading; break;
-            case S::dictate: case S::save: case S::copy: case S::privacy: case S::vocabulary: case S::external:
-            case S::new_note: case S::new_folder: case S::folder_actions: case S::move_note:
+            case S::dictate: case S::copy: case S::actions: case S::new_note:
                 role = F::button; break;
             default: break;
             }
@@ -490,10 +488,16 @@ struct App {
         RECT rect{};
         GetClientRect(window, &rect);
         if (rect.right <= 0 || rect.bottom <= 0) return;
-        ui_layout = ui::layout(rect.right, rect.bottom, dpi, copy_button != nullptr, external_button != nullptr);
-        for (const auto& widget : widgets()) ui::place(widget.first, ui_layout[widget.second]);
-        theme.inset_editor(body);
-        theme.inset_editor(draft);
+        const auto previous = ui_layout;
+        ui_layout = ui::layout(rect.right, rect.bottom, dpi, passage_visible, masked || session_locked);
+        for (const auto& widget : widgets()) {
+            if (!EqualRect(&previous[widget.second], &ui_layout[widget.second]))
+                ui::place(widget.first, ui_layout[widget.second]);
+        }
+        const auto& badge = ui_layout[ui::Slot::badge];
+        ShowWindow(local_badge, badge.right > badge.left ? SW_SHOWNA : SW_HIDE);
+        if (!EqualRect(&previous[ui::Slot::body], &ui_layout[ui::Slot::body])) theme.inset_editor(body);
+        if (!EqualRect(&previous[ui::Slot::draft], &ui_layout[ui::Slot::draft])) theme.inset_editor(draft);
         InvalidateRect(window, nullptr, FALSE);
     }
 
@@ -506,21 +510,18 @@ struct App {
         if (item == note_dates || item == note_info || item == draft_label)
             return theme.colors(dc, item, S::card, I::muted);
         if (item == folder_label || item == library_label || item == title_label || item == body_label ||
-            item == search_label || item == search_all || item == mic_status || item == masked_info)
+            item == search_label || item == masked_info)
             return theme.colors(dc, item, S::card);
+        if (item == mic_status) return theme.colors(dc, item, masked || session_locked ? S::canvas : S::card);
         return theme.colors(dc, item, S::paper);
     }
 
     bool draw_button(const NMCUSTOMDRAW& draw) const {
         const auto button = draw.hdr.hwndFrom;
         if (button == dictate) return theme.draw_button(draw,
-            captured ? ui::Button::recording : ui::Button::primary);
-        if (button == new_note) return theme.draw_button(draw, ui::Button::primary, true);
-        if (button == new_folder || button == folder_actions || button == move_note)
-            return theme.draw_button(draw, ui::Button::secondary, true);
-        if (button == save_button || button == copy_button || button == privacy ||
-            button == vocab || button == external_button)
-            return theme.draw_button(draw, ui::Button::secondary);
+            captured ? ui::Button::recording : ui::Button::primary, true);
+        if (button == new_note || button == copy_button) return theme.draw_button(draw, ui::Button::secondary, true);
+        if (button == actions) return theme.draw_button(draw, ui::Button::secondary);
         return false;
     }
 
@@ -537,31 +538,39 @@ struct App {
         EnableWindow(copy_button, can_copy());
     }
 
+    void update_passage(bool reposition = true) {
+        const bool visible = !masked && !session_locked;
+        const bool show = visible && GetWindowTextLengthW(draft) != 0;
+        SetWindowTextW(draft_label, rejected_segment.empty()
+            ? L"Passage provisoire" : L"Passage non enregistré · À relire");
+        if (show == passage_visible) return;
+        passage_visible = show;
+        if (!show && GetFocus() == draft && visible) SetFocus(body);
+        ShowWindow(draft_label, show ? SW_SHOWNA : SW_HIDE);
+        ShowWindow(draft, show ? SW_SHOWNA : SW_HIDE);
+        if (reposition) layout();
+    }
+
     void update_controls() {
         const bool idle = phase == Phase::idle && !external_active;
         const bool visible = !masked && !session_locked;
-        for (HWND item : {new_note, new_folder, folder_actions, dictate, save_button, copy_button, external_button, vocab, folder_label,
-                           folder_tree, search_label, search_text, search_all, sort_by, library_label, library,
-                           title_label, title, note_info, note_dates, move_note, body_label, body, draft_label, draft, storage_status}) {
-            ShowWindow(item, visible ? SW_SHOW : SW_HIDE);
+        for (HWND item : {new_note, dictate, copy_button, folder_label, folder_tree, search_label,
+                           search_text, library_label, library, title_label, title, note_info, note_dates,
+                           body_label, body, storage_status}) {
+            ShowWindow(item, visible ? SW_SHOWNA : SW_HIDE);
         }
-        ShowWindow(masked_info, visible ? SW_HIDE : SW_SHOW);
-        EnableWindow(privacy, !session_locked);
-        SetWindowTextW(privacy, visible ? L"&Masquer la note" : L"&Réafficher la note");
-        for (HWND item : {new_note, new_folder, folder_tree, search_text, sort_by, library}) {
+        ShowWindow(masked_info, visible ? SW_HIDE : SW_SHOWNA);
+        EnableWindow(actions, !session_locked);
+        for (HWND item : {new_note, folder_tree, search_text, library}) {
             EnableWindow(item, idle && store_ready);
         }
-        EnableWindow(search_all, idle && store_ready && !all_notes);
-        EnableWindow(folder_actions, idle && store_ready && !all_notes && !selected_folder.empty());
-        EnableWindow(move_note, idle && store_ready && !editor_needs_review);
-        EnableWindow(save_button, store_ready);
         update_copy_button();
-        EnableWindow(external_button, visible && idle);
-        EnableWindow(vocab, idle && !runtime.empty());
         EnableWindow(title, store_ready);
         EnableWindow(body, store_ready);
         EnableWindow(dictate, dictation_cpu_supported && !close_requested && store_ready && wts_registered && !runtime.empty() && !microphone_unconfirmed
             && !external_pending && (phase == Phase::idle || phase == Phase::listening || phase == Phase::preparing));
+        update_passage(false);
+        layout();
         const wchar_t* button_text = L"&Dicter (F9)";
         const wchar_t* status = idle_status.c_str();
         switch (phase) {
@@ -572,7 +581,7 @@ struct App {
             break;
         case Phase::listening:
             button_text = L"&Arrêter (F9)";
-            status = L"Micro ouvert · Les phrases s’ajoutent après les pauses et le calcul.";
+            status = L"Micro ouvert · Le texte s’ajoute après les pauses.";
             break;
         case Phase::stopping:
             button_text = L"Arrêt demandé…";
@@ -610,7 +619,7 @@ struct App {
 
     bool can_organize() const {
         return phase == Phase::idle && !external_active && !masked && !session_locked && !shutting_down && !close_requested
-            && store_ready && !active_dialog;
+            && store_ready && !active_dialog && !actions_open;
     }
 
     void set_note_info() const {
@@ -665,7 +674,7 @@ struct App {
             if (result) folder_items.emplace(id, result);
             return result;
         };
-        const auto root = insert(TVI_ROOT, L"Toutes les transcriptions", all_key(), 0, false);
+        const auto root = insert(TVI_ROOT, L"Toutes les notes", all_key(), 0, false);
         const auto unfiled = insert(TVI_ROOT, L"Sans dossier", L"", 1, false);
         auto build = [&](const auto& add_children, const std::wstring& parent, HTREEITEM tree_parent, size_t depth) -> void {
             if (!tree_parent || depth > notes::kMaxFolderDepth) return;
@@ -728,9 +737,9 @@ struct App {
         choose_current();
         SendMessageW(library, WM_SETREDRAW, TRUE, 0);
         InvalidateRect(library, nullptr, TRUE);
-        auto count = std::to_wstring(entries.size()) + (entries.size() == 1 ? L" transcription" : L" transcriptions");
+        auto count = entries.empty() ? (query.text.empty() ? std::wstring(L"Aucune note") : std::wstring(L"Aucun résultat"))
+            : std::to_wstring(entries.size()) + (entries.size() == 1 ? L" note" : L" notes");
         if (!complete) count += L" · liste partielle";
-        else if (!query.text.empty()) count += L" trouvée(s)";
         SetWindowTextW(library_label, count.c_str());
         refreshing_notes = false;
     }
@@ -739,14 +748,10 @@ struct App {
         KillTimer(window, SearchTimer);
         search_pending = false;
         query.text = get_text(search_text);
-        query.filter_folder = !all_notes && (query.text.empty() || SendMessageW(search_all, BM_GETCHECK, 0, 0) != BST_CHECKED);
+        query.filter_folder = !all_notes && (query.text.empty() || !search_everywhere);
         query.folder_id = selected_folder;
         query.include_descendants = !selected_folder.empty();
-        switch (SendMessageW(sort_by, CB_GETCURSEL, 0, 0)) {
-        case 1: query.sort = notes::Sort::CreatedNewest; break;
-        case 2: query.sort = notes::Sort::TitleAscending; break;
-        default: query.sort = notes::Sort::ModifiedNewest; break;
-        }
+        SetWindowTextW(search_label, all_notes || search_everywhere ? L"&Rechercher · Tous les dossiers" : L"&Rechercher dans le dossier");
         std::wstring error;
         list_complete = store.List(query, entries, error);
         render_library(list_complete);
@@ -840,18 +845,58 @@ struct App {
         return found == folders.end() ? nullptr : &*found;
     }
 
-    void show_folder_actions() {
-        if (!can_organize() || !selected_item()) return;
+    void show_actions() {
+        if (session_locked || shutting_down || close_requested || active_dialog || actions_open) return;
         const auto menu = CreatePopupMenu();
         if (!menu) return;
-        AppendMenuW(menu, MF_STRING, RenameFolder, L"&Renommer le dossier");
-        AppendMenuW(menu, MF_STRING, MoveFolder, L"&Déplacer le dossier…");
+        auto add_to = [](HMENU group, int id, const wchar_t* label, bool enabled, bool checked = false) {
+            AppendMenuW(group, MF_STRING | (enabled ? MF_ENABLED : MF_GRAYED) | (checked ? MF_CHECKED : MF_UNCHECKED),
+                static_cast<UINT_PTR>(id), label);
+        };
+        auto add = [&](int id, const wchar_t* label, bool enabled = true, bool checked = false) {
+            add_to(menu, id, label, enabled, checked);
+        };
+        auto submenu = [&](const wchar_t* label, bool enabled) -> HMENU {
+            const auto group = CreatePopupMenu();
+            if (group && !AppendMenuW(menu, MF_POPUP | (enabled ? MF_ENABLED : MF_GRAYED),
+                    reinterpret_cast<UINT_PTR>(group), label)) {
+                DestroyMenu(group);
+                return nullptr;
+            }
+            return group;
+        };
+        if (masked) {
+            add(Privacy, L"&Réafficher la note\tCtrl+M");
+        } else {
+            const bool organize = can_organize();
+            const bool have_folder = organize && selected_item();
+            add(MoveNote, L"&Classer la note…", organize && !editor_needs_review);
+            add(Save, L"&Enregistrer maintenant\tCtrl+S", store_ready);
+            AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+            if (const auto group = submenu(L"&Dossiers", organize)) {
+                add_to(group, NewFolder, L"&Nouveau dossier…\tCtrl+Maj+N", organize);
+                add_to(group, RenameFolder, L"&Renommer le dossier…", have_folder);
+                add_to(group, MoveFolder, L"&Déplacer le dossier…", have_folder);
+            }
+            if (const auto group = submenu(L"&Trier les notes", organize)) {
+                add_to(group, SortModified, L"Dernière &modification", organize, query.sort == notes::Sort::ModifiedNewest);
+                add_to(group, SortCreated, L"Date de cré&ation", organize, query.sort == notes::Sort::CreatedNewest);
+                add_to(group, SortTitle, L"Titre (A à &Z)", organize, query.sort == notes::Sort::TitleAscending);
+            }
+            add(SearchAll, L"Chercher dan&s tous les dossiers", organize && !all_notes, all_notes || search_everywhere);
+            AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+            add(Vocabulary, L"&Vocabulaire médical…", phase == Phase::idle && !external_active && !runtime.empty());
+            add(ExternalDictation, L"Dicter a&illeurs…\tCtrl+Alt+Espace", phase == Phase::idle && !external_active);
+            add(Privacy, L"Mas&quer la note\tCtrl+M");
+        }
         RECT rect{};
-        GetWindowRect(folder_actions, &rect);
-        const auto action = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN,
-            rect.left, rect.bottom, 0, window, nullptr);
+        GetWindowRect(actions, &rect);
+        actions_open = true;
+        const auto action = TrackPopupMenuEx(menu, TPM_RETURNCMD | TPM_RIGHTALIGN | TPM_TOPALIGN,
+            rect.right, rect.bottom, window, nullptr);
+        actions_open = false;
         DestroyMenu(menu);
-        if (action == RenameFolder || action == MoveFolder) change_folder_metadata(action);
+        if (action && !session_locked && !shutting_down) SendMessageW(window, WM_COMMAND, MAKEWPARAM(action, 0), 0);
     }
 
     void change_folder_metadata(int action) {
@@ -929,6 +974,7 @@ struct App {
         SetWindowTextW(body, normalized.c_str());
         rejected_segment.clear();
         SetWindowTextW(draft, L"");
+        update_passage();
         SendMessageW(body, EM_EMPTYUNDOBUFFER, 0, 0);
         loading = false;
         dirty = false;
@@ -1060,7 +1106,7 @@ struct App {
     }
 
     void explain_external() const {
-        if (masked || session_locked || external_active) return;
+        if (masked || session_locked || external_active || phase != Phase::idle) return;
         MessageBoxW(window, hotkey_registered
             ? L"1. Cliquez dans le champ où vous voulez écrire (Word, navigateur ou éditeur compatible).\n"
               L"2. Appuyez sur Ctrl + Alt + Espace et relâchez les touches.\n"
@@ -1149,6 +1195,10 @@ struct App {
     void global_dictation() {
         if (!hotkey_registered || masked || session_locked || active_dialog || !IsWindowEnabled(window) ||
                 shutting_down || close_requested) return;
+        if (actions_open) {
+            if (phase == Phase::idle && !external_pending) return;
+            EndMenu(); // The stop hotkey must stay available while this menu is open.
+        }
         if (external_active) {
             if (external_pending) {
                 external_status = L"Démarrage externe annulé.";
@@ -1188,7 +1238,7 @@ struct App {
     }
 
     void start_or_stop() {
-        if (!dictation_cpu_supported || session_locked || masked || shutting_down || close_requested || active_dialog || !store_ready || !wts_registered || runtime.empty()
+        if (!dictation_cpu_supported || session_locked || masked || shutting_down || close_requested || active_dialog || (actions_open && phase == Phase::idle) || !store_ready || !wts_registered || runtime.empty()
                 || microphone_unconfirmed || external_pending) return;
         if (phase == Phase::listening) {
             phase = Phase::stopping;
@@ -1226,6 +1276,7 @@ struct App {
         cancel_capture(status);
         rejected_segment = editor_text(segment);
         SetWindowTextW(draft, rejected_segment.c_str());
+        update_passage();
     }
 
     void cancel_capture(const wchar_t* next_status) {
@@ -1245,10 +1296,12 @@ struct App {
 
     void conceal(const wchar_t* reason) {
         masked = true;
+        doct::conceal_catalogue(window);
+        if (actions_open) EndMenu();
         if (active_dialog) EndDialog(active_dialog, IDCANCEL);
         cancel_capture(reason);
         save_note();
-        if (!session_locked) SetFocus(privacy);
+        if (!session_locked) SetFocus(actions);
     }
 
     bool confirm_rejected_segment_discard() const {
@@ -1261,12 +1314,15 @@ struct App {
         if (session_locked) return;
         if (masked) {
             masked = false;
+            if (idle_status == MaskedMicStatus) idle_status = RestoredMicStatus;
+            // A stop already in progress may copy interrupt_status back to idle_status.
+            if (interrupt_status == MaskedMicStatus) interrupt_status = RestoredMicStatus;
             SetWindowTextW(draft, rejected_segment.c_str());
             if (store_ready) reload_library();
             update_controls();
             if (store_ready) SetFocus(body);
         } else {
-            conceal(L"Micro coupé · Note masquée. Aucune reprise automatique.");
+            conceal(MaskedMicStatus);
         }
     }
 
@@ -1336,6 +1392,7 @@ struct App {
             if (!blocked_generation && !masked && !session_locked) {
                 const std::wstring partial = editor_text(event.text);
                 SetWindowTextW(draft, partial.c_str());
+                update_passage();
             }
             return;
         case doct::EngineEventKind::final:
@@ -1350,7 +1407,10 @@ struct App {
                     // the visible rejected passage when editor insertion failed.
                     cancel_capture(L"Micro coupé · Le passage n’a pas été sauvegardé. Aucun envoi externe.");
                 }
-                if (!blocked_generation) SetWindowTextW(draft, editor_text(event.text).c_str());
+                if (!blocked_generation) {
+                    SetWindowTextW(draft, L"");
+                    update_passage();
+                }
             }
             return;
         case doct::EngineEventKind::capture_stopped:
@@ -1362,6 +1422,7 @@ struct App {
             phase = Phase::idle;
             captured = false;
             idle_status = interrupt_status.empty() ? L"Micro coupé · Dictée terminée. Relisez le texte." : interrupt_status;
+            if (rejected_segment.empty()) SetWindowTextW(draft, L"");
             break;
         case doct::EngineEventKind::error:
             KillTimer(window, EngineTimer);
@@ -1394,6 +1455,7 @@ struct App {
     }
 
     void close() {
+        if (actions_open) EndMenu();
         if (external_active) {
             external_target.reset();
             external_pending = external_sending = false;
@@ -1532,18 +1594,22 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         switch (LOWORD(wparam)) {
         case New: app->new_blank(); return 0;
         case NewFolder: app->change_folder_metadata(NewFolder); return 0;
-        case FolderActions: app->show_folder_actions(); return 0;
+        case Actions: app->show_actions(); return 0;
         case MoveNote: app->move_current_note(); return 0;
         case RenameNote: app->rename_note(); return 0;
+        case MoveFolder: app->change_folder_metadata(MoveFolder); return 0;
         case RenameFolder: app->change_folder_metadata(RenameFolder); return 0;
         case Dictate: app->start_or_stop(); return 0;
         case CopyTranscript: app->copy_transcript(); return 0;
         case ExternalDictation: app->explain_external(); return 0;
-        case Save: if (!app->masked) app->save_note(true); return 0;
+        case Save: if (!app->masked && !app->session_locked && !app->actions_open) app->save_note(true); return 0;
         case Privacy: app->toggle_privacy(); return 0;
         case Vocabulary:
-            if (app->phase == Phase::idle && !app->masked && !app->session_locked) {
+            if (app->phase == Phase::idle && !app->external_active && !app->masked && !app->session_locked && !app->actions_open) {
+                const auto previous = GetFocus();
                 doct::show_catalogue(window, app->runtime);
+                if (!app->masked && !app->session_locked && GetForegroundWindow() == window && previous && IsChild(window, previous) &&
+                        IsWindowVisible(previous) && IsWindowEnabled(previous)) SetFocus(previous);
             }
             return 0;
         case Library:
@@ -1553,10 +1619,19 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
             if (HIWORD(wparam) == EN_CHANGE) app->search_changed();
             return 0;
         case SearchAll:
-            if (HIWORD(wparam) == BN_CLICKED && app->can_organize()) app->reload_library();
+            if (app->can_organize() && !app->all_notes) {
+                app->search_everywhere = !app->search_everywhere;
+                app->reload_library();
+            }
             return 0;
-        case SortBy:
-            if (HIWORD(wparam) == CBN_SELCHANGE && app->can_organize()) app->reload_library();
+        case SortModified:
+        case SortCreated:
+        case SortTitle:
+            if (app->can_organize()) {
+                app->query.sort = LOWORD(wparam) == SortCreated ? notes::Sort::CreatedNewest
+                    : LOWORD(wparam) == SortTitle ? notes::Sort::TitleAscending : notes::Sort::ModifiedNewest;
+                app->reload_library();
+            }
             return 0;
         case Title:
         case Body:
@@ -1591,7 +1666,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         if (wparam == SearchTimer) {
             KillTimer(window, SearchTimer);
             if (app->can_organize()) app->reload_library();
-            else if (app->search_pending && app->active_dialog) SetTimer(window, SearchTimer, SearchDelayMs, nullptr);
+            else if (app->search_pending && (app->active_dialog || app->actions_open)) SetTimer(window, SearchTimer, SearchDelayMs, nullptr);
             return 0;
         }
         break;
@@ -1643,8 +1718,17 @@ bool shortcut(App& app, const MSG& message) {
     const bool alt = (GetKeyState(VK_MENU) & 0x8000) != 0;
     const bool shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
     if (alt) return false;
+    if (!ctrl && message.wParam == VK_TAB && (message.hwnd == app.body || message.hwnd == app.draft) &&
+        GetFocus() == message.hwnd) {
+        // Multiline EDIT may claim Tab before IsDialogMessage can navigate.
+        // Use the native tab order so disabled or hidden controls are skipped.
+        const auto next = GetNextDlgTabItem(app.window, message.hwnd, shift ? TRUE : FALSE);
+        if (next && next != message.hwnd) SetFocus(next);
+        return true;
+    }
     int command = 0;
     if (!ctrl && !shift && message.wParam == VK_F9) command = Dictate;
+    if (!ctrl && shift && message.wParam == VK_F10) command = Actions;
     if (!ctrl && !shift && message.wParam == VK_F2 && message.hwnd == app.folder_tree) command = RenameFolder;
     if (!ctrl && !shift && message.wParam == VK_F2 && message.hwnd == app.library) command = RenameNote;
     if (ctrl && message.wParam == 'N') command = shift ? NewFolder : New;
@@ -1688,7 +1772,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
                                           : MulDiv(1010, dpi, 96);
     const int start_height = have_work_area ? std::min(MulDiv(680, dpi, 96), static_cast<int>(work.bottom - work.top))
                                            : MulDiv(680, dpi, 96);
-    HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, WindowClass, L"NoteVive · Carnet de dictée",
+    HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, WindowClass, WindowTitle,
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT,
         start_width, start_height, nullptr, nullptr, instance, &app);
     if (!window) return 1;

@@ -2,13 +2,44 @@
 
 Ce catalogue d’ingénierie indexe des libellés de référence français pour préparer la relecture et, si les essais le justifient, de petites sélections de vocabulaire par spécialité. Il conserve le code, le texte original, la catégorie et la provenance de chaque entrée. Pour Orphanet, il distingue le libellé principal des synonymes. Les accents, ligatures et élisions sont traités dans l’index de recherche ; l’affichage restitue les libellés de la source.
 
-Le catalogue ne reçoit aucune note, aucun enregistrement et aucun identifiant patient. Les notes de l’application auront leur propre stockage chiffré. Ce catalogue ne constitue ni un outil de diagnostic, de prescription ou de facturation, ni un modèle entraîné, ni une preuve de couverture clinique d’une spécialité. Un même terme peut avoir plusieurs codes ou provenances ; les statistiques comptent les libellés indexés et conservent ces distinctions.
+Le catalogue ne reçoit aucune note, aucun enregistrement et aucun identifiant patient. Les notes de l’application sont stockées séparément. Ce catalogue ne constitue ni un outil de diagnostic, de prescription ou de facturation, ni un modèle entraîné, ni une preuve de couverture clinique d’une spécialité. Un même terme peut avoir plusieurs codes ou provenances ; les statistiques comptent les libellés indexés et conservent ces distinctions.
 
 L’essai Mac utilise un pack distinct de [14 profils médicaux français](PROFILS.md), avec un index consultable hors ligne et une présélection limitée de termes pour tester l’aide à la dictée. Le guide détaille la couverture, la génération et la provenance par libellé.
 
-## Catalogue de l’essai public Windows
+## Catalogue Windows enrichi 0.4.1
 
-Le ZIP distribué sur GitHub embarque **70 517 libellés provenant de six référentiels**. Il exclut les dénominations et substances de la BDPM : leur diffusion demanderait de suivre aussi les corrections entre publications, comme l’indique le [portail BDPM](https://base-donnees-publique.medicaments.gouv.fr/telechargement). Les six autres référentiels, listés dans le [manifeste public](manifest-essai-public.json), restent consultables hors ligne. Le contenu du catalogue ne modifie pas les résultats de dictée.
+Le catalogue préparé pour le paquet **0.4.1** contient **100 175 entrées**, soit **99 192 libellés littéralement distincts**. Il apporte **28 785 libellés distincts absents de l’ancien catalogue**. La date de revue des nouvelles sources est le 15 novembre 2026. L’état de publication et le lien du ZIP effectivement disponible sont indiqués dans le [guide d’essai Windows](../docs/guide-essai-windows.md) ; les instructions historiques ci-dessous restent disponibles pour reproduire les anciennes éditions.
+
+| Complément officiel | Entrées ajoutées | Édition |
+| --- | ---: | --- |
+| RUIM ANSM : noms complets de spécialités pharmaceutiques actives | 13 834 | 2026-10-01 |
+| RUIM ANSM : substances et synonymes français | 5 201, pour 3 461 codes de substances | 2026-10-01 |
+| RUIM ANSM : formes pharmaceutiques | 360 | 2026-10-01 |
+| RUIM ANSM : voies d’administration | 86 | 2026-10-01 |
+| ADICAP : anatomopathologie et topographie | 9 472 | 2024-10 |
+| LAHN DGOS : actes de biologie hors nomenclature | 705 | 2026-04, FHIR history 10 |
+
+Les **12 déclarations de sources** comprennent les six historiques et six nouvelles extractions provenant de **trois référentiels**, RUIM étant scindé en quatre ensembles. Les dosages contenus dans les noms officiels des médicaments sont conservés ; aucune posologie n’est inventée. Un statut actif dans RUIM ne garantit pas la disponibilité en pharmacie. RUIM, ADICAP et LAHN sont sous Licence Ouverte 2.0, avec attribution et date dans le catalogue. Le [MeSH français](https://mesh.inserm.fr/telecharger-le-fichier-mesh/), sous CC BY-NC 4.0, n’est pas intégré à ce paquet.
+
+Les classifications officielles Orphanet ajoutent **33 domaines** à **7 492 des 7 493 codes** de maladies rares ou sous-types déjà présents. Elles ne créent aucun nouveau libellé. Avec les domaines RUIM, LAHN, ADICAP et médecine générale, le catalogue assemblé possède **75 domaines effectifs**. Les appartenances se recouvrent : leurs nombres ne s’additionnent pas en maladies distinctes. Il n’y a pas de quota artificiel de 5 000 ou 10 000 mots par spécialité, ni de promesse de couverture de toute la médecine.
+
+Dans le glossaire de l’application, rechercher un mot puis choisir, si utile, un domaine et un type de terme. La consultation fonctionne hors ligne. Le code, la source et l’édition permettent de vérifier l’origine d’un résultat. Le catalogue n’injecte pas automatiquement ses milliers de termes dans la dictée et ne remplace aucun mot silencieusement. Un [essai séparé de contexte court](../docs/lexique-041.md#expérience-de-contexte-court-séparée-du-catalogue), choisi dans les seuls textes d’entraînement, est évalué avant toute éventuelle adoption.
+
+Les [détails de provenance, transformations et reconstruction](../docs/lexique-041.md) expliquent les limites des éditions et les contrôles. Le [manifeste complet 0.4.1](manifest-essai-041.json), le [manifeste des seules additions](manifest-additions-041.json), le [verrou des téléchargements](sources-041.lock.json), les [rattachements Orphanet](orphanet-domains.lock.json) et le [rapport de couverture](coverage-041.json) sont conservés dans Git. Les archives, les CSV et les SQLite générés restent hors Git.
+
+Pour le développement uniquement, reconstruire les additions depuis les fichiers officiels déjà téléchargés :
+
+```text
+python -m lexique.prepare_041 --downloads lexique/private/041-sources --output lexique/private/additions-041.sqlite
+python -m lexique.orphanet_domains --archive lexique/private/sources/Orphanet_Nomenclature_Pack_FR.zip --output lexique/private/orphanet-domains-041.json
+python -m unittest lexique.test_catalogue lexique.test_prepare_041 lexique.test_orphanet_domains lexique.test_short_context
+```
+
+L’option explicite `--fetch` de `prepare_041` acquiert les trois fichiers ANS si nécessaire. Sans elle, le préparateur ne fait aucun appel réseau. Les sorties doivent être neuves. L’assemblage du catalogue historique, des additions et des domaines est réalisé par [la préparation Windows](../app/prepare_windows.py). Les personnes qui utilisent le ZIP n’ont aucune de ces commandes à exécuter.
+
+## Catalogue public historique, jusqu’à l’essai Windows 0.4.0
+
+Le paquet historique embarque **70 517 libellés provenant de six référentiels**. Il exclut les dénominations et substances de la BDPM : les conditions de réutilisation demandent de suivre aussi les corrections entre publications, comme l’indique le [portail BDPM](https://base-donnees-publique.medicaments.gouv.fr/telechargement). Les six référentiels du [manifeste public historique](manifest-essai-public.json) restent inchangés dans le complément 0.4.1. Ce dernier ajoute les médicaments par RUIM, avec sa propre provenance. Le contenu du catalogue historique ne modifie pas les résultats de dictée.
 
 Préparer les six sources selon les étapes ci-dessous, en sautant le téléchargement des deux fichiers BDPM. Compiler ensuite uniquement le manifeste public :
 

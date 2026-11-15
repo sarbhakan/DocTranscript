@@ -1,0 +1,1128 @@
+{
+  "artifact_contains_audio_or_reference_or_prediction": false,
+  "clinical_qualification": false,
+  "date": "2026-11-15",
+  "decision": "reject_global_prompt_keep_medical_catalogue_for_lookup",
+  "limitations": [
+    "No held-out independent clinical or Windows physical evaluation.",
+    "No matching prompt name was spoken in the 48 negative controls.",
+    "The 11 positive examples were designed after selecting the fixed list, before synthesis or inference; every example is synthetic and retained.",
+    "The medical grid uses conservative exact scoring; a guard loss may flag an equivalent phrasing for review.",
+    "One pair per clip, Apple M1 Pro CPU, 16 GB; A/B wall timing includes packet collection and synchronous native decoding.",
+    "The presentation of the initial prompt to the API is verified, but upstream Whisper may drop history in high-temperature fallback.",
+    "Digital silence is not environmental or microphone noise."
+  ],
+  "negative_panel_and_silence": {
+    "clinical_qualification": false,
+    "development_only": true,
+    "digital_silence": [
+      {
+        "mode": "product_vad",
+        "observed": {
+          "base": {
+            "context_names": 0,
+            "elapsed_ms": 2.6718329754658043,
+            "empty": true,
+            "nonempty_word_text": false,
+            "segments": 0
+          },
+          "context": {
+            "context_names": 0,
+            "elapsed_ms": 2.463334007188678,
+            "empty": true,
+            "nonempty_word_text": false,
+            "segments": 0
+          }
+        },
+        "seconds": 1
+      },
+      {
+        "mode": "direct_shadow_only",
+        "observed": {
+          "base": {
+            "context_names": 0,
+            "elapsed_ms": 3121.9885000027716,
+            "empty": false,
+            "nonempty_word_text": true,
+            "segments": 1
+          },
+          "context": {
+            "context_names": 0,
+            "elapsed_ms": 3253.7836669944227,
+            "empty": false,
+            "nonempty_word_text": true,
+            "segments": 1
+          }
+        },
+        "seconds": 1
+      },
+      {
+        "mode": "product_vad",
+        "observed": {
+          "base": {
+            "context_names": 0,
+            "elapsed_ms": 7.237667014123872,
+            "empty": true,
+            "nonempty_word_text": false,
+            "segments": 0
+          },
+          "context": {
+            "context_names": 0,
+            "elapsed_ms": 7.57474999409169,
+            "empty": true,
+            "nonempty_word_text": false,
+            "segments": 0
+          }
+        },
+        "seconds": 3
+      },
+      {
+        "mode": "direct_shadow_only",
+        "observed": {
+          "base": {
+            "context_names": 0,
+            "elapsed_ms": 3204.632750013843,
+            "empty": false,
+            "nonempty_word_text": true,
+            "segments": 1
+          },
+          "context": {
+            "context_names": 0,
+            "elapsed_ms": 3183.402374997968,
+            "empty": false,
+            "nonempty_word_text": true,
+            "segments": 1
+          }
+        },
+        "seconds": 3
+      }
+    ],
+    "offgrid_control": {
+      "context_tokens": 62,
+      "frames": 49370,
+      "no_prompt_names_on_offgrid": true,
+      "offgrid_both_nonempty": true,
+      "order_reversed_transcripts_and_segments_identical": true,
+      "prompt_names_on_offgrid": {
+        "base": 0,
+        "context": 0
+      },
+      "rough_wall_seconds_upper_estimate": 543.1036759993294,
+      "warm_pair_ms": 7146.100999991177
+    },
+    "parameters": {
+      "code_sha256": "fbc1d2b7809c44172e8727fb8a77408ef735283bcb3a7109e8dac11570807aff",
+      "context_sha256": "3f96d1818f6902ca6f15af08c15e224fc8e1193c0c2151227e2ca29c3249f097",
+      "cpp_build": {
+        "binary_sha256": "e94e3fcdc2b48c9e80295dc4d35663e0076fa51912224a38e12130d998c4e0dd",
+        "compiled_source_sha256": "206f591bcf855048e4d97045294527319167808868d62da02b1c0d12631614ee",
+        "decoder_patch": {
+          "after_sha256": "3c7067dae7b77832053b4c4e21ab93b9cb732fe9825194fc69a7d20d5e52a861",
+          "before_sha256": "42d04939f00cd8db5ad3267af0f2a377f34b86a5d9ba45ed21795f668542615d",
+          "path": "src/whisper.cpp",
+          "upstream_commit": "6d0ed914991cac42ace012a05588880801831343",
+          "upstream_url": "https://github.com/ggml-org/whisper.cpp/commit/6d0ed914991cac42ace012a05588880801831343"
+        },
+        "ggml_libraries_sha256": {
+          "libggml-base.0.13.1.dylib": "f35e025586d0cfa826ab68269bab8c3822e6e66982cd67982d6fe92d98c8bf10",
+          "libggml-blas.0.13.1.dylib": "df9832378350e2ae9105428b1059213bdf665aa5ead4a3371601ca42fae76c55",
+          "libggml-cpu.0.13.1.dylib": "1cf9fa41edd725370ebee717f930a6c39a9ec1bcf9b54918af7f5cb5fec8cab8",
+          "libggml.0.13.1.dylib": "36b17babacb5cf579dfa70ed74cc1589fc7c3cf1f881df83fa28769dbdb7793c"
+        },
+        "platform": "macOS-27.2-arm64-arm-64bit",
+        "production_source": {
+          "app/macos/native/PauseState.h": "673474bf355ec256b324f444ac97821e06f10e29b32536fb347aa47ee9dea9ad",
+          "app/macos/native/SileroPause.h": "3bae913ed74bfe2b6360c2a1e8983b7610592a0ac97cb999bc7c55b5612ca35e",
+          "app/native/WhisperBridge.cpp": "cddf24b74f60b3b4e18c54cf49e3969ae3ee5299db1ddd184b5e71c04ad0830d",
+          "app/native/WhisperBridge.h": "d766b425c328de82b46ca2a1a2020b23faa5bbb57859550d486af305aba34b11"
+        },
+        "schema": 1,
+        "upstream_decoder_build_manifest_sha256": "f5e6756c5082585cdbe945fcbf3c73c825e2a21484b8af09ebdc5064248c6a23",
+        "whisper_library_sha256": "8dd4459428a576e54edfcddbec4be0eed0e14b02e2bfa78d6119aeefd4a6db29"
+      },
+      "decision_rule": "any new critical loss or prompted term insertion vetoes promotion; never auto promotes",
+      "decoder": "greedy, upstream temperature fallback; same runtime and params",
+      "dependencies_sha256": {
+        "p0/asr_native.py": "ec1a1d60aa309fe8c84fcacadfad68b0bc1c4d407e97f9c1cd0709bd72c32be3",
+        "p0/bench/scoring.py": "4e84b59ad41dfca4d1ed2ee9718b9f710caa0e022cd24a62f95d672178001e2d",
+        "p0/decoder_ab.py": "110316b424db3258fcf2ab8c1263b3a355df5212abe75f4443c529ad6ddd53cb",
+        "p0/lexicon_ab.py": "958c05c6f4f3cbeab0136c7139877c7f67e3e99776d0b7142b1e294b8dd393a0",
+        "p0/review/px_paired.py": "4598ffa056ffb470ab03c3db0ac1ee43700bd52cd3bc19dad020a0c32454a291",
+        "p0/training/prepare_px.py": "3ea8ac11065767c27818ee94b584c60f65ad5866e9c7c06d5d5facefbf6fede6",
+        "p0/training/report_stability.py": "208a75126116feb218798c537510f1eb672c0bab25055d098d77bbce2a691b6c",
+        "p0/training/score_validation.py": "52fdb6884331a40e84b3399274da02ffeae321111956c1c10c962baa6c68e78d",
+        "p0/training/train_lora.py": "50f67c226f5f8bcea2c169c8d18923abe17d4eb48a84b2f1414c231b9d8c52df"
+      },
+      "details": {
+        "historical32": {
+          "clips": 32,
+          "pcm_seconds": 196.88,
+          "pcm_sequence_sha256": "82cbe61a56da6a090ad3d472ff8d0e9c8170102d63635c55bed038cda92e6616"
+        },
+        "synthetic16": {
+          "clips": 16,
+          "pcm_seconds": 60.4378125,
+          "pcm_sequence_sha256": "b309a9774613b9df004c98027e98bdb757ed670d0b4f84992d78215cec0f319a"
+        }
+      },
+      "evaluation_started": false,
+      "experiment": "cpp_initial_prompt_041",
+      "language": "fr",
+      "max_wall_seconds": 900,
+      "medical_grid_sha256": "e68b37befd34ae93870d14be4a5b54c2d3889c2b1a1f417f808326d718f7ebd7",
+      "no_context_history": true,
+      "offgrid_wav_sha256": "60c21858253758a6382e7f00c96793025b124b9e731be452c12c7ec90432465f",
+      "one_pass_per_arm": true,
+      "packet_frames": 1600,
+      "pair_order": "odd=base->context, even=context->base, restarts with each cohort",
+      "product_pause_ms": 576,
+      "rate": 16000,
+      "same_context_sequential_pairs": true,
+      "schema": 1,
+      "silence_lengths_seconds": [
+        1,
+        3
+      ],
+      "silence_pipelines": [
+        "product_vad",
+        "direct_shadow_only"
+      ],
+      "soft_prompt_max_tokens": 64,
+      "synthetic_sha256": "7e71d9bfb6d1507a029c1c6a43b4680ebe3016f9bc7fd7a34d389828ef619cbd",
+      "threads": 4,
+      "vad_sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987",
+      "weights_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      "word_edits_tie_break": "substitution, deletion, insertion; literal WER tokenizer unchanged"
+    },
+    "product_change": false,
+    "protocol_sha256": "9caa68d93affc1f4626e62b69b932916300cd9d91272fafce86779ee32e32edc",
+    "raw_results_sha256": {
+      "historical32": "f0cadf7a45b2840cb439e9db0fc8fd2f26f31e6e4cf19d293424d285cc1ee3f3",
+      "synthetic16": "3a87d21cf9249a06ed52d2f1312056a18d60037bb2ed3e6d4b352e3eab3433ae"
+    },
+    "references_used_to_select_context": false,
+    "replays_without_or_with_same_frozen_names": {
+      "historical32": {
+        "arms": {
+          "base": {
+            "clips_empty": 0,
+            "critical": {
+              "association": [
+                5,
+                16
+              ],
+              "guard:alternative_connector_positions_equal": [
+                31,
+                32
+              ],
+              "guard:concentration_clauses_equal": [
+                32,
+                32
+              ],
+              "guard:drug_name_order_and_multiplicity_equal": [
+                17,
+                32
+              ],
+              "guard:laterality_clauses_equal": [
+                32,
+                32
+              ],
+              "guard:negated_clauses_equal": [
+                31,
+                32
+              ],
+              "guard:negation_markers_equal": [
+                32,
+                32
+              ],
+              "guard:no_added_concentration": [
+                32,
+                32
+              ],
+              "guard:no_added_signed_number": [
+                32,
+                32
+              ],
+              "guard:no_unreviewed_content_addition": [
+                12,
+                32
+              ],
+              "guard:numeric_sequence_equal": [
+                26,
+                32
+              ],
+              "guard:unit_multiplicities_equal": [
+                28,
+                32
+              ],
+              "span:administration_time": [
+                14,
+                17
+              ],
+              "span:clinical_negation": [
+                0,
+                0
+              ],
+              "span:concentration_clause": [
+                0,
+                0
+              ],
+              "span:condition": [
+                12,
+                14
+              ],
+              "span:delay": [
+                2,
+                2
+              ],
+              "span:dose": [
+                42,
+                46
+              ],
+              "span:drug": [
+                9,
+                24
+              ],
+              "span:duration": [
+                21,
+                21
+              ],
+              "span:fraction": [
+                3,
+                3
+              ],
+              "span:frequency": [
+                42,
+                42
+              ],
+              "span:laterality": [
+                0,
+                0
+              ],
+              "span:negated_clause": [
+                0,
+                1
+              ],
+              "span:negation": [
+                1,
+                1
+              ],
+              "span:unit": [
+                66,
+                70
+              ],
+              "span:value": [
+                74,
+                78
+              ]
+            },
+            "deletions": 4,
+            "elapsed_ms": 122449.55004018266,
+            "insertions": 6,
+            "median_clip_ms": 3147.7409790095408,
+            "p95_clip_ms": {
+              "failures": 0,
+              "n": 32,
+              "status": "measured",
+              "value": 9199.723292025737
+            },
+            "reference_words": 371,
+            "rtf": 0.621950172898124,
+            "substitutions": 76,
+            "vad_segments": 39,
+            "wer": 0.23180592991913745,
+            "word_errors": 86
+          },
+          "context": {
+            "clips_empty": 0,
+            "critical": {
+              "association": [
+                5,
+                16
+              ],
+              "guard:alternative_connector_positions_equal": [
+                31,
+                32
+              ],
+              "guard:concentration_clauses_equal": [
+                32,
+                32
+              ],
+              "guard:drug_name_order_and_multiplicity_equal": [
+                17,
+                32
+              ],
+              "guard:laterality_clauses_equal": [
+                32,
+                32
+              ],
+              "guard:negated_clauses_equal": [
+                31,
+                32
+              ],
+              "guard:negation_markers_equal": [
+                32,
+                32
+              ],
+              "guard:no_added_concentration": [
+                32,
+                32
+              ],
+              "guard:no_added_signed_number": [
+                32,
+                32
+              ],
+              "guard:no_unreviewed_content_addition": [
+                11,
+                32
+              ],
+              "guard:numeric_sequence_equal": [
+                28,
+                32
+              ],
+              "guard:unit_multiplicities_equal": [
+                28,
+                32
+              ],
+              "span:administration_time": [
+                15,
+                17
+              ],
+              "span:clinical_negation": [
+                0,
+                0
+              ],
+              "span:concentration_clause": [
+                0,
+                0
+              ],
+              "span:condition": [
+                12,
+                14
+              ],
+              "span:delay": [
+                0,
+                2
+              ],
+              "span:dose": [
+                43,
+                46
+              ],
+              "span:drug": [
+                9,
+                24
+              ],
+              "span:duration": [
+                21,
+                21
+              ],
+              "span:fraction": [
+                3,
+                3
+              ],
+              "span:frequency": [
+                42,
+                42
+              ],
+              "span:laterality": [
+                0,
+                0
+              ],
+              "span:negated_clause": [
+                0,
+                1
+              ],
+              "span:negation": [
+                1,
+                1
+              ],
+              "span:unit": [
+                67,
+                70
+              ],
+              "span:value": [
+                75,
+                78
+              ]
+            },
+            "deletions": 5,
+            "elapsed_ms": 125725.88424992864,
+            "insertions": 7,
+            "median_clip_ms": 3253.772125011892,
+            "p95_clip_ms": {
+              "failures": 0,
+              "n": 32,
+              "status": "measured",
+              "value": 9432.54754098598
+            },
+            "reference_words": 371,
+            "rtf": 0.638591447835883,
+            "substitutions": 76,
+            "vad_segments": 39,
+            "wer": 0.2371967654986523,
+            "word_errors": 88
+          }
+        },
+        "changed_transcripts": 15,
+        "clips": 32,
+        "clips_without_expected_context_term": 32,
+        "context_names": {
+          "correct_base": 0,
+          "correct_context": 0,
+          "false_base": 0,
+          "false_context": 0,
+          "gained_correct_with_context": 0,
+          "lost_correct_with_context": 0,
+          "new_false_with_context": 0,
+          "reference_occurrences": 0
+        },
+        "context_to_base_wall_ratio": 1.0267566047296282,
+        "critical_changes": {
+          "clips_with_gain": {
+            "any_critical_check": 3,
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 1,
+            "guard:numeric_sequence_equal": 2,
+            "guard:unit_multiplicities_equal": 1,
+            "span:administration_time": 1,
+            "span:dose": 1,
+            "span:drug": 1,
+            "span:unit": 1,
+            "span:value": 1
+          },
+          "clips_with_loss": {
+            "any_critical_check": 2,
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 2,
+            "guard:unit_multiplicities_equal": 1,
+            "span:delay": 1,
+            "span:drug": 1
+          },
+          "gains": {
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 1,
+            "guard:numeric_sequence_equal": 2,
+            "guard:unit_multiplicities_equal": 1,
+            "span:administration_time": 1,
+            "span:dose": 1,
+            "span:drug": 1,
+            "span:unit": 1,
+            "span:value": 1
+          },
+          "losses": {
+            "association": 1,
+            "guard:drug_name_order_and_multiplicity_equal": 1,
+            "guard:no_unreviewed_content_addition": 2,
+            "guard:unit_multiplicities_equal": 1,
+            "span:delay": 2,
+            "span:drug": 1
+          }
+        },
+        "input_audio_seconds": 196.88,
+        "modified_without_expected_term": 15
+      },
+      "synthetic16": {
+        "arms": {
+          "base": {
+            "clips_empty": 0,
+            "critical": {
+              "association": [
+                4,
+                4
+              ],
+              "guard:alternative_connector_positions_equal": [
+                15,
+                16
+              ],
+              "guard:concentration_clauses_equal": [
+                16,
+                16
+              ],
+              "guard:drug_name_order_and_multiplicity_equal": [
+                16,
+                16
+              ],
+              "guard:laterality_clauses_equal": [
+                11,
+                16
+              ],
+              "guard:negated_clauses_equal": [
+                11,
+                16
+              ],
+              "guard:negation_markers_equal": [
+                16,
+                16
+              ],
+              "guard:no_added_concentration": [
+                16,
+                16
+              ],
+              "guard:no_added_signed_number": [
+                16,
+                16
+              ],
+              "guard:no_unreviewed_content_addition": [
+                5,
+                16
+              ],
+              "guard:numeric_sequence_equal": [
+                16,
+                16
+              ],
+              "guard:unit_multiplicities_equal": [
+                16,
+                16
+              ],
+              "span:administration_time": [
+                4,
+                4
+              ],
+              "span:clinical_negation": [
+                3,
+                8
+              ],
+              "span:concentration_clause": [
+                0,
+                0
+              ],
+              "span:condition": [
+                1,
+                12
+              ],
+              "span:delay": [
+                0,
+                0
+              ],
+              "span:dose": [
+                8,
+                8
+              ],
+              "span:drug": [
+                4,
+                4
+              ],
+              "span:duration": [
+                0,
+                0
+              ],
+              "span:fraction": [
+                4,
+                4
+              ],
+              "span:frequency": [
+                4,
+                4
+              ],
+              "span:laterality": [
+                1,
+                10
+              ],
+              "span:negated_clause": [
+                3,
+                8
+              ],
+              "span:negation": [
+                6,
+                7
+              ],
+              "span:unit": [
+                8,
+                8
+              ],
+              "span:value": [
+                8,
+                8
+              ]
+            },
+            "deletions": 5,
+            "elapsed_ms": 50775.79366695136,
+            "insertions": 12,
+            "median_clip_ms": 3160.479645986925,
+            "p95_clip_ms": {
+              "failures": 0,
+              "n": 16,
+              "status": "measured",
+              "value": 3324.3569579790346
+            },
+            "reference_words": 115,
+            "rtf": 0.8401328831507818,
+            "substitutions": 36,
+            "vad_segments": 16,
+            "wer": 0.4608695652173913,
+            "word_errors": 53
+          },
+          "context": {
+            "clips_empty": 0,
+            "critical": {
+              "association": [
+                4,
+                4
+              ],
+              "guard:alternative_connector_positions_equal": [
+                16,
+                16
+              ],
+              "guard:concentration_clauses_equal": [
+                16,
+                16
+              ],
+              "guard:drug_name_order_and_multiplicity_equal": [
+                16,
+                16
+              ],
+              "guard:laterality_clauses_equal": [
+                11,
+                16
+              ],
+              "guard:negated_clauses_equal": [
+                11,
+                16
+              ],
+              "guard:negation_markers_equal": [
+                14,
+                16
+              ],
+              "guard:no_added_concentration": [
+                16,
+                16
+              ],
+              "guard:no_added_signed_number": [
+                16,
+                16
+              ],
+              "guard:no_unreviewed_content_addition": [
+                5,
+                16
+              ],
+              "guard:numeric_sequence_equal": [
+                15,
+                16
+              ],
+              "guard:unit_multiplicities_equal": [
+                16,
+                16
+              ],
+              "span:administration_time": [
+                4,
+                4
+              ],
+              "span:clinical_negation": [
+                3,
+                8
+              ],
+              "span:concentration_clause": [
+                0,
+                0
+              ],
+              "span:condition": [
+                1,
+                12
+              ],
+              "span:delay": [
+                0,
+                0
+              ],
+              "span:dose": [
+                8,
+                8
+              ],
+              "span:drug": [
+                4,
+                4
+              ],
+              "span:duration": [
+                0,
+                0
+              ],
+              "span:fraction": [
+                4,
+                4
+              ],
+              "span:frequency": [
+                4,
+                4
+              ],
+              "span:laterality": [
+                1,
+                10
+              ],
+              "span:negated_clause": [
+                3,
+                8
+              ],
+              "span:negation": [
+                6,
+                7
+              ],
+              "span:unit": [
+                8,
+                8
+              ],
+              "span:value": [
+                8,
+                8
+              ]
+            },
+            "deletions": 7,
+            "elapsed_ms": 51939.530414907495,
+            "insertions": 9,
+            "median_clip_ms": 3218.411791487597,
+            "p95_clip_ms": {
+              "failures": 0,
+              "n": 16,
+              "status": "measured",
+              "value": 3713.4604580060113
+            },
+            "reference_words": 115,
+            "rtf": 0.8593879934835083,
+            "substitutions": 37,
+            "vad_segments": 16,
+            "wer": 0.4608695652173913,
+            "word_errors": 53
+          }
+        },
+        "changed_transcripts": 14,
+        "clips": 16,
+        "clips_without_expected_context_term": 16,
+        "context_names": {
+          "correct_base": 0,
+          "correct_context": 0,
+          "false_base": 0,
+          "false_context": 0,
+          "gained_correct_with_context": 0,
+          "lost_correct_with_context": 0,
+          "new_false_with_context": 0,
+          "reference_occurrences": 0
+        },
+        "context_to_base_wall_ratio": 1.022919124722881,
+        "critical_changes": {
+          "clips_with_gain": {
+            "any_critical_check": 1,
+            "guard:alternative_connector_positions_equal": 1
+          },
+          "clips_with_loss": {
+            "any_critical_check": 3,
+            "guard:negation_markers_equal": 2,
+            "guard:numeric_sequence_equal": 1
+          },
+          "gains": {
+            "guard:alternative_connector_positions_equal": 1
+          },
+          "losses": {
+            "guard:negation_markers_equal": 2,
+            "guard:numeric_sequence_equal": 1
+          }
+        },
+        "input_audio_seconds": 60.4378125,
+        "modified_without_expected_term": 14
+      }
+    },
+    "schema": 1,
+    "silences_raw_sha256": "e624b828285d0350b178198ddffe57bfe3c241d7538108d012e2d2a2376e0f38",
+    "status": "complete",
+    "windows_measured": false
+  },
+  "positive_panel": {
+    "accuracy_not_qualified": true,
+    "context_sha256": "3f96d1818f6902ca6f15af08c15e224fc8e1193c0c2151227e2ca29c3249f097",
+    "fixture_freeze_sha256": "6140662c42df48edd0f1eb27ef1ff381df3f850a4efc7aeada78cfa894481f2d",
+    "independent": false,
+    "main_protocol_sha256": "9caa68d93affc1f4626e62b69b932916300cd9d91272fafce86779ee32e32edc",
+    "no_cases_dropped": true,
+    "one_phrase_per_term": true,
+    "only_synthetic": true,
+    "positive_test_designed_to_cover_each_known_name": true,
+    "product_change": false,
+    "raw_results_sha256": "4c5b82e4a985953d5a3c25ae0fe24c37b4bff00ef0b2a205c7dec35747a8ca2e",
+    "results": {
+      "arms": {
+        "base": {
+          "clips_empty": 0,
+          "critical": {
+            "association": [
+              2,
+              11
+            ],
+            "guard:alternative_connector_positions_equal": [
+              11,
+              11
+            ],
+            "guard:concentration_clauses_equal": [
+              11,
+              11
+            ],
+            "guard:drug_name_order_and_multiplicity_equal": [
+              2,
+              11
+            ],
+            "guard:laterality_clauses_equal": [
+              8,
+              11
+            ],
+            "guard:negated_clauses_equal": [
+              7,
+              11
+            ],
+            "guard:negation_markers_equal": [
+              10,
+              11
+            ],
+            "guard:no_added_concentration": [
+              11,
+              11
+            ],
+            "guard:no_added_signed_number": [
+              11,
+              11
+            ],
+            "guard:no_unreviewed_content_addition": [
+              1,
+              11
+            ],
+            "guard:numeric_sequence_equal": [
+              7,
+              11
+            ],
+            "guard:unit_multiplicities_equal": [
+              11,
+              11
+            ],
+            "span:clinical_negation": [
+              7,
+              11
+            ],
+            "span:dose": [
+              22,
+              22
+            ],
+            "span:drug": [
+              2,
+              11
+            ],
+            "span:fraction": [
+              11,
+              11
+            ],
+            "span:laterality": [
+              3,
+              6
+            ],
+            "span:negated_clause": [
+              7,
+              11
+            ],
+            "span:negation": [
+              10,
+              11
+            ],
+            "span:unit": [
+              22,
+              22
+            ],
+            "span:value": [
+              22,
+              22
+            ]
+          },
+          "deletions": 0,
+          "elapsed_ms": 35059.46979098371,
+          "insertions": 6,
+          "median_clip_ms": 3185.876042000018,
+          "p95_clip_ms": {
+            "failures": 0,
+            "n": 11,
+            "status": "measured",
+            "value": 3232.406458002515
+          },
+          "reference_words": 134,
+          "rtf": 0.5349145508911144,
+          "substitutions": 35,
+          "vad_segments": 11,
+          "wer": 0.30597014925373134,
+          "word_errors": 41
+        },
+        "context": {
+          "clips_empty": 0,
+          "critical": {
+            "association": [
+              7,
+              11
+            ],
+            "guard:alternative_connector_positions_equal": [
+              11,
+              11
+            ],
+            "guard:concentration_clauses_equal": [
+              11,
+              11
+            ],
+            "guard:drug_name_order_and_multiplicity_equal": [
+              9,
+              11
+            ],
+            "guard:laterality_clauses_equal": [
+              7,
+              11
+            ],
+            "guard:negated_clauses_equal": [
+              5,
+              11
+            ],
+            "guard:negation_markers_equal": [
+              9,
+              11
+            ],
+            "guard:no_added_concentration": [
+              11,
+              11
+            ],
+            "guard:no_added_signed_number": [
+              11,
+              11
+            ],
+            "guard:no_unreviewed_content_addition": [
+              0,
+              11
+            ],
+            "guard:numeric_sequence_equal": [
+              7,
+              11
+            ],
+            "guard:unit_multiplicities_equal": [
+              11,
+              11
+            ],
+            "span:clinical_negation": [
+              5,
+              11
+            ],
+            "span:dose": [
+              20,
+              22
+            ],
+            "span:drug": [
+              9,
+              11
+            ],
+            "span:fraction": [
+              9,
+              11
+            ],
+            "span:laterality": [
+              2,
+              6
+            ],
+            "span:negated_clause": [
+              5,
+              11
+            ],
+            "span:negation": [
+              9,
+              11
+            ],
+            "span:unit": [
+              22,
+              22
+            ],
+            "span:value": [
+              20,
+              22
+            ]
+          },
+          "deletions": 5,
+          "elapsed_ms": 36062.090292951325,
+          "insertions": 3,
+          "median_clip_ms": 3253.721167013282,
+          "p95_clip_ms": {
+            "failures": 0,
+            "n": 11,
+            "status": "measured",
+            "value": 3612.830583995674
+          },
+          "reference_words": 134,
+          "rtf": 0.5502118813619293,
+          "substitutions": 35,
+          "vad_segments": 11,
+          "wer": 0.3208955223880597,
+          "word_errors": 43
+        }
+      },
+      "changed_transcripts": 10,
+      "clips": 11,
+      "clips_without_expected_context_term": 0,
+      "context_names": {
+        "correct_base": 2,
+        "correct_context": 9,
+        "false_base": 0,
+        "false_context": 0,
+        "gained_correct_with_context": 7,
+        "lost_correct_with_context": 0,
+        "new_false_with_context": 0,
+        "reference_occurrences": 11
+      },
+      "context_to_base_wall_ratio": 1.0285977086346427,
+      "critical_changes": {
+        "clips_with_gain": {
+          "any_critical_check": 7,
+          "association": 6,
+          "guard:drug_name_order_and_multiplicity_equal": 7,
+          "guard:numeric_sequence_equal": 2,
+          "span:drug": 7
+        },
+        "clips_with_loss": {
+          "any_critical_check": 3,
+          "association": 1,
+          "guard:laterality_clauses_equal": 1,
+          "guard:negated_clauses_equal": 2,
+          "guard:negation_markers_equal": 1,
+          "guard:no_unreviewed_content_addition": 1,
+          "guard:numeric_sequence_equal": 2,
+          "span:clinical_negation": 2,
+          "span:dose": 2,
+          "span:fraction": 2,
+          "span:laterality": 1,
+          "span:negated_clause": 2,
+          "span:negation": 1,
+          "span:value": 2
+        },
+        "gains": {
+          "association": 6,
+          "guard:drug_name_order_and_multiplicity_equal": 7,
+          "guard:numeric_sequence_equal": 2,
+          "span:drug": 7
+        },
+        "losses": {
+          "association": 1,
+          "guard:laterality_clauses_equal": 1,
+          "guard:negated_clauses_equal": 2,
+          "guard:negation_markers_equal": 1,
+          "guard:no_unreviewed_content_addition": 1,
+          "guard:numeric_sequence_equal": 2,
+          "span:clinical_negation": 2,
+          "span:dose": 2,
+          "span:fraction": 2,
+          "span:laterality": 1,
+          "span:negated_clause": 2,
+          "span:negation": 1,
+          "span:value": 2
+        }
+      },
+      "input_audio_seconds": 65.5421875,
+      "modified_without_expected_term": 0
+    },
+    "schema": 1,
+    "script_sha256": "5dd3bef19f8c00488dddc101632aec03cb12db4af187b2f9c9dd8e92a5d0cecc",
+    "status": "complete",
+    "will_not_override_negative_panel": true
+  },
+  "running_on_windows_measured": false,
+  "schema": 1,
+  "source_aggregate_sha256": {
+    "negative_panel_and_silence": "7d0b38c318f1f09b534dfd906d03f07c508352fabaad2faec3761b5473755512",
+    "positive_panel": "19ad9a6b86c96b72105916f00103818087fd9fbb9fcde5cab224ef50e0101a48"
+  }
+}

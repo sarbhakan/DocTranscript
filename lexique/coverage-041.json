@@ -1,0 +1,264 @@
+{
+  "schema": 1,
+  "reviewed_on": "2026-11-15",
+  "base_entries": 70517,
+  "addition_entries": 29658,
+  "final_entries": 100175,
+  "base_distinct_literal_labels": 70407,
+  "addition_distinct_literal_labels": 28793,
+  "new_literal_labels_absent_from_base": 28785,
+  "final_distinct_literal_labels": 99192,
+  "counts": [
+    {
+      "source": "adicap-ans",
+      "category": "anatomie",
+      "entries": 1938
+    },
+    {
+      "source": "adicap-ans",
+      "category": "terme-anatomopathologique",
+      "entries": 7534
+    },
+    {
+      "source": "lahn-ans",
+      "category": "examen",
+      "entries": 705
+    },
+    {
+      "source": "ruim-cis",
+      "category": "medicament",
+      "entries": 13834
+    },
+    {
+      "source": "ruim-formes",
+      "category": "forme-pharmaceutique",
+      "entries": 360
+    },
+    {
+      "source": "ruim-substances",
+      "category": "substance",
+      "entries": 5201
+    },
+    {
+      "source": "ruim-voies",
+      "category": "voie-administration",
+      "entries": 86
+    }
+  ],
+  "orphanet": {
+    "active_codes": 7493,
+    "covered_codes": 7492,
+    "unassigned_codes": 1,
+    "assignments": 23166,
+    "labels_with_domain": 19239,
+    "mapping_sha256": "6fa79fbdc0d64d0597db8c404837063a81cbe9bd716b581572aa402cd0342de5",
+    "domains": [
+      {
+        "domain": "orpha-146",
+        "title": "Classification Orphanet des maladies cardiaques rares",
+        "codes": 209,
+        "labels": 679
+      },
+      {
+        "domain": "orpha-147",
+        "title": "Classification Orphanet des anomalies du développement embryonnaire rares",
+        "codes": 3088,
+        "labels": 7592
+      },
+      {
+        "domain": "orpha-148",
+        "title": "Classification Orphanet des malformations cardiaques rares",
+        "codes": 216,
+        "labels": 519
+      },
+      {
+        "domain": "orpha-150",
+        "title": "Classification Orphanet des maladies métaboliques rares",
+        "codes": 935,
+        "labels": 3094
+      },
+      {
+        "domain": "orpha-152",
+        "title": "Classification Orphanet des maladies gastroentérologiques rares",
+        "codes": 318,
+        "labels": 862
+      },
+      {
+        "domain": "orpha-156",
+        "title": "Classification Orphanet des maladies génétiques rares",
+        "codes": 5364,
+        "labels": 14648
+      },
+      {
+        "domain": "orpha-181",
+        "title": "Classification Orphanet des maladies neurologiques rares",
+        "codes": 2990,
+        "labels": 8017
+      },
+      {
+        "domain": "orpha-182",
+        "title": "Classification Orphanet de maladies chirurgicales abdominales rares",
+        "codes": 207,
+        "labels": 585
+      },
+      {
+        "domain": "orpha-183",
+        "title": "Classification Orphanet des maladies hépatiques rares",
+        "codes": 205,
+        "labels": 658
+      },
+      {
+        "domain": "orpha-184",
+        "title": "Classification Orphanet de maladies respiratoires rares",
+        "codes": 232,
+        "labels": 543
+      },
+      {
+        "domain": "orpha-185",
+        "title": "Classification Orphanet des maladies génito-urinaires rares",
+        "codes": 174,
+        "labels": 462
+      },
+      {
+        "domain": "orpha-186",
+        "title": "Classification Orphanet des maladies thoraciques chirurgicales rares",
+        "codes": 88,
+        "labels": 281
+      },
+      {
+        "domain": "orpha-187",
+        "title": "Classification Orphanet des maladies dermatologiques rares",
+        "codes": 905,
+        "labels": 2396
+      },
+      {
+        "domain": "orpha-188",
+        "title": "Classification Orphanet des maladies rénales rares",
+        "codes": 454,
+        "labels": 1297
+      },
+      {
+        "domain": "orpha-189",
+        "title": "Classification Orphanet des maladies ophtalmiques rares",
+        "codes": 1110,
+        "labels": 3012
+      },
+      {
+        "domain": "orpha-193",
+        "title": "Classification Orphanet des maladies endocriniennes rares",
+        "codes": 551,
+        "labels": 1393
+      },
+      {
+        "domain": "orpha-194",
+        "title": "Classification Orphanet des maladies hématologiques rares",
+        "codes": 511,
+        "labels": 1351
+      },
+      {
+        "domain": "orpha-195",
+        "title": "Classification Orphanet des maladies immunologiques rares",
+        "codes": 350,
+        "labels": 1226
+      },
+      {
+        "domain": "orpha-196",
+        "title": "Classification Orphanet des maladies systémiques et rhumatologiques rares",
+        "codes": 323,
+        "labels": 956
+      },
+      {
+        "domain": "orpha-197",
+        "title": "Classification Orphanet des maladies odontologiques rares",
+        "codes": 122,
+        "labels": 332
+      },
+      {
+        "domain": "orpha-198",
+        "title": "Classification Orphanet des maladies rares du système circulatoire",
+        "codes": 293,
+        "labels": 643
+      },
+      {
+        "domain": "orpha-199",
+        "title": "Classification Orphanet des maladies osseuses rares",
+        "codes": 808,
+        "labels": 2139
+      },
+      {
+        "domain": "orpha-200",
+        "title": "Classification Orphanet des maladies oto-rhino-laryngologiques rares",
+        "codes": 428,
+        "labels": 1065
+      },
+      {
+        "domain": "orpha-201",
+        "title": "Classification Orphanet des causes rares d'infertilité",
+        "codes": 129,
+        "labels": 342
+      },
+      {
+        "domain": "orpha-202",
+        "title": "Classification Orphanet des maladies néoplasiques",
+        "codes": 917,
+        "labels": 2157
+      },
+      {
+        "domain": "orpha-203",
+        "title": "Classification Orphanet des maladies infectieuses rares",
+        "codes": 205,
+        "labels": 411
+      },
+      {
+        "domain": "orpha-204",
+        "title": "Classification Orphanet des maladies rares dues à des effets toxiques",
+        "codes": 59,
+        "labels": 146
+      },
+      {
+        "domain": "orpha-205",
+        "title": "Classification Orphanet des maladies gynéco-obstétriques rares",
+        "codes": 241,
+        "labels": 563
+      },
+      {
+        "domain": "orpha-209",
+        "title": "Classification Orphanet des maladies rares en chirurgie maxillo-faciale",
+        "codes": 187,
+        "labels": 526
+      },
+      {
+        "domain": "orpha-212",
+        "title": "Classification Orphanet des allergies rares",
+        "codes": 11,
+        "labels": 24
+      },
+      {
+        "domain": "orpha-216",
+        "title": "Classification Orphanet des maladies d'origine tératologique rares",
+        "codes": 34,
+        "labels": 112
+      },
+      {
+        "domain": "orpha-231",
+        "title": "Classification Orphanet des maladies systémiques ou rhumatologiques rares de l'enfant",
+        "codes": 108,
+        "labels": 325
+      },
+      {
+        "domain": "orpha-233",
+        "title": "Classification Orphanet des maladies rares associées à la transplantation",
+        "codes": 1394,
+        "labels": 4066
+      }
+    ]
+  },
+  "sources_lock_sha256": "2bea350bb23f7712ebdadc328139315821dba7ce1a13e7987c891b8c57e56201",
+  "additions_manifest_sha256": "74ac5ee5bfe65f2c6c5db311fc8a2f9ca20801f7b628754196a28b9763c6dafd",
+  "not_measured": [
+    "ASR precision",
+    "clinical reliability",
+    "all specialties coverage"
+  ],
+  "note": "Entry = (source,code,label), not unique word. Literal labels compared without case/diacritic normalization. Domain counts overlap, never sum to unique diseases."
+}

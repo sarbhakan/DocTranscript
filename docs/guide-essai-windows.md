@@ -1,8 +1,8 @@
 # Installer et utiliser NoteVive sur Windows, pas à pas
 
-[Retour à l’accueil du projet](../README.md) · **[Télécharger NoteVive 0.4.0 pour Windows — ZIP](https://github.com/sarbhakan/DocTranscript/releases/download/v0.4.0-essai/NoteVive-Windows-x64-Essai.zip)**
+[Retour à l’accueil du projet](../README.md) · **[Télécharger NoteVive 0.4.1 pour Windows — ZIP](https://github.com/sarbhakan/DocTranscript/releases/download/v0.4.1-essai/NoteVive-Windows-x64-Essai.zip)**
 
-Ce guide concerne **NoteVive 0.4.0 pour Windows**. Vous pouvez suivre les étapes sans connaître GitHub : aucun logiciel de programmation à installer et aucun compte à créer pour télécharger l’application.
+Ce guide concerne **NoteVive 0.4.1 pour Windows**. Vous pouvez suivre les étapes sans connaître GitHub : aucun logiciel de programmation à installer et aucun compte à créer pour télécharger l’application.
 
 NoteVive transforme votre voix en texte sur votre PC. Le téléchargement nécessite Internet ; la dictée et la consultation des notes fonctionnent ensuite hors ligne, modèle inclus. **Cette version est un essai avec des données fictives uniquement.** Relisez toujours le résultat : une dose, un côté du corps ou une négation peuvent être mal transcrits.
 
@@ -24,7 +24,7 @@ Sur un PC professionnel, appliquez les règles de votre organisation. Le paquet 
 
 ## 2. Télécharger le bon fichier
 
-1. Ouvrez **[la Release NoteVive 0.4.0](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.0-essai)**. Sur GitHub, une page **Release** rassemble les fichiers d’une version à télécharger.
+1. Ouvrez **[la Release NoteVive 0.4.1](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.1-essai)**. Sur GitHub, une page **Release** rassemble les fichiers d’une version à télécharger.
 2. Descendez jusqu’à **Assets**, la liste des fichiers. Cliquez sur ce mot si la liste est repliée.
 3. Cliquez sur **`NoteVive-Windows-x64-Essai.zip`**. Le fichier contient le modèle vocal et peut prendre plusieurs minutes à télécharger. La mention **Pre-release** signifie que c’est une version d’essai.
 
@@ -59,7 +59,7 @@ NoteVive
 
 L’application est dite *portable* : il n’y a pas d’assistant d’installation. Pour la rouvrir plus tard, revenez dans ce même dossier et double-cliquez sur le même fichier. Vous pouvez déconnecter Internet après le téléchargement pour vérifier le fonctionnement hors ligne.
 
-Le haut de la fenêtre doit indiquer **Version 0.4.0**. Si vous voyez une autre interface ou un ancien numéro, fermez cette fenêtre et ouvrez `NoteVive.exe` depuis le nouveau dossier extrait, plutôt qu’un ancien raccourci.
+La barre de titre de la fenêtre doit indiquer **0.4.1**. Si vous voyez une autre interface ou un ancien numéro, fermez cette fenêtre et ouvrez `NoteVive.exe` depuis le nouveau dossier extrait, plutôt qu’un ancien raccourci.
 
 Si une alerte Windows empêche l’ouverture, passez au [dépannage](#depannage) avant de poursuivre.
 
@@ -69,17 +69,17 @@ Si une alerte Windows empêche l’ouverture, passez au [dépannage](#depannage)
 
 Installez-vous dans un endroit calme. NoteVive utilise le **microphone par défaut de Windows**. Si vous avez plusieurs micros, vérifiez celui sélectionné dans **Paramètres → Système → Son → Entrée**.
 
-1. Dans NoteVive, cliquez sur **+ Transcription**. Dans **Titre**, saisissez `Essai cheville`. Le titre suffit à commencer la sauvegarde de cette nouvelle note.
+1. Dans NoteVive, cliquez sur **Nouvelle note**. Dans **Titre**, saisissez `Essai cheville`. Le titre suffit à commencer la sauvegarde de cette nouvelle note.
 2. Cliquez sur **Dicter (F9)**. Pendant **Micro coupé · Préparation du moteur**, attendez : le micro est encore fermé. Commencez uniquement lorsque le message **Micro ouvert** apparaît.
 3. Dites à voix normale : **« Pas de douleur à la cheville droite. »** Faites une pause et attendez que le texte apparaisse. Le calcul peut être long sur certains PC ; évitez de répéter immédiatement la phrase si rien ne s’affiche encore.
 4. Dites ensuite : **« La gêne concerne la cheville gauche depuis cinq jours. »** Faites à nouveau une pause, puis cliquez sur **Arrêter (F9)**.
-5. Attendez la fin de **Finalisation du texte…**. Le texte complet se trouve dans **Texte de la note (modifiable)**. Le cadre **Dernier passage dicté** ne montre que le dernier passage reconnu.
-6. Relisez la note : retrouvez-vous **pas**, **droite**, **gauche** et **cinq jours** ? Si besoin, cliquez dans le texte et corrigez au clavier. Cliquez sur **Enregistrer**. Le message **Brouillon sauvegardé localement · À relire** confirme l’enregistrement.
-7. Fermez la fenêtre, puis rouvrez `NoteVive.exe`. Dans la **liste des transcriptions à gauche**, sélectionnez **Essai cheville** et vérifiez son titre et son texte.
+5. Attendez la fin de **Finalisation du texte…**. Le texte complet se trouve dans **Texte de la note**. Le panneau **Passage provisoire** apparaît seulement lorsqu’un passage est en attente ou n’a pas pu être enregistré. Les passages sauvegardés restent dans le texte principal.
+6. Relisez la note : retrouvez-vous **pas**, **droite**, **gauche** et **cinq jours** ? Si besoin, cliquez dans le texte et corrigez au clavier. Attendez la confirmation de sauvegarde automatique ; **Ctrl+S** permet aussi de la demander immédiatement. Le message **Brouillon sauvegardé localement · À relire** confirme l’enregistrement.
+7. Fermez la fenêtre, puis rouvrez `NoteVive.exe`. Dans la **liste des notes à gauche**, sélectionnez **Essai cheville** et vérifiez son titre et son texte.
 
 **Le premier essai est réussi si** le micro s’ouvre, le texte rejoint la note, vous pouvez le corriger et la note revient après fermeture et réouverture. Notez séparément les erreurs de transcription et le délai d’affichage : un bon fonctionnement de l’interface ne garantit pas une reconnaissance fidèle.
 
-La sauvegarde est automatique après les modifications, mais **Enregistrer** permet de la demander immédiatement. Une note entièrement vide, sans titre ni texte, n’est pas encore enregistrée. Avant de fermer, vérifiez la confirmation de sauvegarde et l’absence de message d’erreur.
+La sauvegarde est automatique après les modifications, mais **Actions → Enregistrer maintenant** ou **Ctrl+S** permet de la demander immédiatement. Une note entièrement vide, sans titre ni texte, n’est pas encore enregistrée. Avant de fermer, vérifiez la confirmation de sauvegarde et l’absence de message d’erreur.
 
 <a id="organiser-les-notes"></a>
 
@@ -89,30 +89,30 @@ Faites ces manipulations après l’arrêt de la dictée et la fin du traitement
 
 ### Donner un nom à une transcription
 
-Sélectionnez la note dans la **liste des transcriptions à gauche**, modifiez le champ **Titre**, puis cliquez sur **Enregistrer**. Un titre comme `Essai cheville — 14 novembre` permet de la reconnaître facilement.
+Sélectionnez la note dans la **liste des notes à gauche**, modifiez le champ **Titre**, puis attendez la confirmation de sauvegarde. Un titre comme `Essai cheville — 14 novembre` permet de la reconnaître facilement.
 
 ### Créer un dossier et un sous-dossier
 
-1. Cliquez sur **Toutes les transcriptions** dans la liste des dossiers, puis sur **+ Dossier**. Saisissez `Mes essais` et validez : le dossier est créé au premier niveau.
-2. Sélectionnez le dossier **Mes essais**, puis cliquez à nouveau sur **+ Dossier**. Saisissez `Médecine générale` et validez : ce dossier est créé à l’intérieur de **Mes essais**.
-3. Pour ranger une note existante, retrouvez-la dans **Toutes les transcriptions** et sélectionnez-la. Cliquez sur **Classer…**, choisissez le dossier de destination et validez. Cette version Windows utilise ce bouton pour le classement.
-4. Pour renommer ou déplacer un dossier, sélectionnez-le puis ouvrez **Dossier… → Renommer le dossier** ou **Déplacer le dossier…**.
+1. Cliquez sur **Toutes les notes** dans la liste des dossiers, puis sur **Actions → Dossiers → Nouveau dossier…**. Saisissez `Mes essais` et validez : le dossier est créé au premier niveau.
+2. Sélectionnez le dossier **Mes essais**, puis choisissez à nouveau **Actions → Dossiers → Nouveau dossier…**. Saisissez `Médecine générale` et validez : ce dossier est créé à l’intérieur de **Mes essais**.
+3. Pour ranger une note existante, retrouvez-la dans **Toutes les notes** et sélectionnez-la. Choisissez **Actions → Classer la note…**, choisissez le dossier de destination et validez. Le texte et le titre sont conservés lors du classement.
+4. Pour renommer ou déplacer un dossier, sélectionnez-le puis ouvrez **Actions → Dossiers → Renommer le dossier…** ou **Déplacer le dossier…**.
 
 Les dossiers de NoteVive servent à organiser la bibliothèque dans l’application. Vous n’avez pas à créer ou déplacer des fichiers dans l’Explorateur Windows. **Sans dossier** rassemble les notes qui n’ont pas été classées.
 
 ### Rechercher et trier
 
-Dans **Rechercher dans le titre ou le texte**, saisissez un mot comme `cheville`. Pour chercher au-delà du dossier sélectionné, cochez **Dans tous les dossiers**, ou sélectionnez **Toutes les transcriptions**. Si cette dernière vue est déjà active, la case est désactivée parce que la recherche porte déjà sur toute la bibliothèque.
+Dans le champ **Rechercher** à gauche, saisissez un mot comme `cheville`. Pour chercher au-delà du dossier sélectionné, activez **Actions → Chercher dans tous les dossiers**, ou sélectionnez **Toutes les notes**. Si cette dernière vue est déjà active, la commande est désactivée parce que la recherche porte déjà sur toute la bibliothèque.
 
-Le menu de tri propose **Dernière modification**, **Date de création** et **Titre (A à Z)**. Les deux tris par date placent les notes les plus récentes en premier. Les dates de création et de modification de la note sont également affichées sous le titre. Elles sont indiquées en **UTC**, un fuseau horaire qui peut différer de l’heure locale de votre PC.
+Le menu **Actions → Trier les notes** propose **Dernière modification**, **Date de création** et **Titre (A à Z)**. Les deux tris par date placent les notes les plus récentes en premier. Les dates de création et de modification de la note sont également affichées sous le titre. Elles sont indiquées en **UTC**, un fuseau horaire qui peut différer de l’heure locale de votre PC.
 
-Si une note semble avoir disparu, effacez le texte de recherche et choisissez **Toutes les transcriptions** avant de conclure qu’elle est perdue.
+Si une note semble avoir disparu, effacez le texte de recherche et choisissez **Toutes les notes** avant de conclure qu’elle est perdue.
 
 ### Consulter le vocabulaire et masquer une note
 
-**Vocabulaire** ouvre un catalogue médical local. Essayez par exemple une recherche sur `hémoglobine`. Il sert à consulter des termes et leur source ; il ne modifie pas la dictée et ne constitue pas un entraînement automatique du modèle.
+**Actions → Vocabulaire médical…** ouvre un catalogue médical local. Essayez par exemple une recherche sur `hémoglobine`. Choisissez éventuellement un **Domaine** et un **Type de terme**. Les filtres ne montrent que les domaines renseignés dans les sources du paquet ; **Tous les domaines** conserve la recherche générale. Le glossaire affiche les orthographes exactes, les codes, les sources et leurs éditions. Il ne modifie pas la dictée et ne constitue pas un entraînement automatique du modèle.
 
-**Masquer la note** cache la bibliothèque et interrompt une dictée en cours. Cliquez sur **Réafficher la note** pour la retrouver. Pour reprendre la capture, cliquez vous-même sur **Dicter** : le microphone ne se rouvre pas automatiquement.
+**Actions → Masquer la note** cache la bibliothèque et interrompt une dictée en cours. Choisissez **Actions → Réafficher la note** pour la retrouver. Pour reprendre la capture, cliquez vous-même sur **Dicter** : le microphone ne se rouvre pas automatiquement.
 
 ### Raccourcis utiles, facultatifs
 
@@ -131,13 +131,13 @@ NoteVive ne conserve pas d’enregistrement audio. L’application ne propose pa
 
 ### Copier ou dicter ailleurs
 
-**Copier une note.** Ouvrez votre note, relisez-la, puis cliquez sur **Copier le texte** ou appuyez sur **Ctrl+Maj+C**. La copie contient le corps de la note, avec ses sauts de ligne, sans titre ni dates. Collez-la vous-même dans le document voulu. Si NoteVive ne peut pas sauvegarder la note, la copie est suspendue. Le contenu copié reste accessible aux applications ayant accès au presse-papiers local ; le marqueur d’exclusion de l’historique et de la synchronisation s’applique à Windows, pas aux autres outils de presse-papiers.
+**Copier une note.** Ouvrez votre note, relisez-la, puis cliquez sur **Copier** ou appuyez sur **Ctrl+Maj+C**. La copie contient le corps de la note, avec ses sauts de ligne, sans titre ni dates. Collez-la vous-même dans le document voulu. Si NoteVive ne peut pas sauvegarder la note, la copie est suspendue. Le contenu copié reste accessible aux applications ayant accès au presse-papiers local ; le marqueur d’exclusion de l’historique et de la synchronisation s’applique à Windows, pas aux autres outils de presse-papiers.
 
 **Dicter dans un champ compatible.** Laissez NoteVive ouvert, puis ouvrez un document Word fictif ou une page d’essai locale avec un champ de texte. Placez le curseur dans ce champ sans sélectionner de texte. Appuyez sur **Ctrl+Alt+Espace**, relâchez les touches et attendez que le petit indicateur affiche **Micro ouvert**. Dictez une phrase fictive, marquez une pause, puis appuyez sur le même raccourci pour arrêter.
 
 NoteVive crée une note **Dictée externe** par session et y sauvegarde chaque passage confirmé avant de tenter de l’envoyer. Gardez le même champ actif pendant toute la dictée et la finalisation. Si l’envoi s’arrête, relisez ce qui a été écrit dans la destination et retrouvez les passages sauvegardés dans NoteVive. Ne recollez pas automatiquement toute la note : une partie pourrait déjà être dans le document.
 
-**Edge, Word et les logiciels métier restent à vérifier sur les postes d’essai.** Le test des champs Windows classiques ou d’un éditeur WPF ne valide pas ces logiciels. Word, le navigateur et les autres logiciels n’exposent pas tous des champs compatibles. Si le champ est refusé, dictez dans NoteVive puis utilisez **Copier le texte** et collez manuellement après relecture. Le texte transmis peut être synchronisé ou stocké par le logiciel qui le reçoit. Windows ne garantit pas la destination des frappes simulées en cas de changement de focus pendant l’envoi vers Word ou un navigateur. Pour le détail du fonctionnement et les cas à tester, voir le [guide de dictée externe](dictee-externe.md).
+**Edge, Word et les logiciels métier restent à vérifier sur les postes d’essai.** Le test des champs Windows classiques ou d’un éditeur WPF ne valide pas ces logiciels. Word, le navigateur et les autres logiciels n’exposent pas tous des champs compatibles. Si le champ est refusé, dictez dans NoteVive puis utilisez **Copier** et collez manuellement après relecture. Le texte transmis peut être synchronisé ou stocké par le logiciel qui le reçoit. Windows ne garantit pas la destination des frappes simulées en cas de changement de focus pendant l’envoi vers Word ou un navigateur. Pour le détail du fonctionnement et les cas à tester, voir le [guide de dictée externe](dictee-externe.md).
 
 ## 6. Comprendre ce qui se passe pendant la dictée
 
@@ -183,27 +183,27 @@ Si `F9` ne répond pas, cliquez directement sur **Dicter** dans la fenêtre Note
 
 ### Le raccourci externe ne répond pas ou le champ est refusé
 
-Si la note est masquée, cliquez d’abord sur **Réafficher la note**. Cliquez sur **Dicter ailleurs** dans NoteVive pour vérifier le raccourci. S’il est déjà utilisé par une autre application, libérez-le puis relancez NoteVive, ou utilisez la dictée interne et **Copier le texte**. Si le champ est protégé, en lecture seule ou incompatible, choisissez un autre champ fictif. Si un envoi n’est pas confirmé, relisez la destination et la note locale avant tout collage manuel.
+Si la note est masquée, choisissez d’abord **Actions → Réafficher la note**. Choisissez **Actions → Dicter ailleurs…** dans NoteVive pour vérifier le raccourci. S’il est déjà utilisé par une autre application, libérez-le puis relancez NoteVive, ou utilisez la dictée interne et **Copier**. Si le champ est protégé, en lecture seule ou incompatible, choisissez un autre champ fictif. Si un envoi n’est pas confirmé, relisez la destination et la note locale avant tout collage manuel.
 
 ### Le texte met longtemps à apparaître, ou certains mots sont faux
 
-Commencez avec une seule phrase courte, laissez une pause et attendez le résultat. Cliquez sur **Arrêter**, puis attendez la fin de la finalisation. Notez le délai, la phrase fictive prononcée et le texte obtenu. Les erreurs sur une négation, une dose, une unité ou un côté du corps sont particulièrement utiles à signaler. Le catalogue **Vocabulaire** ne corrige pas ces erreurs automatiquement.
+Commencez avec une seule phrase courte, laissez une pause et attendez le résultat. Cliquez sur **Arrêter**, puis attendez la fin de la finalisation. Notez le délai, la phrase fictive prononcée et le texte obtenu. Les erreurs sur une négation, une dose, une unité ou un côté du corps sont particulièrement utiles à signaler. Le catalogue **Vocabulaire médical** ne corrige pas ces erreurs automatiquement.
 
 ### Enregistrer échoue, ou une erreur survient pendant la dictée
 
-En cas d’échec de sauvegarde, gardez la fenêtre ouverte, relevez le message et essayez **Enregistrer**. Si l’application propose de sauvegarder une copie, vérifiez que cette copie apparaît dans la bibliothèque avant de fermer. **Copier le texte** exige une sauvegarde réussie ; rétablissez d’abord l’enregistrement.
+En cas d’échec de sauvegarde, gardez la fenêtre ouverte, relevez le message et essayez **Actions → Enregistrer maintenant**. Si l’application propose de sauvegarder une copie, vérifiez que cette copie apparaît dans la bibliothèque avant de fermer. **Copier** exige une sauvegarde réussie ; rétablissez d’abord l’enregistrement.
 
 Après une panne du moteur, relisez ce qui a été conservé : le passage en cours peut manquer. Si le message **Arrêt du microphone non confirmé** apparaît, fermez l’application comme demandé. Après une fermeture inattendue, rouvrez la note et vérifiez les dernières phrases ; seule une sauvegarde réussie confirme leur conservation.
 
 ### Un passage est affiché à part et annoncé « non enregistré »
 
-Gardez la fenêtre ouverte. Ce message signifie que le dernier passage n’a pas pu rejoindre la note ; il est visible dans « Dernier passage dicté » et reste seulement en mémoire. Attendez la fin de la finalisation avant de créer une autre note. Relevez le passage fictif avant de changer de note ; vous pourrez ensuite le retaper dans une nouvelle note et l’enregistrer. Avant de quitter, vérifiez que le texte utile a bien été enregistré. Une alerte vous avertit si l’action choisie effacerait le passage.
+Gardez la fenêtre ouverte. Ce message signifie que le dernier passage n’a pas pu rejoindre la note ; il est visible dans le panneau de passage non enregistré et reste seulement en mémoire. Attendez la fin de la finalisation avant de créer une autre note. Relevez le passage fictif avant de changer de note ; vous pourrez ensuite le retaper dans une nouvelle note et l’enregistrer. Avant de quitter, vérifiez que le texte utile a bien été enregistré. Une alerte vous avertit si l’action choisie effacerait le passage.
 
-Si l’application demande de corriger le texte avant de sauvegarder, relisez et corrigez le corps de la note, puis cliquez sur **Enregistrer**. La sauvegarde et le classement restent suspendus tant que cette correction n’est pas faite. Une fermeture forcée peut perdre le passage affiché à part.
+Si l’application demande de corriger le texte avant de sauvegarder, relisez et corrigez le corps de la note, puis attendez la confirmation de sauvegarde. La sauvegarde et le classement restent suspendus tant que cette correction n’est pas faite. Une fermeture forcée peut perdre le passage affiché à part.
 
 ### Je ne retrouve pas mes notes après réouverture
 
-Effacez la recherche et cliquez sur **Toutes les transcriptions**. Vérifiez que vous utilisez le **même compte Windows sur le même PC**. Changer de dossier d’application ne supprime pas les notes ; changer de compte ou de PC ne transfère pas la bibliothèque. Si le problème persiste, ne supprimez aucun fichier de notes pour tenter de le résoudre.
+Effacez la recherche et cliquez sur **Toutes les notes**. Vérifiez que vous utilisez le **même compte Windows sur le même PC**. Changer de dossier d’application ne supprime pas les notes ; changer de compte ou de PC ne transfère pas la bibliothèque. Si le problème persiste, ne supprimez aucun fichier de notes pour tenter de le résoudre.
 
 ## 8. Fermer, mettre à jour ou retirer l’application
 
