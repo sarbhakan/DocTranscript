@@ -13,6 +13,8 @@ from pathlib import Path
 import sqlite3
 import tempfile
 
+from lexique.__main__ import DDL
+
 SOURCE_COLUMNS = 'id,title,edition,publication_date,url,license_url,attribution,sha256,format,note'
 
 
@@ -59,6 +61,17 @@ def content_digest(con):
     return digest.hexdigest()
 
 
+def check_schema(con):
+    # Compare against a fresh schema, including FTS shadow tables and indexes.
+    # Extra tables, columns, views, triggers and changed virtual-table options
+    # cannot hitchhike on a valid digest of the known relational fields.
+    sql = "SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name"
+    with closing(sqlite3.connect(':memory:')) as expected:
+        expected.executescript(DDL)
+        if con.execute(sql).fetchall() != expected.execute(sql).fetchall():
+            raise ValueError('Schéma du catalogue différent du format public autorisé.')
+
+
 def validate(path, manifest, spec):
     cfg = json.loads(Path(manifest).read_text(encoding='utf-8'))
     expected_sources = cfg['sources']
@@ -66,6 +79,7 @@ def validate(path, manifest, spec):
     if len(set(ids)) != len(ids) or sorted(ids) != spec['sources']:
         raise ValueError('Sources du catalogue différentes du verrou public.')
     with open_readonly(path) as con:
+        check_schema(con)
         expected = sorted(tuple(s[k] for k in SOURCE_COLUMNS.split(',')) for s in expected_sources)
         if (con.execute('PRAGMA user_version').fetchone() != (spec['schema'],)
                 or con.execute('SELECT count(*) FROM term').fetchone() != (spec['entries'],)
@@ -79,6 +93,34 @@ def validate(path, manifest, spec):
         with closing(sqlite3.connect(':memory:')) as copy:
             con.backup(copy)
             copy.execute("INSERT INTO term_fts(term_fts,rank) VALUES('integrity-check',1)")
+    return cfg
+
+
+def stage_catalogue(path, destination, manifest, spec):
+    """Build the shipped file from approved columns, never copy opaque input bytes.
+
+    Even a valid relational catalogue can carry unrelated data in free pages or
+    appended bytes. Starting from DDL and selected rows removes that channel.
+    """
+    cfg = validate(path, manifest, spec)
+    destination = Path(destination)
+    if destination.exists() or destination.is_symlink():
+        raise ValueError('Destination du catalogue déjà présente.')
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.catalogue-package-', dir=destination.parent) as tmp:
+        stage = Path(tmp) / 'catalogue.sqlite'
+        with open_readonly(path) as original, closing(sqlite3.connect(stage)) as clean:
+            clean.executescript(DDL)
+            with clean:
+                clean.executemany('INSERT INTO source VALUES (?,?,?,?,?,?,?,?,?,?)',
+                                  original.execute(f'SELECT {SOURCE_COLUMNS} FROM source ORDER BY id'))
+                clean.executemany('INSERT INTO term VALUES (?,?,?,?,?,?,?)', original.execute(
+                    'SELECT id,source_id,code,label,search_label,category,label_kind FROM term ORDER BY id'))
+                clean.executemany('INSERT INTO specialty VALUES (?,?)', original.execute(
+                    'SELECT term_id,name FROM specialty ORDER BY term_id,name'))
+                clean.execute("INSERT INTO term_fts(term_fts) VALUES('rebuild')")
+        validate(stage, manifest, spec)
+        os.link(stage, destination)
     return cfg
 
 

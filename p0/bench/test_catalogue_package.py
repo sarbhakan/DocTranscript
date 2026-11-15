@@ -1,12 +1,20 @@
 import hashlib
+from contextlib import closing, contextmanager
 import json
 from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
 
-from app.catalogue_package import SOURCE_COLUMNS, content_digest, domain_header, extend, open_readonly, validate
+from app.catalogue_package import SOURCE_COLUMNS, content_digest, domain_header, extend, open_readonly, stage_catalogue, validate
 from lexique.__main__ import DDL
+
+
+@contextmanager
+def writable(path):
+    with closing(sqlite3.connect(path)) as con:
+        with con:
+            yield con
 
 
 class CataloguePackageTests(unittest.TestCase):
@@ -20,7 +28,7 @@ class CataloguePackageTests(unittest.TestCase):
         source = dict(zip(SOURCE_COLUMNS.split(','), [name, 'Source fictive', '1', '2026-11-15',
             'https://example.org/source', 'https://example.org/license', 'Attribution fictive',
             'a' * 64, 'csv', 'Données fictives de recette']))
-        with sqlite3.connect(path) as con:
+        with writable(path) as con:
             con.executescript(DDL)
             con.execute('INSERT INTO source VALUES (?,?,?,?,?,?,?,?,?,?)', tuple(source.values()))
             con.execute('INSERT INTO term VALUES (1,?,?,?,?,?,?)',
@@ -67,7 +75,7 @@ class CataloguePackageTests(unittest.TestCase):
     def test_changed_spelling_or_provenance_rejected(self):
         base, source = self.fixture('base', 'Terme exact', 'general')
         manifest, spec = self.specification(base, [source])
-        with sqlite3.connect(base) as con:
+        with writable(base) as con:
             con.execute("UPDATE term SET label='Terme modifié'")
         with self.assertRaises(ValueError):
             validate(base, manifest, spec)
@@ -75,7 +83,7 @@ class CataloguePackageTests(unittest.TestCase):
     def test_corrupt_external_content_index_rejected(self):
         base, source = self.fixture('base', 'Terme exact', 'general')
         manifest, spec = self.specification(base, [source])
-        with sqlite3.connect(base) as con:
+        with writable(base) as con:
             con.execute("INSERT INTO term_fts(term_fts) VALUES('delete-all')")
         with self.assertRaises(sqlite3.DatabaseError):
             validate(base, manifest, spec)
@@ -83,7 +91,7 @@ class CataloguePackageTests(unittest.TestCase):
     def test_missing_domain_detected_even_with_same_counts(self):
         base, source = self.fixture('base', 'Terme', 'general')
         manifest, spec = self.specification(base, [source])
-        with sqlite3.connect(base) as con:
+        with writable(base) as con:
             con.execute("UPDATE specialty SET name='autre'")
         with self.assertRaises(ValueError):
             validate(base, manifest, spec)
@@ -91,7 +99,7 @@ class CataloguePackageTests(unittest.TestCase):
     def test_official_domains_apply_to_all_labels_of_code(self):
         base, _ = self.fixture('orphanet-fr', 'Libellé principal', 'general')
         extra, _ = self.fixture('extra', 'Autre terme', 'general')
-        with sqlite3.connect(base) as con:
+        with writable(base) as con:
             con.execute("UPDATE term SET code='123'")
             con.execute("INSERT INTO term VALUES (2,'orphanet-fr','123','Synonyme','synonyme','maladie','synonyme')")
             con.execute("INSERT INTO term_fts(term_fts) VALUES('rebuild')")
@@ -117,6 +125,46 @@ class CataloguePackageTests(unittest.TestCase):
         path.write_text(json.dumps({'schema':1,'labels':{'cardio':'Cœur\nrare'}}))
         with self.assertRaises(ValueError):
             domain_header(path)
+
+    def test_extra_private_table_is_rejected(self):
+        base, source = self.fixture('base', 'Terme public', 'general')
+        manifest, spec = self.specification(base, [source])
+        with writable(base) as con:
+            con.execute('CREATE TABLE simulated_private_note(body TEXT)')
+            con.execute("INSERT INTO simulated_private_note VALUES ('fictional sentinel')")
+        with self.assertRaises(ValueError):
+            validate(base, manifest, spec)
+        output = self.root / 'staged.sqlite'
+        with self.assertRaises(ValueError):
+            stage_catalogue(base, output, manifest, spec)
+        self.assertFalse(output.exists())
+
+    def test_staging_removes_appended_unrelated_bytes(self):
+        base, source = self.fixture('base', 'Terme public', 'general')
+        manifest, spec = self.specification(base, [source])
+        sentinel = b'FICTIONAL_PRIVATE_TRAILER_NOT_PATIENT_DATA'
+        with base.open('ab') as stream:
+            stream.write(sentinel)
+        output = self.root / 'staged.sqlite'
+        stage_catalogue(base, output, manifest, spec)
+        self.assertNotIn(sentinel, output.read_bytes())
+        validate(output, manifest, spec)
+
+    def test_staging_removes_freed_pages(self):
+        base, source = self.fixture('base', 'Terme public', 'general')
+        manifest, spec = self.specification(base, [source])
+        sentinel = 'FICTIONAL_FREED_PAGE_NOT_PATIENT_DATA'
+        with writable(base) as con:
+            con.execute('PRAGMA secure_delete=OFF')
+            con.execute('CREATE TABLE scratch(value TEXT)')
+            con.execute('INSERT INTO scratch VALUES (?)', (sentinel * 1000,))
+            con.commit()
+            con.execute('DROP TABLE scratch')
+        self.assertIn(sentinel.encode(), base.read_bytes())
+        output = self.root / 'staged.sqlite'
+        stage_catalogue(base, output, manifest, spec)
+        self.assertNotIn(sentinel.encode(), output.read_bytes())
+        validate(output, manifest, spec)
 
 
 if __name__ == '__main__':

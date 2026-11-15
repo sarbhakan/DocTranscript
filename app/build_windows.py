@@ -9,15 +9,17 @@ import shutil
 import sqlite3
 import struct
 import subprocess
+import sys
 import tempfile
 import zipfile
 
 if __package__:
     from .build_whisper_windows import validate_staged, DLL_NAMES, DECODER_PATCH
-    from .catalogue_package import domain_header, validate as validate_catalogue
+    from .catalogue_package import domain_header, stage_catalogue, validate as validate_catalogue
 else:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from build_whisper_windows import validate_staged, DLL_NAMES, DECODER_PATCH
-    from catalogue_package import domain_header, validate as validate_catalogue
+    from app.catalogue_package import domain_header, stage_catalogue, validate as validate_catalogue
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,7 +87,7 @@ def stage_inputs(downloads, staging, catalogue, whisper_runtime):
         shutil.copyfile(whisper_runtime / "bin" / name, runtime / name)
     for name in ("ggml-large-v3-turbo-q5_0.bin", "ggml-silero-v6.2.0.bin"):
         shutil.copyfile(downloads / name, runtime / name)
-    shutil.copyfile(catalogue, runtime / "catalogue.sqlite")
+    stage_catalogue(catalogue, runtime / "catalogue.sqlite", PUBLIC_CATALOGUE_MANIFEST, LOCK["catalogue"])
     for name in ("Whisper-cpp-MIT.txt", "Whisper-OpenAI-MIT.txt", "Silero-VAD-MIT.txt", "Llamafile-MIT.txt"):
         notice = WHISPER_NOTICES / name
         if not notice.is_file() or not notice.stat().st_size:

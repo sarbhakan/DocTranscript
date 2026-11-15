@@ -16,7 +16,8 @@ import zipfile
 if __package__:
     from .catalogue_package import extend, validate
 else:
-    from catalogue_package import extend, validate
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from app.catalogue_package import extend, validate
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCK = json.loads((ROOT / 'app/inputs.lock.json').read_text(encoding='utf-8'))
