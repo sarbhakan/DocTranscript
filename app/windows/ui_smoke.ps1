@@ -44,6 +44,7 @@ public static class NvWindow {
     [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string className, string title);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
     [DllImport("user32.dll")] static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
@@ -436,6 +437,16 @@ $testChild = "$prefix enfant"
 $testChildRenamed = "$prefix sous-dossier"
 $testRenamed = "$prefix classe"
 $marker = "$prefix marqueur éphémère."
+if ($PreviewPath) {
+    # The preview uses its own fresh user profile, so friendly names are deterministic.
+    $testOlder = 'A · Note d’essai'
+    $testNote = 'B · Compte rendu fictif'
+    $testFolder = 'Mes essais'
+    $testChild = 'Brouillons'
+    $testChildRenamed = 'Consultations'
+    $testRenamed = 'Cheville · essai fictif'
+    $marker = 'Note fictive : marqueur éphémère.'
+}
 $savedMarker = "$marker Texte relu."
 $captureNote = "Deuxième transcription fictive.`r`nEssai de dictée hors ligne : œdème à gauche, aucune douleur à droite."
 $process = $null
@@ -621,8 +632,18 @@ function Sorted-Names {
 
 function Probe-Catalogue {
     $handle = Window-Handle $app
-    $previous = [NvWindow]::UiFocus($handle, $process.Id)
-    if ($previous -eq [IntPtr]::Zero) { throw 'The main window has no focused control before vocabulary.' }
+    $actions = ById 123
+    $trigger = Window-Handle $actions
+    if ($trigger -eq [IntPtr]::Zero -or $trigger -ne [NvWindow]::GetDlgItem($handle, 123) -or
+            -not [NvWindow]::IsWindowEnabled($trigger)) { throw 'Cannot resolve the native glossary opener.' }
+    # Opening a popup through a button click can change focus. Start on that
+    # button, so the expected return target is the actual invoking control.
+    if ([NvWindow]::UiFocus($handle, $process.Id) -ne $trigger -or [NvWindow]::GetForegroundWindow() -ne $handle) {
+        $actions.SetFocus()
+    }
+    $null = Wait-For {
+        [NvWindow]::GetForegroundWindow() -eq $handle -and [NvWindow]::UiFocus($handle, $process.Id) -eq $trigger
+    } 'establish focus on the native Actions button in the foreground'
     Invoke-NoteAction '&Vocabulaire médical…'
     $popup = Find-Dialog 'Vocabulaire médical · NoteVive'
     $popupHandle = Window-Handle $popup
@@ -651,7 +672,12 @@ function Probe-Catalogue {
         $result -notmatch '(?i)European Medical Device Nomenclature'
     } 'filter disorders and display the exact Orphanet record, excluding EMDN devices'
     Click ($popup.FindFirst($enumScope, (Condition $idProperty '4104')))
-    $null = Wait-For { -not [NvWindow]::IsWindow($popupHandle) -and [NvWindow]::UiFocus($handle, $process.Id) -eq $previous } 'close vocabulary and return to the previous control'
+    $null = Wait-For { -not [NvWindow]::IsWindow($popupHandle) } 'close the vocabulary window'
+    $null = Wait-For {
+        [NvWindow]::IsWindowEnabled($handle) -and [NvWindow]::IsWindowVisible($handle) -and
+        [NvWindow]::GetForegroundWindow() -eq $handle
+    } 'restore the enabled main window to the foreground'
+    $null = Wait-For { [NvWindow]::UiFocus($handle, $process.Id) -eq $trigger } 'return focus to the native Actions button'
 }
 
 function Save-Preview([string]$Path) {
@@ -843,17 +869,25 @@ try {
     } 'new folder and note body persisted after moving'
     Step 'mask and restore through the Actions menu without changing the saved note'
     $handle = Window-Handle $app
+    $micStatus = [NvWindow]::GetDlgItem($handle, 127)
+    if ($micStatus -eq [IntPtr]::Zero) { throw 'Missing native microphone status label.' }
     Invoke-NoteAction 'Mas&quer la note'
     $null = Wait-For {
         -not [NvWindow]::IsWindowVisible([NvWindow]::GetDlgItem($handle, 108)) -and
         -not [NvWindow]::IsWindowVisible([NvWindow]::GetDlgItem($handle, 106)) -and
         -not [NvWindow]::IsWindowVisible([NvWindow]::GetDlgItem($handle, 121))
     } 'hide the editor, note list and copy button'
+    $null = Wait-For {
+        [NvWindow]::Text($micStatus).StartsWith('Micro coupé · Note masquée.', [StringComparison]::Ordinal)
+    } 'show the masked note and stopped microphone status'
     Invoke-NoteAction '&Réafficher la note'
     $null = Wait-For {
         [NvWindow]::IsWindowVisible([NvWindow]::GetDlgItem($handle, 108)) -and
         [NvWindow]::Text((Window-Handle (ById 108))) -ceq $captureNote
     } 'restore the same saved note'
+    $null = Wait-For {
+        [NvWindow]::Text($micStatus).StartsWith('Micro coupé · Note réaffichée.', [StringComparison]::Ordinal)
+    } 'show the restored note while keeping the microphone off'
     if (-not $PreviewPath) {
         Step 'open the packaged vocabulary, find a sourced term, and restore keyboard focus'
         Probe-Catalogue
@@ -889,7 +923,7 @@ try {
         if ($app -and $process -and -not $process.HasExited) {
             $handle = Window-Handle $app
             $tree = [NvWindow]::GetDlgItem($handle, 110)
-            $details += ", focus=$([NvWindow]::UiFocus($handle, $process.Id)), editor=$([NvWindow]::GetDlgItem($handle, 108)), native_tree_items=$([NvWindow]::TreeCount($tree)), main_enabled=$([NvWindow]::IsWindowEnabled($handle))"
+            $details += ", main=$handle, foreground=$([NvWindow]::GetForegroundWindow()), focus=$([NvWindow]::UiFocus($handle, $process.Id)), editor=$([NvWindow]::GetDlgItem($handle, 108)), actions=$([NvWindow]::GetDlgItem($handle, 123)), native_tree_items=$([NvWindow]::TreeCount($tree)), main_enabled=$([NvWindow]::IsWindowEnabled($handle))"
             [Console]::Error.WriteLine($details)
             Write-Output ("::notice title=NoteVive isolated UI state::" + $details.Replace('%', '%25').Replace([string][char]13, '%0D').Replace([string][char]10, '%0A'))
             [Console]::Error.WriteLine("Native note list rows: $(@(Sorted-Names).Count)")

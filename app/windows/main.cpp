@@ -43,13 +43,15 @@ constexpr UINT OverlayFailureMessage = WM_APP + 2;
 constexpr std::size_t TitleLimit = notes::kMaxTitle;
 constexpr std::size_t TextLimit = notes::kMaxText;
 constexpr wchar_t OriginalEditProc[] = L"NoteVive.OriginalEditProc";
+constexpr wchar_t MaskedMicStatus[] = L"Micro coupé · Note masquée. Aucune reprise automatique.";
+constexpr wchar_t RestoredMicStatus[] = L"Micro coupé · Note réaffichée. La dictée ne reprend pas seule.";
 
 enum Control : int {
     New = 101, Dictate, Save, Privacy, Vocabulary, Library, Title, Body, Draft,
     FolderTree, SearchText, SearchAll, NewFolder = 114, MoveNote = 116,
     RenameFolder, MoveFolder, RenameNote, NoteInfo,
     CopyTranscript = 121, ExternalDictation = 122, Actions = 123,
-    SortModified, SortCreated, SortTitle,
+    SortModified, SortCreated, SortTitle, MicStatus,
 };
 enum class Phase { idle, preparing, listening, stopping, finalizing };
 
@@ -376,7 +378,7 @@ struct App {
         dictate = control(L"BUTTON", L"&Dicter (F9)", WS_TABSTOP | BS_PUSHBUTTON, Dictate);
         copy_button = control(L"BUTTON", L"&Copier", WS_TABSTOP | WS_DISABLED | BS_PUSHBUTTON, CopyTranscript);
         actions = control(L"BUTTON", L"&Actions…", WS_TABSTOP | BS_PUSHBUTTON, Actions);
-        mic_status = control(L"STATIC", L"Micro coupé", SS_LEFT | SS_NOPREFIX);
+        mic_status = control(L"STATIC", L"Micro coupé", SS_LEFT | SS_NOPREFIX, MicStatus);
         storage_status = control(L"STATIC", L"", SS_LEFT | SS_NOPREFIX);
         masked_info = control(L"STATIC", L"Note masquée. Pour reprendre, choisissez Actions → Réafficher la note (Ctrl+M).", SS_LEFT);
         for (HWND item : controls()) if (!item) return false;
@@ -1312,12 +1314,15 @@ struct App {
         if (session_locked) return;
         if (masked) {
             masked = false;
+            if (idle_status == MaskedMicStatus) idle_status = RestoredMicStatus;
+            // A stop already in progress may copy interrupt_status back to idle_status.
+            if (interrupt_status == MaskedMicStatus) interrupt_status = RestoredMicStatus;
             SetWindowTextW(draft, rejected_segment.c_str());
             if (store_ready) reload_library();
             update_controls();
             if (store_ready) SetFocus(body);
         } else {
-            conceal(L"Micro coupé · Note masquée. Aucune reprise automatique.");
+            conceal(MaskedMicStatus);
         }
     }
 
