@@ -102,7 +102,7 @@ Faire les comparaisons sur le même PC, les mêmes audios et un nombre de fils c
 
 ### F6 — Faire un petit essai d’adaptation des poids
 
-**État au 15 novembre : faisabilité locale démontrée, candidat non qualifié.** Les [essais de rétention et de pondération des médicaments](../p0/training/retention_stability_notes.md) ont terminé sur M1 Pro, 16 Go, avec mise à jour AdamW des seuls paramètres LoRA sur CPU. Leurs régressions critiques interdisent l’export produit. Le défaut d’inférence HF/MPS observé dans les contrôles supplémentaires reste à isoler ; ne pas réutiliser ce témoin défaillant pour conclure à un gain. Le banc séparé whisper.cpp conserve une comparaison exploitable.
+**État au 15 novembre : faisabilité locale démontrée, candidat non qualifié.** Les [essais de rétention et de pondération des médicaments](../p0/training/retention_stability_notes.md) ont terminé sur M1 Pro, 16 Go, avec mise à jour AdamW des seuls paramètres LoRA sur CPU. Leurs régressions critiques interdisent l’export produit. Un [contrôle mécanique hors grille](../p0/training/mps_precision_probe_041.md) termine correctement en FP32 là où la route FP16/MPS répétait un jeton. Il porte sur une seule phrase synthétique non médicale : la cause précise et la validité sur plusieurs voix restent à établir. Les comparaisons invalides précédentes ne sont pas réinterprétées comme des gains. Le banc séparé whisper.cpp conserve une comparaison exploitable.
 
 Une liste de mots peut servir à construire des exemples et un contexte lexical. Pour apprendre à mieux reconnaître la parole, il faut des **enregistrements accompagnés de leur transcription exacte**. Lire quelques mots peut aider à diagnostiquer une prononciation ; cela ne produit pas instantanément un modèle médical général.
 
@@ -150,7 +150,7 @@ Geler le candidat, les lexiques, le protocole et les seuils avant d’ouvrir la 
 | Utilité | Objectif initial d’au moins 20 % de temps gagné jusqu’à la note validée, correction comprise, sur des tâches comparables. Aucun résultat de ce type n’est actuellement acquis. |
 | Robustesse | Installation hors ligne sur poste propre, trois dictées de 15 minutes, micro débranché, veille, fermeture, mise à jour, reprise après panne et absence de perte des notes confirmées. |
 | Exploitation | Application signée, sauvegarde chiffrée et restauration testée sur un autre poste, suppression et conservation définies, support documenté, contrôles réseau et journaux sans contenu patient. |
-| Destination du texte | Parcours de validation puis transfert explicite vers une destination qualifiée. L’export et l’insertion externe ne sont pas présents dans le ZIP actuel ; leur intégration constitue un travail distinct. |
+| Destination du texte | La copie et l’insertion externe sont présentes dans le ZIP d’essai ; les recettes Win32 et WPF portent sur des champs fictifs. Qualifier les applications réellement utilisées et le parcours de relecture avant transfert. Word, Excel et les navigateurs restent à vérifier sur poste physique. |
 
 Les notes actuelles sont liées au compte Windows et au poste par DPAPI : recopier leur dossier ne suffit pas à démontrer une sauvegarde restaurable ailleurs. Ce point, les droits d’accès et la protection du poste doivent être traités avant l’usage professionnel.
 

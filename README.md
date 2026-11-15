@@ -53,6 +53,10 @@ Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez u
 
 La version **0.4.1** simplifie la fenêtre : **Nouvelle note**, **Dicter / Arrêter**, **Copier** et **Actions** sont les quatre commandes visibles. Le menu Actions rassemble le classement, les dossiers, les tris et les fonctions occasionnelles. La recherche reste dans la bibliothèque et le texte occupe l’essentiel de l’écran. Le [guide du carnet](docs/ui-041.md) explique ce parcours.
 
+![Le carnet NoteVive sur Windows : notes et dossiers à gauche, texte et dictée à droite](assets/notevive-windows-041.png)
+
+Capture réelle de la fenêtre sous Windows Server 2022 pendant la recette automatique. Les notes fictives sont insérées par la recette ; leur texte n’est pas une mesure de reconnaissance vocale. La bordure de fenêtre dépend de la version de Windows.
+
 Le [vocabulaire enrichi](docs/lexique-041.md) contient **100 175 entrées, soit 99 192 libellés distincts**, dont les médicaments et substances du RUIM de l’ANSM, avec des domaines et des types pour affiner la recherche. Les maladies rares sont rattachées aux **33 classifications françaises d’Orphanet**. Ces domaines se recouvrent ; le nombre de libellés n’est ni un taux de précision ni une couverture complète de toutes les spécialités. Le glossaire est consultatif et ne remplace aucun mot ou dosage automatiquement.
 
 Le [bilan de consolidation](docs/consolidation-041.md) distingue le correctif d’entraînement, les comparaisons de reconnaissance et les vérifications Windows. Les trois nouveaux adaptateurs et l’injection globale du lexique ont été écartés après des régressions sur des éléments critiques. Le moteur et le modèle distribués sont conservés. Le [test lexical apparié](p0/lexical_cpp_041.md) montre qu’un meilleur score sur les noms de médicaments peut s’accompagner de pertes de doses, de fractions et de négations. Les [33 dictées fictives à lire](docs/dictees-fiabilisation.md) permettent de poursuivre les essais. Les [expériences précédentes sur 96 extraits](docs/precision-vitesse-041.md) et l’[entraînement initial](docs/entrainement-local.md) restent consultables.

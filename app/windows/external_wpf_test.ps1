@@ -206,16 +206,34 @@ function Start-WpfChild([string]$File, [string]$Arguments, [switch]$CaptureGuard
 function Remaining-WpfTime([int]$Cap) { return [Math]::Max(0, [Math]::Min($Cap, 65000 - [int]$clock.ElapsedMilliseconds)) }
 function Read-WpfReply([Diagnostics.Process]$Child, [string]$Step) {
     $task = $Child.StandardOutput.ReadLineAsync()
-    Assert-Wpf ($task.Wait((Remaining-WpfTime 9000)) -and $null -ne $task.Result) "No WPF-recipe reply for $Step."
+    $waitCap = Remaining-WpfTime 9000
+    $completed = $task.Wait($waitCap)
+    if (-not $completed -or $null -eq $task.Result) {
+        $reason = if ($completed) { 'eof' } else { 'timeout' }
+        $childState = 'unknown'
+        $exitCode = 'unavailable'
+        try {
+            if ($Child.HasExited) {
+                $childState = 'exited'
+                $exitCode = '0x{0:x8}' -f $Child.ExitCode
+            } else { $childState = 'running' }
+        } catch { }
+        # Use a separate stream: callers capture the successful reply as data.
+        # Report only fixed roles, timing and process state, never IDs or text.
+        Write-Warning ("WPF reply step={0} reason={1} child={2} exit={3} global_ms={4} wait_cap_ms={5} remaining_ms={6}" -f
+            $Step, $reason, $childState, $exitCode, [int]$clock.ElapsedMilliseconds,
+            $waitCap, (Remaining-WpfTime 65000)) -WarningAction Continue
+    }
+    Assert-Wpf ($completed -and $null -ne $task.Result) "No WPF-recipe reply for $Step."
     return $task.Result
 }
 function Send-WpfCommand([Diagnostics.Process]$Child, [string]$Command) {
     $Child.StandardInput.WriteLine($Command)
     $Child.StandardInput.Flush()
 }
-function Require-WpfReply([Diagnostics.Process]$Child, [string]$Command, [string]$Expected) {
+function Require-WpfReply([Diagnostics.Process]$Child, [string]$Command, [string]$Expected, [string]$StartupRole = 'startup') {
     if ($Command) { Send-WpfCommand $Child $Command }
-    $actual = Read-WpfReply $Child $(if ($Command) { $Command } else { 'startup' })
+    $actual = Read-WpfReply $Child $(if ($Command) { $Command } else { $StartupRole })
     Assert-Wpf ($actual -ceq $Expected) "WPF-recipe command '$Command': expected '$Expected'; received '$actual'."
 }
 function Assert-WpfText([string]$First, [string]$Second, [string]$Step, [switch]$WaitForText) {
@@ -281,10 +299,10 @@ $guardTask = $null
 try {
     $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $fixtureProcess = Start-WpfChild $powerShell ('-NoProfile -NonInteractive -STA -File "{0}" -Fixture' -f $PSCommandPath)
-    Require-WpfReply $fixtureProcess '' 'WPF'
+    Require-WpfReply $fixtureProcess '' 'WPF' 'fixture-startup'
     $probe = Start-WpfChild $ProbeExe "--edge-probe $($fixtureProcess.Id)" -CaptureGuards
     $guardTask = $probe.StandardError.ReadToEndAsync()
-    Require-WpfReply $probe '' 'OK'
+    Require-WpfReply $probe '' 'OK' 'probe-startup'
     Assert-WpfText 'ab' 'cd' 'start'
     $unicode = [string][char]0xe9 + ' ' + [char]0xbd
     $first = 'a' + $unicode + 'b'
@@ -326,7 +344,7 @@ try {
     $guardTask = $null
     $probe = Start-WpfChild $ProbeExe "--edge-probe $($fixtureProcess.Id)" -CaptureGuards -DropFocusEvents
     $guardTask = $probe.StandardError.ReadToEndAsync()
-    Require-WpfReply $probe '' 'OK'
+    Require-WpfReply $probe '' 'OK' 'probe-without-notifications-startup'
     Require-WpfReply $fixtureProcess 'focus-a' 'focused'
     Require-WpfReply $probe 'capture' 'ready'
     Require-WpfReply $fixtureProcess 'focus-b' 'focused'

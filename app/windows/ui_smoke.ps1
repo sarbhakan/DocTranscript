@@ -632,18 +632,33 @@ function Sorted-Names {
 
 function Probe-Catalogue {
     $handle = Window-Handle $app
-    $actions = ById 123
-    $trigger = Window-Handle $actions
-    if ($trigger -eq [IntPtr]::Zero -or $trigger -ne [NvWindow]::GetDlgItem($handle, 123) -or
-            -not [NvWindow]::IsWindowEnabled($trigger)) { throw 'Cannot resolve the native glossary opener.' }
-    # Opening a popup through a button click can change focus. Start on that
-    # button, so the expected return target is the actual invoking control.
-    if ([NvWindow]::UiFocus($handle, $process.Id) -ne $trigger -or [NvWindow]::GetForegroundWindow() -ne $handle) {
-        $actions.SetFocus()
+    $trigger = [NvWindow]::GetDlgItem($handle, 123)
+    if ($trigger -eq [IntPtr]::Zero -or -not [NvWindow]::IsWindowEnabled($trigger)) {
+        throw 'Cannot resolve the native glossary opener.'
     }
+    # Restoring the note places focus in the editor. Follow the real keyboard
+    # route; the owner-drawn Actions button does not accept UI Automation SetFocus.
+    $editor = [NvWindow]::GetDlgItem($handle, 108)
     $null = Wait-For {
-        [NvWindow]::GetForegroundWindow() -eq $handle -and [NvWindow]::UiFocus($handle, $process.Id) -eq $trigger
-    } 'establish focus on the native Actions button in the foreground'
+        [NvWindow]::GetForegroundWindow() -eq $handle -and [NvWindow]::UiFocus($handle, $process.Id) -eq $editor
+    } 'start glossary navigation from the restored editor'
+    $route = @(121, 123)
+    $dictate = [NvWindow]::GetDlgItem($handle, 102)
+    if ([NvWindow]::IsWindowVisible($dictate) -and [NvWindow]::IsWindowEnabled($dictate)) {
+        $route = @(102) + $route
+    }
+    $from = 108
+    foreach ($id in $route) {
+        $next = [NvWindow]::GetDlgItem($handle, $id)
+        if (-not [NvWindow]::TabFollows($handle, $from, $id) -or
+                -not [NvWindow]::TabFrom($handle, $process.Id, $from)) {
+            throw "Cannot tab from native control $from to $id."
+        }
+        $null = Wait-For {
+            [NvWindow]::GetForegroundWindow() -eq $handle -and [NvWindow]::UiFocus($handle, $process.Id) -eq $next
+        } "move keyboard focus to native control $id"
+        $from = $id
+    }
     Invoke-NoteAction '&Vocabulaire médical…'
     $popup = Find-Dialog 'Vocabulaire médical · NoteVive'
     $popupHandle = Window-Handle $popup
