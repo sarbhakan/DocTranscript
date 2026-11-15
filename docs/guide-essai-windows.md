@@ -1,6 +1,6 @@
 # Installer et utiliser NoteVive sur Windows, pas à pas
 
-[Retour à l’accueil du projet](../README.md) · **[Télécharger l’application Windows — Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases)**
+[Retour à l’accueil du projet](../README.md) · **[Télécharger NoteVive 0.4.0 pour Windows — ZIP](https://github.com/sarbhakan/DocTranscript/releases/download/v0.4.0-essai/NoteVive-Windows-x64-Essai.zip)**
 
 Ce guide concerne **NoteVive 0.4.0 pour Windows**. Vous pouvez suivre les étapes sans connaître GitHub : aucun logiciel de programmation à installer et aucun compte à créer pour télécharger l’application.
 
@@ -24,7 +24,7 @@ Sur un PC professionnel, appliquez les règles de votre organisation. Le paquet 
 
 ## 2. Télécharger le bon fichier
 
-1. Ouvrez **[les Releases de NoteVive](https://github.com/sarbhakan/DocTranscript/releases)** et choisissez la version d’essai 0.4.0. Sur GitHub, une page **Release** rassemble les fichiers d’une version à télécharger.
+1. Ouvrez **[la Release NoteVive 0.4.0](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.0-essai)**. Sur GitHub, une page **Release** rassemble les fichiers d’une version à télécharger.
 2. Descendez jusqu’à **Assets**, la liste des fichiers. Cliquez sur ce mot si la liste est repliée.
 3. Cliquez sur **`NoteVive-Windows-x64-Essai.zip`**. Le fichier contient le modèle vocal et peut prendre plusieurs minutes à télécharger. La mention **Pre-release** signifie que c’est une version d’essai.
 

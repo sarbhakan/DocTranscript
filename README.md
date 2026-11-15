@@ -6,7 +6,9 @@
 
 ## Télécharger et essayer l’application
 
-### [Télécharger NoteVive pour Windows — Releases GitHub](https://github.com/sarbhakan/DocTranscript/releases)
+### [Télécharger NoteVive 0.4.0 pour Windows — ZIP prêt à ouvrir](https://github.com/sarbhakan/DocTranscript/releases/download/v0.4.0-essai/NoteVive-Windows-x64-Essai.zip)
+
+[Voir la Release et son fichier de contrôle](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.0-essai) · Un seul paquet, environ 544 Mo, modèle inclus.
 
 **[Ouvrir le guide pas à pas pour débuter](docs/guide-essai-windows.md)**
 
@@ -14,7 +16,7 @@ Le téléchargement est public : aucun compte GitHub ou NoteVive n’est nécess
 
 **Version d’essai : utilisez uniquement des dictées fictives.** La transcription peut se tromper, notamment sur les doses et les négations. Le texte apparaît après les pauses et le calcul, dont la durée dépend du PC. L’application n’est pas qualifiée pour les dossiers patients.
 
-1. **Téléchargez `NoteVive-Windows-x64-Essai.zip`** dans les fichiers de la Release choisie. Attendez la fin du téléchargement, puis retrouvez le ZIP, souvent dans **Téléchargements**.
+1. **Téléchargez `NoteVive-Windows-x64-Essai.zip`** avec le lien direct ci-dessus ou dans les fichiers de la Release 0.4.0. Attendez la fin du téléchargement, puis retrouvez le ZIP, souvent dans **Téléchargements**.
 2. **Faites un clic droit sur le ZIP, puis « Extraire tout ».** Ouvrez le dossier obtenu, puis le dossier **NoteVive** qu’il contient. Gardez tous les fichiers ensemble.
 3. **Double-cliquez sur `NoteVive.exe`.** Windows peut afficher simplement **NoteVive**, avec le type **Application**. C’est le fichier à ouvrir à chaque utilisation ; il n’y a pas d’assistant d’installation.
 4. **Cliquez sur « + Transcription »**, donnez un titre, puis cliquez sur **Dicter**. Attendez le message **Micro ouvert**. Dites « Pas de douleur à la cheville droite », puis laissez une pause pour voir le texte apparaître.

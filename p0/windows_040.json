@@ -237,5 +237,220 @@
     "edge_qualification": false,
     "edge_blocked_run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43662506430/job/132654688388",
     "edge_blocker": "NPFS AppContainer preparation on the secondary hosted account; renderer unavailable before input assertions"
+  },
+  "release": {
+    "schema_version": 1,
+    "source_head": "e91e81e873b1687063b5dd11f9c2ffa4a40e9b1a",
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43664693895",
+    "windows_job_id": 132661364881,
+    "metrics_artifact_id": 14141831868,
+    "metrics_artifact_sha256": "58832f2bdb788822edd9b69994defb6ccd2b6061088a23d1f096b27200510618",
+    "environment": {
+      "schema_version": 1,
+      "cpu": [
+        {
+          "Name": "AMD EPYC 9V74 80-Core Processor                ",
+          "NumberOfCores": 2,
+          "NumberOfLogicalProcessors": 4
+        }
+      ],
+      "memory_total_bytes": 17174360064,
+      "os_version": "Microsoft Windows NT 10.0.20348.0"
+    },
+    "timings": [
+      {
+        "test": "silence",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 1.136,
+        "audio_seconds": 8.0,
+        "elapsed_audio_ratio": 0.142,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1783652352,
+          "observed_cpu_seconds": 1.015625,
+          "observed_mean_cpu_core_equivalents": 0.9413255179410497,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        }
+      },
+      {
+        "test": "px-826",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 14.434,
+        "audio_seconds": 6.44,
+        "elapsed_audio_ratio": 2.241,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954566144,
+          "observed_cpu_seconds": 53.125,
+          "observed_mean_cpu_core_equivalents": 3.6956315812111566,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "actual_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-23",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 52.71,
+        "audio_seconds": 16.8,
+        "elapsed_audio_ratio": 3.137,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1955401728,
+          "observed_cpu_seconds": 203.203125,
+          "observed_mean_cpu_core_equivalents": 3.8588256338156106,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "actual_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            0,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-584",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 40.336,
+        "audio_seconds": 15.2,
+        "elapsed_audio_ratio": 2.654,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954459648,
+          "observed_cpu_seconds": 154.359375,
+          "observed_mean_cpu_core_equivalents": 3.8316333618410945,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              2,
+              2
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "actual_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      }
+    ],
+    "scope": {
+      "physical_8gb_pc": false,
+      "physical_microphone": false,
+      "edge": false,
+      "word": false,
+      "synthetic_windows_fields_and_wpf": true,
+      "medical_qualification": false
+    },
+    "tag": "v0.4.0-essai",
+    "release_url": "https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.0-essai",
+    "published_at": "2026-11-15T01:58:09Z",
+    "asset_name": "NoteVive-Windows-x64-Essai.zip",
+    "asset_size_bytes": 544461363,
+    "asset_sha256": "6bb31379213506fb60ca0cd49014ad8061a34fc56829d629a80d3bfa38ce49d9",
+    "checksum_asset_sha256": "7fc425b24ceffe4bfe3ed6971741be0c1b2bc1ee3131b14d44738aaeaf181f8b",
+    "checksum_download_verified": true,
+    "github_asset_digest_matches_checksum": true,
+    "build_job_verified_zip_bytes_before_upload": true,
+    "windows_job_conclusion": "success",
+    "external_job_id": 132661365087,
+    "external_job_conclusion": "success",
+    "release_job_id": 132663665747,
+    "release_job_conclusion": "success",
+    "edge_recipe_executed": false,
+    "adapted_weights_shipped": false
   }
 }

@@ -1,6 +1,6 @@
 # Validation de NoteVive Windows 0.4.0
 
-État au 15 novembre 2026 : recettes du produit, des champs Win32 et du chemin UI Automation WPF réussies. Construction finale de la préversion en préparation ; les références du paquet publié seront ajoutées après sa livraison. Cette page sépare les preuves de fonctionnement, la comparaison des poids et la qualification d’un usage médical. La version reste un essai sur des données fictives.
+État au 15 novembre 2026 : [préversion 0.4.0 publiée](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.0-essai), reconstruite et vérifiée sur son commit exact. Recettes du produit, des champs Win32 et du chemin UI Automation WPF réussies. Cette page sépare les preuves de fonctionnement, la comparaison des poids et la qualification d’un usage médical. La version reste un essai sur des données fictives.
 
 ## Changements examinés
 
@@ -24,7 +24,7 @@ Les [mesures agrégées du candidat](../p0/windows_040.json) proviennent d’une
 
 La relecture indépendante de `main.cpp`, `external_target.cpp`, `dictation_overlay.cpp` et `ui_theme.cpp` n’identifie pas de nouveau défaut bloquant ou P1. Elle vérifie notamment la sauvegarde avant envoi, l’invalidation permanente de la destination, le blocage des changements de note et le maintien de l’alerte lorsque l’arrêt du microphone n’est pas confirmé. Cette lecture statique ne remplace pas la recette réelle des applications de destination.
 
-Les preuves finales, l’empreinte du paquet et les éventuels écarts sont consignés ici après la recette du candidat exact. Les échecs du lanceur Edge sous le compte standard de la VM de CI restent visibles dans l’historique : ils ne sont pas comptés comme des tests réussis du navigateur.
+Les preuves du paquet publié et son empreinte figurent ci-dessous. Les échecs du lanceur Edge sous le compte standard de la VM de CI restent visibles dans l’historique : ils ne sont pas comptés comme des tests réussis du navigateur.
 
 ## Périmètre de la porte de publication
 
@@ -37,6 +37,14 @@ Après revue indépendante, ce contrôle d’environnement reste disponible sous
 Le [test `97a6510`](https://github.com/sarbhakan/DocTranscript/actions/runs/43664261422/job/132660044750) réussit ensuite Win32 et WPF avec les mêmes contrôles et les mêmes assertions. Le seul changement concerne le compte de recette : accès temporaire `0xF` à `BaseNamedObjects`, déjà mesuré nécessaire à la création d’un mutex local sur ce serveur. Le bureau Native, le confinement et les protections du produit restent inchangés ; aucun accès AppContainer n’est ajouté pour WPF. L’accès précédemment refusé est vérifié, puis la DACL d’origine est restaurée et relue après l’arrêt des descendants.
 
 La capture WPF réussit dès la première tentative. Les caractères `é` et `½` arrivent exactement au curseur dans deux champs distincts ; les autres champs conservent leur contenu. Le changement de focus invalide définitivement la cible, et les sélections, champs en lecture seule et mots de passe sont refusés. Les diagnostics conditionnels restent absents du binaire de production. Ces résultats ne valident ni Word ni Edge et ne mesurent pas une dictée au microphone.
+
+## Paquet publié et vérifié
+
+La [Release `v0.4.0-essai`](https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.0-essai) provient du commit `e91e81e873b1687063b5dd11f9c2ffa4a40e9b1a`. Le [workflow de livraison](https://github.com/sarbhakan/DocTranscript/actions/runs/43664693895) reconstruit le ZIP, l’extrait et réussit les tests de stockage, d’audio, d’interface, de Win32 et de WPF, puis vérifie les octets du ZIP avant publication. Le tag résout vers ce même commit. Edge est non exécuté dans ce passage et reste non qualifié.
+
+Un seul paquet applicatif est publié : `NoteVive-Windows-x64-Essai.zip`, **544 461 363 octets**, SHA-256 `6bb31379213506fb60ca0cd49014ad8061a34fc56829d629a80d3bfa38ce49d9`. Le fichier de contrôle téléchargé concorde avec ce SHA et avec le digest de l’asset GitHub. Les archives « Source code » sont produites par GitHub et ne constituent pas d’autres paquets applicatifs.
+
+Les [mesures exactes de livraison](../p0/windows_040.json) sont conservées séparément du candidat. Sur la VM EPYC 9V74 à deux cœurs/quatre processeurs logiques et 17,17 Go de mémoire, les trois paroles de 6,44 / 16,8 / 15,2 s prennent **14,434 / 52,710 / 40,336 s**, démarrage compris. Trois doses, trois fractions et les trois suites numériques attendues passent ; deux noms sur trois sont présents, avec « Imovane » toujours manquant sur `px-23`. Le maximum de mémoire privée échantillonnée, parent et moteur réunis, atteint **1 955 401 728 octets** ; aucun échantillon partiel n’est signalé. Ces résultats ne mesurent pas la latence après une pause au micro et ne qualifient pas un PC physique à 8 Go.
 
 ## Entraînement réellement exécuté, modèle distribué conservé
 
