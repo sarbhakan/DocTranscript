@@ -1,6 +1,6 @@
 # Précision médicale et vitesse — expérience du 15 novembre 2026
 
-**Résultat du lot : conserver le modèle et le moteur distribués dans NoteVive 0.4.0.** L'adaptation terminée réduit les erreurs globales mais introduit de nouvelles erreurs de médicaments et de doses. La variante avec rétention est interrompue pour calcul non fini. Le passage à whisper.cpp 1.9.5 apporte environ 5 % de gain sur le calcul préchauffé mesuré, en dessous du seuil exploratoire de 20 % ; il ne résout pas la latence.
+**Résultat du lot : conserver le modèle et le moteur distribués dans NoteVive 0.4.0.** L'adaptation terminée réduit les erreurs globales mais introduit de nouvelles erreurs de médicaments et de doses. La variante avec rétention est interrompue pour calcul non fini. Le passage à whisper.cpp 1.9.5 apporte **5,2 % puis 2,6 % de gain préchauffé** dans les deux exécutions Windows, en dessous du seuil exploratoire de 20 % ; il ne résout pas la latence.
 
 Ce lot améliore le contrôle des erreurs, la traçabilité des entraînements et la comparaison Windows. Un essai d'entraînement, un contrôle de fidélité et un benchmark Windows sont trois preuves distinctes. Aucun modèle expérimental n'a été exporté, ni ajouté au ZIP. La Release 0.4.0 reste l'unique paquet proposé pour les essais Windows.
 
@@ -36,7 +36,11 @@ Le [benchmark Windows](https://github.com/sarbhakan/DocTranscript/actions/runs/4
 
 Le rapport médian des temps appariés vaut **0,948**, soit environ **5,2 % de gain préchauffé**. Les sorties texte, les portions audio et les pauses sont identiques entre les deux moteurs sur tous les contrôles de ce lot. Les trois doses et les trois fractions attendues passent ; les noms de médicaments restent à deux sur trois. Cela confirme la même limite lexicale sur ces trois exemples, pas une amélioration de précision.
 
-Le seuil exploratoire de 20 % n'est pas atteint et le passage par un processus neuf n'est pas accéléré. Le calcul par portion reste de l'ordre de 14 à 15 secondes sur cet hôte. Les [mesures complètes](../p0/windows_runtime_ab_report.json) et la [procédure reproductible](../p0/windows_runtime_ab.md) distinguent mémoire échantillonnée, initialisation et calcul. Un processus neuf n'implique pas un cache disque froid. Ces tests ne couvrent ni un microphone, ni un PC physique de 8 Go, ni une négation clinique prononcée.
+Le seuil exploratoire de 20 % n'est pas atteint et, dans cette première exécution, le passage par un processus neuf n'est pas accéléré. Le calcul par portion reste de l'ordre de 14 à 15 secondes sur cet hôte. Les [mesures complètes](../p0/windows_runtime_ab_report.json) et la [procédure reproductible](../p0/windows_runtime_ab.md) distinguent mémoire échantillonnée, initialisation et calcul. Un processus neuf n'implique pas un cache disque froid. Ces tests ne couvrent ni un microphone, ni un PC physique de 8 Go, ni une négation clinique prononcée.
+
+La [réplication sur le commit final](https://github.com/sarbhakan/DocTranscript/actions/runs/43669761750) utilise le même banc, les mêmes réglages et un inventaire de même profil EPYC 7763. Ses [mesures séparées](../p0/windows_runtime_ab_replication.json) donnent un rapport médian apparié de **0,974405**, soit **2,56 % de gain à chaud**. La tranche médiane passe de 15,050 à 14,845 secondes. Le processus neuf passe cette fois de 15,624 à 15,483 secondes : ce petit écart ne reproduit pas le ralentissement du premier passage. Aucun gain stable au démarrage n'est établi.
+
+Dans chaque exécution, les dix paires de textes et de portions audio sont identiques entre versions. Les doses, fractions et suites numériques restent à 3/3 et les noms à 2/3 dans cette réplication. Les agrégats ne contiennent pas les textes bruts : ils ne permettent pas d'affirmer une égalité textuelle exacte **entre** les deux exécutions. Les résultats ne sont pas regroupés en un taux de précision clinique ; ils portent toujours sur les mêmes trois prescriptions et un silence. Les deux gains de temps sont sous le seuil fixé et la décision reste inchangée.
 
 ## Améliorations retenues dans le code et les outils
 

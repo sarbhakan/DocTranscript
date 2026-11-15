@@ -27,6 +27,21 @@ Les 10 paires de sorties (dictées, passages à froid et silence compris) ont le
 
 **Décision : garder 1.8.5 dans le produit.** Le candidat n’atteint pas le seuil de gain fixé à 20 %, et son RTF à chaud reste nettement au-dessus de 1 sur cet hôte. Cette mesure ne qualifie ni les négations prononcées ni la latence au micro sur un PC physique de 8 Go. Une autre VM doit faire l’objet d’un relevé distinct plutôt que d’une moyenne avec celui-ci.
 
+## Réplication sur le code final
+
+Le [run 43669761750](https://github.com/sarbhakan/DocTranscript/actions/runs/43669761750), sur la [révision 7aebb25](https://github.com/sarbhakan/DocTranscript/commit/7aebb25038bb94fffdf2d2990a66463a093807fb), utilise les mêmes modèles, réglages et fichiers, avec un inventaire Windows de même profil EPYC 7763. Ses [mesures séparées et leur provenance](windows_runtime_ab_replication.json) proviennent de l’archive de mesures SHA-256 `96a5b8b2df404c187b38b8f91928db932760c883f52cd58096e4bc9678444d31`.
+
+| Mesure de la réplication | 1.8.5 avec correctif RNG | 1.9.5 |
+|---|---:|---:|
+| Rejeu à chaud, médiane sur 6 dictées | 45,31 s | 44,94 s |
+| Calcul d’une tranche à chaud, médiane sur 16 tranches | 15,05 s | 14,85 s |
+| Calcul d’une tranche à chaud, P95 empirique | 17,65 s | 15,66 s |
+| Nouveau processus et dictée `px-826`, médiane sur 2 passages | 15,62 s | 15,48 s |
+
+Le rapport médian **apparié** est de **0,974405**, soit **2,56 % de gain à chaud**, contre 5,20 % au premier passage. Les dix paires ont encore un texte et des portions PCM identiques entre versions dans cette exécution. Les doses, fractions et suites numériques restent à 3/3 et les noms de médicaments à 2/3. Ces contrôles portent sur les mêmes trois prescriptions et un silence ; ce ne sont pas de nouvelles dictées indépendantes.
+
+Les rapports ne contiennent pas les textes bruts : l’égalité textuelle exacte **entre les deux exécutions** n’est pas établie. Les mesures restent séparées, sans moyenne entre exécutions ni assimilation à une validation clinique. Le petit écart au démarrage change de sens ; aucun gain stable de démarrage n’est démontré. Les deux gains à chaud restent sous le seuil de 20 % et la décision de conserver 1.8.5 est inchangée.
+
 ## Rejouer sur Windows
 
 Préparer Windows x64, la même compatibilité AVX2 que NoteVive, Python 3.12 x64, Visual Studio 2022 avec le SDK x64 et ClangCL, CMake et Ninja. Lancer à la racine du dépôt dans PowerShell :
