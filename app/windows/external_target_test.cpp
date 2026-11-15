@@ -502,7 +502,7 @@ struct RecipeNamespace {
         HWND window = nullptr;
         DWORD pid = 0;
         LocalHandle process, token;
-        std::vector<BYTE> logon_info;
+        std::vector<BYTE> logon_info, verified_user_info;
 
         bool stable() const {
             DWORD current_pid = 0;
@@ -541,13 +541,13 @@ struct RecipeNamespace {
         const bool token_same_session = exact_image && OpenProcessToken(shell.process.value, TOKEN_QUERY, &shell.token.value) &&
             GetTokenInformation(shell.token.value, TokenSessionId, &token_session, sizeof(token_session), &size) &&
             token_session == session;
-        std::vector<BYTE> shell_user, host_user;
+        std::vector<BYTE> shell_user;
         bool same_user = false;
         if (token_same_session && token_part(shell.token.value, TokenUser, shell_user) &&
-            token_part(host, TokenUser, host_user) && shell_user.size() >= sizeof(TOKEN_USER) &&
-            host_user.size() >= sizeof(TOKEN_USER)) {
+            token_part(host, TokenUser, shell.verified_user_info) && shell_user.size() >= sizeof(TOKEN_USER) &&
+            shell.verified_user_info.size() >= sizeof(TOKEN_USER)) {
             const auto a = reinterpret_cast<const TOKEN_USER*>(shell_user.data())->User.Sid;
-            const auto b = reinterpret_cast<const TOKEN_USER*>(host_user.data())->User.Sid;
+            const auto b = reinterpret_cast<const TOKEN_USER*>(shell.verified_user_info.data())->User.Sid;
             same_user = IsValidSid(a) && IsValidSid(b) && EqualSid(a, b);
         }
         const auto logon = same_user ? verified_logon_sid(shell.token.value, shell.logon_info) : nullptr;
@@ -557,6 +557,7 @@ struct RecipeNamespace {
             "token_session=%d same_user=%d active_logon=%d same_runner_logon=%d distinct_child_logon=%d rechecked=%d.\n",
             default_desktop, stable, exact_image, process_same_session, token_same_session, same_user,
             logon != nullptr, logon && EqualSid(logon, host_logon), different_child, stable_after);
+        if (!stable_after) shell.verified_user_info.clear();
         return stable_after ? logon : nullptr;
     }
 
@@ -615,14 +616,27 @@ struct RecipeNamespace {
         InteractiveShell shell;
         WORD witnessed_bytes = witnessed(host_logon);
         const bool shell_fallback = !witnessed_bytes;
-        if (shell_fallback)
-            witnessed_bytes = witnessed(verified_shell_logon(shell, session, host.value, host_logon, child_logon));
-        std::fprintf(stderr, "BaseNamedObjects exact direct 0xF000F witness: runner_logon=%d interactive_shell_logon=%d.\n",
-                     !shell_fallback, shell_fallback && witnessed_bytes != 0);
+        const char* source_kind = shell_fallback ? "none" : "runner-logon";
+        if (shell_fallback) {
+            const auto shell_logon = verified_shell_logon(shell, session, host.value, host_logon, child_logon);
+            if (shell_logon) {
+                witnessed_bytes = witnessed(shell_logon);
+                if (witnessed_bytes) {
+                    source_kind = "interactive-shell-logon";
+                } else {
+                    // This buffer exists only after exact TokenUser equality
+                    // between the runner and verified interactive shell.
+                    const auto user = reinterpret_cast<const TOKEN_USER*>(shell.verified_user_info.data())->User.Sid;
+                    witnessed_bytes = witnessed(user);
+                    if (witnessed_bytes) source_kind = "verified-interactive-user";
+                }
+            }
+        }
+        std::fprintf(stderr, "BaseNamedObjects exact direct 0xF000F witness: sourcekind=%s.\n", source_kind);
         const auto bytes = static_cast<DWORD>(old->AclSize) + witnessed_bytes;
         if (!witnessed_bytes || bytes > UINT16_MAX) {
             SetLastError(ERROR_INVALID_ACL);
-            return preparation_failed("find an exact direct 0xF000F allow for a verified logon");
+            return preparation_failed("find an exact direct 0xF000F allow for a verified identity");
         }
         // Append one ACE to a copy. The other entries and their order are
         // unchanged. No new right is granted to the user SID or other logons.
@@ -638,8 +652,8 @@ struct RecipeNamespace {
         }
         if (!apply_dacl(next, defaulted))
             return preparation_failed("copy the witnessed direct ACE to the child's logon only");
-        std::fprintf(stderr, "Hosted Edge BaseNamedObjects: copied direct %s-logon allow 0x%lx to the verified child logon; no user grant.\n",
-                     shell_fallback ? "interactive-shell" : "runner", static_cast<unsigned long>(normal_logon_rights));
+        std::fprintf(stderr, "Hosted Edge BaseNamedObjects: copied direct allow 0x%lx from sourcekind=%s to the verified child logon; no user grant.\n",
+                     static_cast<unsigned long>(normal_logon_rights), source_kind);
         return true;
     }
 
