@@ -80,16 +80,35 @@ def measured(rows, cases, key):
             transcripts, screens)
 
 
-def combine(root: Path, grids: Path) -> dict:
+def all_paired_outputs_have_eos(summary: dict) -> bool:
+    variants, evidence = summary["variants"], summary["arm_evidence"]
+    count = summary["clips"]
+    return bool(variants) and set(variants) == set(evidence) and all(
+        values["eos"] == evidence[key]["paired_base"]["eos"] == count for key, values in variants.items())
+
+
+def combine(root: Path, grids: Path, *, eos_audit=False) -> dict:
     root = private_directory(root)
     frozen = read(root, "protocol.frozen.json")
     eval_freeze = read(root, "evaluation.frozen.json")
+    reporter = sha256(Path(__file__))
+    if eos_audit:
+        amendment = read(root, "reporter-eos-amendment.json")
+        if (amendment["scope"] != "verify EOS in every candidate and base, including the CE replay"
+                or amendment["previous_reporter_sha256"] != eval_freeze["reporter_sha256"]
+                or amendment["evaluation_freeze_sha256"] != sha256(safe_artifact(root, "evaluation.frozen.json"))
+                or amendment["previous_aggregate_sha256"] != sha256(safe_artifact(root, "aggregate-px.json"))
+                or amendment["eos_independent_audit_sha256"] != sha256(safe_artifact(root, "eos-independent-audit.json"))):
+            raise ValueError("L’amendement post-évaluation ne correspond pas aux observations figées")
+        expected_reporter = amendment["amended_reporter_sha256"]
+    else:
+        expected_reporter = eval_freeze["reporter_sha256"]
     plan = frozen["protocol"]
     expected = json.loads(Path(__file__).with_name("retention_stability_plan.json").read_text(encoding="utf-8"))
     if (plan != expected or eval_freeze["training_freeze_sha256"] != sha256(safe_artifact(root, "protocol.frozen.json"))
             or frozen["prediction_generation_started"] is not False
             or eval_freeze["px_generation_started"] is not False
-            or eval_freeze["reporter_sha256"] != sha256(Path(__file__))
+            or expected_reporter != reporter
             or sha256(Path(scorer.__file__)) != plan["generation"]["grid_scorer_sha256"]):
         raise ValueError("Contrat, code de score ou gel de l’essai différent")
     train_reports, train_contracts, all_reports, completed = {}, {}, {}, []
@@ -219,7 +238,7 @@ def combine(root: Path, grids: Path) -> dict:
                 "baseline_replayed_identically": not any(summary["baseline_text_differences"].values()),
                 "no_critical_loss_vs_base": not evidence["changes_vs_base"]["losses"],
                 "no_critical_loss_vs_ce": ce is not None and not evidence["changes_vs_ce24"]["losses"],
-                "each_output_has_eos": bool(ce) and score["eos"] == base["eos"] == ce["eos"] == summary["clips"],
+                "each_output_has_eos": bool(ce) and all_paired_outputs_have_eos(summary),
                 "time_ratio_within_110_percent": max(evidence["ratio_total_seconds_vs_base"],
                                                      evidence["ratio_median_seconds_vs_base"]) <= 1.10,
             }
@@ -239,10 +258,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", required=True, type=Path)
     parser.add_argument("--grids", required=True, type=Path)
+    parser.add_argument("--eos-audit", action="store_true", help="Rendre l’audit EOS sans écraser le rapport initial")
     args = parser.parse_args()
     try:
-        result = combine(args.directory, args.grids)
-        output = args.directory / "aggregate-px.json"
+        result = combine(args.directory, args.grids, eos_audit=args.eos_audit)
+        output = args.directory / ("aggregate-px-eos-audited.json" if args.eos_audit else "aggregate-px.json")
         if output.exists() or output.is_symlink():
             raise ValueError("Un rapport existe déjà")
         atomic_json(output, result)

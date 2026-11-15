@@ -53,7 +53,7 @@ Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez u
 
 La version **0.4.1** simplifie la fenêtre : **Nouvelle note**, **Dicter / Arrêter**, **Copier** et **Actions** sont les quatre commandes visibles. Le menu Actions rassemble le classement, les dossiers, les tris et les fonctions occasionnelles. La recherche reste dans la bibliothèque et le texte occupe l’essentiel de l’écran. Le [guide du carnet](docs/ui-041.md) explique ce parcours.
 
-Le [vocabulaire enrichi](docs/lexique-041.md) contient **100 175 libellés**, dont les médicaments et substances du RUIM de l’ANSM, avec des domaines et des types pour affiner la recherche. Les maladies rares sont rattachées aux **33 classifications françaises d’Orphanet**. Ces domaines se recouvrent ; le nombre de libellés n’est ni un taux de précision ni une couverture complète de toutes les spécialités. Le glossaire est consultatif et ne remplace aucun mot ou dosage automatiquement.
+Le [vocabulaire enrichi](docs/lexique-041.md) contient **100 175 entrées, soit 99 192 libellés distincts**, dont les médicaments et substances du RUIM de l’ANSM, avec des domaines et des types pour affiner la recherche. Les maladies rares sont rattachées aux **33 classifications françaises d’Orphanet**. Ces domaines se recouvrent ; le nombre de libellés n’est ni un taux de précision ni une couverture complète de toutes les spécialités. Le glossaire est consultatif et ne remplace aucun mot ou dosage automatiquement.
 
 Le [bilan de consolidation](docs/consolidation-041.md) distingue le correctif d’entraînement, les comparaisons de reconnaissance et les vérifications Windows. Le moteur et le modèle distribués sont conservés tant qu’un candidat introduit de nouvelles erreurs critiques. Les [33 dictées fictives à lire](docs/dictees-fiabilisation.md) permettent de poursuivre les essais. Les [expériences précédentes sur 96 extraits](docs/precision-vitesse-041.md) et l’[entraînement initial](docs/entrainement-local.md) restent consultables.
 
@@ -78,7 +78,7 @@ Pour essayer l’application, le **ZIP de la Release** et le **guide pas à pas*
 <details>
 <summary><strong>Documentation technique et contribution</strong></summary>
 
-Le paquet Windows s’appuie sur **Whisper Large-v3 Turbo, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 100 175 libellés de douze sources déclarées, avec les entrées RUIM et sans extrait des fichiers BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
+Le paquet Windows s’appuie sur **Whisper Large-v3 Turbo, whisper.cpp 1.8.5, OpenBLAS 0.3.34 et Silero 6.2**. Le traitement démarre après une pause de 576 ms ; le temps de calcul s’y ajoute. Le moteur tourne dans un processus séparé. Le catalogue public contient 100 175 entrées de douze sources déclarées, avec les entrées RUIM et sans extrait des fichiers BDPM. Le prototype Mac 0.2.1 utilise UltiMed INT8 et Silero ; il reste distinct de ce paquet Windows.
 
 | Document | Ce qu’il permet de comprendre |
 | --- | --- |

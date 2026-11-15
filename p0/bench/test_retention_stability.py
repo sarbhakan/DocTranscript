@@ -3,7 +3,7 @@ import importlib.util
 import unittest
 
 from p0.training.drug_objective import lexical_positions, marked_characters
-from p0.training.report_stability import paired
+from p0.training.report_stability import all_paired_outputs_have_eos, paired
 from p0.training.shadow_optimizer import cpu_shadow_adamw
 from p0.training.train_lora import EOS, PREFIX, cross_entropy
 
@@ -54,6 +54,13 @@ class MaskTests(unittest.TestCase):
         self.assertEqual(report["clips_with_loss"], {"span:drug": 1, "any_critical_check": 1})
         with self.assertRaises(ValueError):
             paired(before[:1], after)
+
+    def test_missing_end_of_ce_base_invalidates_the_full_window(self):
+        window = {"clips": 2, "variants": {"ce24": {"eos": 2}, "kl24": {"eos": 2}},
+                  "arm_evidence": {"ce24": {"paired_base": {"eos": 2}}, "kl24": {"paired_base": {"eos": 2}}}}
+        self.assertTrue(all_paired_outputs_have_eos(window))
+        window["arm_evidence"]["ce24"]["paired_base"]["eos"] = 1
+        self.assertFalse(all_paired_outputs_have_eos(window))
 
 
 @unittest.skipUnless(importlib.util.find_spec("torch"), "Torch local absent")

@@ -703,6 +703,7 @@ try {
     $null = ById 110 # Dossiers tree sidebar.
     $null = ById 111 # Search.
     $handle = Window-Handle $app
+    Step 'verify initial control bounds'
     $null = Wait-For {
         [NvWindow]::VisibleClientControl($handle, 101, 120, 32) -and
         [NvWindow]::VisibleClientControl($handle, 102, 120, 32) -and
@@ -715,12 +716,14 @@ try {
     foreach ($removed in @(103, 104, 105, 112, 113, 114, 115, 116, 122)) {
         if ([NvWindow]::GetDlgItem($handle, $removed) -ne [IntPtr]::Zero) { throw "Action $removed occupies a persistent control." }
     }
+    Step 'verify compact layout and native tab ordering'
     if (-not [NvWindow]::CompactLayout($handle, $process.Id)) { throw 'The compact editor or navigation is clipped.' }
     $tabChain = @(101, 111, 110, 106, 107, 108)
     for ($i = 1; $i -lt $tabChain.Count; ++$i) {
         if (-not [NvWindow]::TabFollows($handle, $tabChain[$i - 1], $tabChain[$i])) { throw 'Unexpected bidirectional keyboard navigation order.' }
     }
     $nextTab = if ([NvWindow]::IsWindowEnabled([NvWindow]::GetDlgItem($handle, 102))) { 102 } else { 123 }
+    Step 'verify actual Tab routing from the editor'
     $null = Wait-For { [NvWindow]::TabFrom($handle, $process.Id, 108) } 'queue Tab in the focused editor'
     $null = Wait-For { [NvWindow]::UiFocus($handle, $process.Id) -eq [NvWindow]::GetDlgItem($handle, $nextTab) } 'move focus to the next visible action with Tab'
     $copyHandle = [NvWindow]::GetDlgItem($handle, 121)
@@ -868,6 +871,8 @@ try {
     Write-Output 'Windows UI, keyboard navigation, compact layout, mask, nested folders, rename, move, sort, scoped search, autosave, reopen and Unicode copy verified with fictitious text.'
 } catch {
     $failure = $_
+    $annotation = ("$stage : $($_.Exception.Message)").Replace('%', '%25').Replace([string][char]13, '%0D').Replace([string][char]10, '%0A')
+    Write-Output "::error title=NoteVive UI recipe::$annotation"
     [Console]::Error.WriteLine("Windows UI smoke failed at '$stage': $($_.Exception.GetType().FullName): $($_.Exception.Message)")
     [Console]::Error.WriteLine($_.InvocationInfo.PositionMessage)
     [Console]::Error.WriteLine($_.ScriptStackTrace)
@@ -876,8 +881,9 @@ try {
         if ($app -and $process -and -not $process.HasExited) {
             $handle = Window-Handle $app
             $tree = [NvWindow]::GetDlgItem($handle, 110)
-            $details += ", native_tree_items=$([NvWindow]::TreeCount($tree)), main_enabled=$([NvWindow]::IsWindowEnabled($handle))"
+            $details += ", focus=$([NvWindow]::UiFocus($handle, $process.Id)), editor=$([NvWindow]::GetDlgItem($handle, 108)), native_tree_items=$([NvWindow]::TreeCount($tree)), main_enabled=$([NvWindow]::IsWindowEnabled($handle))"
             [Console]::Error.WriteLine($details)
+            Write-Output ("::notice title=NoteVive isolated UI state::" + $details.Replace('%', '%25').Replace([string][char]13, '%0D').Replace([string][char]10, '%0A'))
             [Console]::Error.WriteLine("Native note list rows: $(@(Sorted-Names).Count)")
             [Console]::Error.WriteLine("Native Actions popup visible: $([NvWindow]::PopupMenu($process.Id) -ne [IntPtr]::Zero)")
         } else { [Console]::Error.WriteLine($details) }
