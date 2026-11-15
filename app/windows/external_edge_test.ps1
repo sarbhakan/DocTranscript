@@ -155,32 +155,24 @@ function Trace-SyntheticLowBox {
     $symbols = Join-Path $work 'local-symbols-only'
     $null = [IO.Directory]::CreateDirectory($symbols)
     $rawLog = Join-Path $work 'private-lowbox-debugger.log'
-    # Cover the observed directory/link setup and the subsequent token creation.
-    # Nt and Zw aliases share a stub; use only one spelling per operation.
-    $calls = @(
-        'ZwOpenDirectoryObject', 'ZwCreateDirectoryObject', 'ZwCreateDirectoryObjectEx',
-        'ZwDuplicateObject', 'ZwQuerySecurityObject', 'ZwSetSecurityObject', 'ZwClose',
-        'ZwCreateSymbolicLinkObject', 'ZwOpenSymbolicLinkObject', 'ZwQuerySymbolicLinkObject',
-        'ZwSetInformationSymbolicLink', 'ZwMakePermanentObject', 'ZwMakeTemporaryObject',
-        'ZwCreateLowBoxToken', 'ZwCreateToken', 'ZwDuplicateToken', 'ZwFilterToken',
-        'ZwOpenProcessToken', 'ZwOpenProcessTokenEx', 'ZwOpenThreadToken', 'ZwOpenThreadTokenEx',
-        'ZwQueryInformationToken', 'ZwSetInformationToken', 'ZwAdjustPrivilegesToken',
-        'ZwOpenFile', 'ZwCreateFile', 'ZwSetInformationFile', 'ZwAlpcSendWaitReceivePort'
-    )
-    $entry = @'
+    # The prior trace established that the three links are created before
+    # ZwCreateFile returns STATUS_ACCESS_DENIED. Read only that request's
+    # explicit arguments (x64 ABI: R8 = OBJECT_ATTRIBUTES, args 7–9 on stack).
+    @'
+.echo NV_NT_CALL=ZwCreateFile
+.printf "NV_FILE_REQUEST=%08x/%08x/%08x/%08x\n", @edx, dwo(@rsp+0x38), dwo(@rsp+0x40), dwo(@rsp+0x48)
+.if (@r8 != 0) { .if (dwo(@r8) == 0x30) { .printf "NV_FILE_ROOT=%p flags=%08x\n", poi(@r8+8), dwo(@r8+0x18); r @$t1=poi(@r8+0x10); .if (@$t1 != 0) { r @$t3=wo(@$t1); .if (@$t3 <= 0x800) { .if ((@$t3 & 1) == 0) { .if (@$t3 <= wo(@$t1+2)) { .printf "NV_FILE_NAME=%msu\n", @$t1 } } } }; r @$t2=poi(@r8+8); .if (@$t2 != 0) { .if (@$t2 != 0xffffffffffffffff) { !handle @$t2 4 } } } }
 ~.bp /1 poi(@rsp) "$$><nv-nt-return.txt"
 gc
-'@
-    foreach ($call in $calls) {
-        ".echo NV_NT_CALL=$call`r`n$entry" | Set-Content -LiteralPath (Join-Path $work "nv-$call.txt") -Encoding Ascii
-    }
+'@ | Set-Content -LiteralPath (Join-Path $work 'nv-ZwCreateFile.txt') -Encoding Ascii
     @'
 .printf "NV_NT_STATUS=%08x\n", @eax
 gc
 '@ | Set-Content -LiteralPath (Join-Path $work 'nv-nt-return.txt') -Encoding Ascii
     @'
 .printf "NV_FACTORY_STATUS=%08x\n", @eax
-q
+bc *
+g
 '@ | Set-Content -LiteralPath (Join-Path $work 'nv-factory-return.txt') -Encoding Ascii
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $kits
@@ -197,12 +189,10 @@ q
         $stdout = $debugger.StandardOutput.ReadToEndAsync()
         $stderr = $debugger.StandardError.ReadToEndAsync()
         # Arm only within the first call to the factory, on its current thread.
-        # Unlike wt, execution between the selected syscall stubs runs normally.
+        # Unlike wt, execution outside this one syscall runs normally.
         $debugger.StandardInput.WriteLine('bc *')
         $debugger.StandardInput.WriteLine('~.bp /1 poi(@rsp) "$$><nv-factory-return.txt"')
-        foreach ($call in $calls) {
-            $debugger.StandardInput.WriteLine(('~.bu ntdll!{0} "$$><nv-{0}.txt"' -f $call))
-        }
+        $debugger.StandardInput.WriteLine('~.bu ntdll!ZwCreateFile "$$><nv-ZwCreateFile.txt"')
         $debugger.StandardInput.WriteLine('g')
         $debugger.StandardInput.Flush()
         if (-not $debugger.WaitForExit(18000)) {
@@ -214,18 +204,60 @@ q
             Write-Output 'Synthetic LowBox trace: debugger stream did not close.'
             return
         }
-        # Only allowlisted syscall labels and their fixed-width NTSTATUS leave
-        # the disposable scratch directory. No arguments or raw debugger output.
+        # Only fixed labels, masks and return values leave private scratch.
+        # Neither nonempty paths nor handle values are printed to the job log.
+        function Get-ObjectKind([string]$Name) {
+            $Name = $Name.Trim()
+            switch -Regex ($Name) {
+                '^(?:\\Device\\NamedPipe|\\\?\?\\pipe|\\DosDevices\\pipe|\\\\[.?]\\pipe)\\?$' { return 'named-pipe-root' }
+                '^(?:\\Device\\NamedPipe|\\\?\?\\pipe|\\DosDevices\\pipe|\\\\[.?]\\pipe)\\' { return 'named-pipe-child' }
+                '^(?:\\Device\\Mailslot|\\\?\?\\mailslot|\\DosDevices\\mailslot|\\\\[.?]\\mailslot)\\?$' { return 'mailslot-root' }
+                '^(?:\\Device\\Mailslot|\\\?\?\\mailslot|\\DosDevices\\mailslot|\\\\[.?]\\mailslot)\\' { return 'mailslot-child' }
+                '^(?:\\Device\\HarddiskVolume\d+|\\\?\?\\[A-Z]:|\\\\\?\\[A-Z]:|[A-Z]:)(?:\\|$)' { return 'filesystem-volume' }
+                '^\\Device(?:\\|$)' { return 'other-device' }
+                '^\\' { return 'other-absolute' }
+                '^$|^<none>$' { return 'absent' }
+                default { return 'relative' }
+            }
+        }
+        function Get-ObjectShape([string]$Name) {
+            if ($Name.Length -gt 1024) { return 'unobserved' }
+            $session = [int]($Name -match '(?:^|\\)Sessions?\\[0-9]{1,10}(?:\\|$)')
+            $appDir = [int]($Name -match '(?:^|\\)AppContainerNamedObjects(?:\\|$)')
+            $sids = [regex]::Matches($Name, '(?i)(?:^|(?<=\\))S-1-[0-9]{1,15}(?:-[0-9]{1,10}){1,15}(?=\\|$)')
+            $logon = 0; $package = 0; $capability = 0
+            foreach ($sid in $sids) {
+                if ($sid.Value -match '^S-1-5-5-[0-9]+-[0-9]+$') { $logon++ }
+                elseif ($sid.Value -match '^S-1-15-2-') { $package++ }
+                elseif ($sid.Value -match '^S-1-15-3-') { $capability++ }
+            }
+            return "$session/$appDir/$($sids.Count)/$logon/$package/$capability"
+        }
         $raw = if (Test-Path -LiteralPath $rawLog -PathType Leaf) { Get-Content -LiteralPath $rawLog -Raw } else { $stdout.Result }
         $kept = @()
         $pending = $null
         $factoryStatus = 'unobserved'
         foreach ($line in ($raw -split "`r?`n")) {
-            if ($line -cmatch '^\s*NV_NT_CALL=(?<call>Zw[A-Za-z0-9_]{2,64})\s*$' -and
-                $calls -ccontains $Matches.call) {
-                $pending = $Matches.call
+            if ($line -cmatch '^\s*NV_NT_CALL=ZwCreateFile\s*$') {
+                $pending = @{request='unobserved'; root='unobserved'; root_kind='unobserved'; name_kind='unobserved'; flags='unobserved'; root_shape='unobserved'; name_shape='unobserved'}
+            } elseif ($pending -and $line -match '^\s*NV_FILE_REQUEST=(?<values>[0-9a-f]{8}(?:/[0-9a-f]{8}){3})\s*$') {
+                $pending.request = $Matches.values
+            } elseif ($pending -and $line -match '^\s*NV_FILE_ROOT=(?<root>[0-9a-f`]+) flags=(?<flags>[0-9a-f]{8})\s*$') {
+                $rootHandle = $Matches.root
+                $pending.flags = $Matches.flags
+                $pending.root = if ($rootHandle -match '^0+`?0*$') { 'null' } else { 'handle' }
+                if ($pending.root -eq 'null') { $pending.root_kind = 'absent' }
+            } elseif ($pending -and $line -match '^\s*NV_FILE_NAME=(?<name>.*)$') {
+                $name = $Matches.name.Trim()
+                $pending.name_kind = Get-ObjectKind $name
+                $pending.name_shape = Get-ObjectShape $name
+            } elseif ($pending -and $line -match '^\s+Name\s+(?<name>.*)$') {
+                $name = $Matches.name.Trim()
+                $pending.root_kind = Get-ObjectKind $name
+                $pending.root_shape = Get-ObjectShape $name
             } elseif ($pending -and $line -match '^\s*NV_NT_STATUS=(?<status>[0-9a-f]{8})\s*$') {
-                $kept += "Synthetic LowBox trace $pending ntstatus=0x$($Matches.status)"
+                $status = $Matches.status
+                $kept += "Synthetic LowBox trace ZwCreateFile ntstatus=0x$status access/share/disposition/options=$($pending.request) object_flags=$($pending.flags) root=$($pending.root) root_kind=$($pending.root_kind) name_kind=$($pending.name_kind) root_shape=$($pending.root_shape) name_shape=$($pending.name_shape) [shape=session/appdir/sids/logon/package/capability]"
                 $pending = $null
             } elseif ($line -match '^\s*NV_FACTORY_STATUS=(?<status>[0-9a-f]{8})\s*$') {
                 $factoryStatus = '0x' + $Matches.status
@@ -235,7 +267,7 @@ q
         Write-Output "Synthetic LowBox trace: captured_calls=$($kept.Count); factory_result=$factoryStatus; debugger_exited=$($debugger.HasExited)."
         if (-not $kept.Count) {
             $diagnosis = $raw + $stderr.Result
-            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-ZwOpenDirectoryObject'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
+            Write-Output "Synthetic LowBox trace state: factory_symbol=$($diagnosis -match 'kernelbase!CreateAppContainerToken'); entry_command=$($diagnosis -match 'nv-ZwCreateFile'); command_error=$($diagnosis -match '(?i)syntax error|unknown option|unable to|could not|couldn.t|error code')."
         }
     } catch {
         # Do not print raw debugger command lines/paths.
