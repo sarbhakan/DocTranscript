@@ -166,15 +166,48 @@ gc
 .printf "NV_DUP_STATUS=%08x\n", @eax
 gc
 '@ | Set-Content -LiteralPath (Join-Path $work 'nv-duplicate-return.txt') -Encoding Ascii
-    # Remember the output handle of the most recent successful creation in
-    # this factory only. No raw handle or address leaves the debugger.
+    # Keep only the last successful creation handle and the first descriptor
+    # of this factory. t5–t11 are independent of the handle capture. The
+    # absolute x64 descriptor has pointer fields +8 and +0x20; the relative
+    # format uses DWORD offsets +4 and +0x10. .writemem uses an inclusive end
+    # address: the private files can contain at most 68 and 8192 bytes.
     @'
 r @$t3=@rcx
 r @$t4=0
-.echo NV_CREATE_SD_BEGIN
-.if (@r8 == 0) { .echo NV_CREATE_SD=missing-attributes } .else { .if (dwo(@r8) != 0x30) { .echo NV_CREATE_SD=unexpected-layout } .else { .if (poi(@r8+0x20) == 0) { .echo NV_CREATE_SD=default } .else { .echo NV_CREATE_SD=explicit; r @$t5=poi(@r8+0x20); !sd @$t5 0 } } }
-.echo NV_CREATE_SD_END
 bp /1 poi(@rsp) "$$><nv-directory-created-return.txt"
+.if (@$t11 != 0) { gc }
+r @$t11=1
+r @$t5=0
+.if (@r8 == 0) { .echo NV_CREATE_SD=missing-attributes } .else { .if (dwo(@r8) != 0x30) { .echo NV_CREATE_SD=unexpected-layout } .else { r @$t5=poi(@r8+0x20); .if (@$t5 == 0) { .echo NV_CREATE_SD=default } .else { .echo NV_CREATE_SD=explicit } } }
+.if (@$t5 != 0) {
+    .if (by(@$t5) == 1) {
+        r @$t8=wo(@$t5+2)
+        .printf "NV_SD_CONTROL=%04x\n", @$t8
+        r @$t6=0
+        r @$t7=0
+        .if ((@$t8 & 0x8000) == 0) {
+            r @$t6=poi(@$t5+8)
+            .if ((@$t8 & 4) != 0) { r @$t7=poi(@$t5+0x20); .if (@$t7 == 0) { .echo NV_SD_DACL=null } }
+        } .else {
+            r @$t9=dwo(@$t5+4)
+            .if (@$t9 >= 0x14) { .if (@$t9 <= 0xffff) { r @$t6=@$t5+@$t9 } }
+            .if ((@$t8 & 4) != 0) {
+                r @$t9=dwo(@$t5+0x10)
+                .if (@$t9 == 0) { .echo NV_SD_DACL=null } .else { .if (@$t9 >= 0x14) { .if (@$t9 <= 0xffff) { r @$t7=@$t5+@$t9 } } }
+            }
+        }
+        .if (@$t6 != 0) {
+            .if (by(@$t6) == 1) { r @$t9=by(@$t6+1); .if (@$t9 <= 0xf) { r @$t10=@$t6+7+4*@$t9; .writemem nv-sd-owner.bin @$t6 @$t10 } }
+        }
+        .if (@$t7 != 0) {
+            r @$t9=wo(@$t7+2)
+            .if (@$t9 >= 8) { .if (@$t9 <= 0x2000) { r @$t10=@$t7+@$t9-1; .writemem nv-sd-dacl.bin @$t7 @$t10 } }
+        }
+    } .else { .echo NV_SD_REVISION=unavailable }
+    .echo NV_SD_EXTENSION_BEGIN
+    !sd @$t5 0
+    .echo NV_SD_EXTENSION_END
+}
 gc
 '@ | Set-Content -LiteralPath (Join-Path $work 'nv-directory-created-entry.txt') -Encoding Ascii
     @'
@@ -198,6 +231,7 @@ gc
         # Trace the duplicate call only during the first synthetic factory call.
         $debugger.StandardInput.WriteLine('bc *')
         $debugger.StandardInput.WriteLine('r @$t4=0')
+        $debugger.StandardInput.WriteLine('r @$t11=0')
         $debugger.StandardInput.WriteLine('bp /1 poi(@rsp) ".echo NV_FACTORY_RETURN; q"')
         $debugger.StandardInput.WriteLine('bu ntdll!NtCreateDirectoryObjectEx "$$><nv-directory-created-entry.txt"')
         $debugger.StandardInput.WriteLine('bu ntdll!ZwDuplicateObject "$$><nv-duplicate-entry.txt"')
@@ -235,39 +269,26 @@ gc
         }
         $pending = $null
         $kept = 0
-        $descriptor = $null
-        $descriptors = 0
+        $descriptor = @{source='unavailable'; control=-1; nullDacl=$false; extension='not-run'}
+        $inExtension = $false
         foreach ($line in ($raw -split "`r?`n")) {
-            if ($line -match '^\s*NV_CREATE_SD_BEGIN\s*$') {
-                $descriptor = @{source='unknown'; owner='unavailable'; aces=@{}}
-            } elseif ($descriptor -and $line -match '^\s*NV_CREATE_SD=(?<source>explicit|default|unexpected-layout|missing-attributes)\s*$') {
+            if ($line -match '^\s*NV_CREATE_SD=(?<source>explicit|default|unexpected-layout|missing-attributes)\s*$') {
                 $descriptor.source = $Matches.source
-            } elseif ($descriptor -and $line -match '^\s*->Owner\s*:\s*(?<sid>S-(?:\d+-){1,16}\d+)\b') {
-                $descriptor.owner = Sid-Category $Matches.sid
-            } elseif ($descriptor -and $line -match '^\s*->Dacl\s*:\s*->Ace\[(?<index>\d{1,3})\]:\s*->(?<field>AceType|AceFlags|Mask|SID)\s*:\s*(?<value>\S{1,160})') {
-                $index = [int]$Matches.index
-                $field = $Matches.field
-                $value = $Matches.value
-                if ($index -lt 24) {
-                    if (-not $descriptor.aces.ContainsKey($index)) {
-                        $descriptor.aces[$index] = @{category='unavailable'; type='unavailable'; flags='unavailable'; mask='unavailable'}
-                    }
-                    $ace = $descriptor.aces[$index]
-                    if ($field -eq 'SID' -and $value -match '^S-(?:\d+-){1,16}\d+$') { $ace.category = Sid-Category $value }
-                    if ($field -eq 'AceType' -and $value -match '^[A-Z_]{1,64}_ACE_TYPE$') { $ace.type = $value }
-                    if ($field -eq 'AceFlags' -and $value -match '^0x[0-9a-f]{1,8}$') { $ace.flags = $value }
-                    if ($field -eq 'Mask' -and $value -match '^0x[0-9a-f]{1,8}$') { $ace.mask = $value }
-                }
-            } elseif ($descriptor -and $line -match '^\s*NV_CREATE_SD_END\s*$') {
-                $descriptors++
-                if ($descriptors -le 4) {
-                    Write-Output "Synthetic LowBox directory descriptor: source=$($descriptor.source) owner=$($descriptor.owner) parsed_aces=$($descriptor.aces.Count)"
-                    foreach ($index in ($descriptor.aces.Keys | Sort-Object)) {
-                        $ace = $descriptor.aces[$index]
-                        Write-Output "Synthetic LowBox directory ACE: index=$index category=$($ace.category) type=$($ace.type) flags=$($ace.flags) mask=$($ace.mask)"
-                    }
-                }
-                $descriptor = $null
+            } elseif ($line -match '^\s*NV_SD_CONTROL=(?<control>[0-9a-f]{4})\s*$') {
+                $descriptor.control = [Convert]::ToInt32($Matches.control, 16)
+            } elseif ($line -match '^\s*NV_SD_DACL=null\s*$') {
+                $descriptor.nullDacl = $true
+            } elseif ($line -match '^\s*NV_SD_EXTENSION_BEGIN\s*$') {
+                $inExtension = $true
+                $descriptor.extension = 'unrecognized-output'
+            } elseif ($line -match '^\s*NV_SD_EXTENSION_END\s*$') {
+                $inExtension = $false
+            } elseif ($inExtension -and $line -match '(?i)no export|entry point.+not found|unknown extension|unable to load.+extension|not supported.+user.mode') {
+                $descriptor.extension = 'export-unavailable'
+            } elseif ($inExtension -and $line -match '(?i)(unable|failed|cannot|could not).+read|memory access error|invalid.+(security descriptor|address)') {
+                $descriptor.extension = 'read-failed'
+            } elseif ($inExtension -and $descriptor.extension -eq 'unrecognized-output' -and $line -match '^\s*->(?:Revision|Owner|Dacl)\s*:') {
+                $descriptor.extension = 'recognized-output'
             } elseif ($line -match '^\s*NV_DUP_WANTED=(?<mask>[0-9a-f]{8}) attributes=(?<attr>[0-9a-f]{8}) options=(?<options>[0-9a-f]{8})\s*$') {
                 $pending = @{mask=$Matches.mask; attr=$Matches.attr; options=$Matches.options; source='unknown';
                     target='unknown'; type='unknown'; granted='unknown'; kind='unknown'; created='unknown'; inspected=$false}
@@ -297,6 +318,57 @@ gc
                     Write-Output "Synthetic LowBox ZwDuplicateObject: source=$($pending.source) target=$($pending.target) same_as_created_dir=$($pending.created) inspected=$($pending.inspected) object_type=$($pending.type) object_kind=$($pending.kind) granted=$($pending.granted) desired=0x$($pending.mask) attributes=0x$($pending.attr) options=0x$($pending.options) ntstatus=0x$status"
                 }
                 $pending = $null
+            }
+        }
+        # Decode the exact structures written by CDB; no raw data is emitted.
+        # DACL absent, explicitly NULL, valid with zero ACEs, and unavailable
+        # are all different outcomes.
+        $ownerCategory = 'unavailable'
+        $acl = $null
+        $layout = 'unavailable'
+        $daclState = 'unavailable'
+        if ($descriptor.control -ge 0) {
+            $layout = if ($descriptor.control -band 0x8000) { 'self-relative' } else { 'absolute-x64' }
+            if (-not ($descriptor.control -band 4)) { $daclState = 'absent' }
+            elseif ($descriptor.nullDacl) { $daclState = 'null' }
+        }
+        try {
+            $ownerFile = Get-Item -LiteralPath (Join-Path $work 'nv-sd-owner.bin') -ErrorAction SilentlyContinue
+            if ($ownerFile -and $ownerFile.Length -ge 8 -and $ownerFile.Length -le 68) {
+                $bytes = [IO.File]::ReadAllBytes($ownerFile.FullName)
+                if ($bytes[0] -eq 1 -and $bytes[1] -le 15 -and $bytes.Length -eq (8 + 4 * $bytes[1])) {
+                    $owner = [Security.Principal.SecurityIdentifier]::new($bytes, 0)
+                    $ownerCategory = Sid-Category $owner.Value
+                }
+            }
+        } catch { $ownerCategory = 'invalid' }
+        if ($descriptor.control -ge 0 -and ($descriptor.control -band 4) -and -not $descriptor.nullDacl) {
+            try {
+                $daclFile = Get-Item -LiteralPath (Join-Path $work 'nv-sd-dacl.bin') -ErrorAction SilentlyContinue
+                if ($daclFile -and $daclFile.Length -ge 8 -and $daclFile.Length -le 8192) {
+                    $bytes = [IO.File]::ReadAllBytes($daclFile.FullName)
+                    $daclState = 'invalid'
+                    if ($bytes.Length -eq [BitConverter]::ToUInt16($bytes, 2)) {
+                        $acl = [Security.AccessControl.RawAcl]::new($bytes, 0)
+                        $daclState = 'parsed'
+                    }
+                }
+            } catch { $daclState = 'invalid' }
+        }
+        $control = if ($descriptor.control -ge 0) { '0x{0:X4}' -f $descriptor.control } else { 'unavailable' }
+        $aceCount = if ($null -ne $acl) { $acl.Count } else { 'unavailable' }
+        Write-Output "Synthetic LowBox directory descriptor: source=$($descriptor.source) layout=$layout control=$control owner=$ownerCategory dacl=$daclState ace_count=$aceCount extension=$($descriptor.extension)"
+        if ($null -ne $acl) {
+            for ($index = 0; $index -lt [Math]::Min($acl.Count, 24); ++$index) {
+                $ace = $acl[$index]
+                $category = 'unavailable'
+                $mask = 'unavailable'
+                if ($ace -is [Security.AccessControl.KnownAce]) {
+                    $category = Sid-Category $ace.SecurityIdentifier.Value
+                    $mask = '0x{0:X8}' -f [int]$ace.AccessMask
+                }
+                $flags = '0x{0:X2}' -f [int]$ace.AceFlags
+                Write-Output "Synthetic LowBox directory ACE: index=$index category=$category type=$($ace.AceType) flags=$flags mask=$mask"
             }
         }
         Write-Output "Synthetic LowBox duplicate trace: captured_calls=$kept; factory_return=$($raw -match '(?m)^\s*NV_FACTORY_RETURN\s*$'); debugger_exited=$($debugger.HasExited)."
