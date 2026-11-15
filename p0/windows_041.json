@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "date_utc": "2026-11-15",
+  "purpose": "Windows 0.4.1 fictional trial validation, not clinical qualification",
+  "candidate": {
+    "source_head": "9d7df111c171a3be0bac0776246dbd879fcc72f1",
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43725934890",
+    "windows_job_id": 132847751505,
+    "windows_job_conclusion": "success",
+    "external_job_id": 132847751678,
+    "external_job_conclusion": "success",
+    "metrics_artifact_id": 14166612739,
+    "metrics_artifact_sha256": "4fce6b33c57bbc2c6d94b917d8cf3d983cb76aba2c331e0b423d9a16826bc6c7",
+    "environment": {
+      "schema_version": 1,
+      "cpu": [
+        {
+          "Name": "INTEL(R) XEON(R) PLATINUM 8573C",
+          "NumberOfCores": 2,
+          "NumberOfLogicalProcessors": 4
+        }
+      ],
+      "memory_total_bytes": 17174360064,
+      "os_version": "Microsoft Windows NT 10.0.20348.0"
+    },
+    "timings": [
+      {
+        "test": "silence",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 1.545,
+        "audio_seconds": 8.0,
+        "elapsed_audio_ratio": 0.193,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1783635968,
+          "observed_cpu_seconds": 1.390625,
+          "observed_mean_cpu_core_equivalents": 0.9395737130838077,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        }
+      },
+      {
+        "test": "px-826",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 18.238,
+        "audio_seconds": 6.44,
+        "elapsed_audio_ratio": 2.832,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954611200,
+          "observed_cpu_seconds": 66.8125,
+          "observed_mean_cpu_core_equivalents": 3.675582344413024,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "actual_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-23",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 67.977,
+        "audio_seconds": 16.8,
+        "elapsed_audio_ratio": 4.046,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1955356672,
+          "observed_cpu_seconds": 262.75,
+          "observed_mean_cpu_core_equivalents": 3.8688353471427477,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "actual_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            0,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-584",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 51.571,
+        "audio_seconds": 15.2,
+        "elapsed_audio_ratio": 3.393,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954471936,
+          "observed_cpu_seconds": 197.453125,
+          "observed_mean_cpu_core_equivalents": 3.833317182015242,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              2,
+              2
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "actual_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      }
+    ],
+    "ui_checks": [
+      "Native keyboard traversal including owner-drawn Actions button",
+      "Create notes, folders and subfolders; classify, rename, search and sort",
+      "Autosave and reopen notes",
+      "Conceal and reveal preserve text and do not restart the microphone",
+      "Glossary sources and category filters return exact records",
+      "Closing the glossary restores focus to the invoking Actions button",
+      "Copy exact CF_UNICODETEXT without title and exclude clipboard history"
+    ],
+    "external_checks": [
+      "Native Win32 text fields",
+      "UI Automation and SendInput in synthetic WPF fields",
+      "Permanent target invalidation across focus changes, including deliberate notification loss",
+      "Selections, read-only and password controls refused"
+    ]
+  },
+  "catalogue": {
+    "entries": 100175,
+    "literal_distinct_labels": 99192,
+    "overlapping_domains": 75,
+    "source_ids": 12,
+    "automatic_asr_injection": false,
+    "canonical_content_sha256": "f1efb69c83447c3c725c6610ce43efe13b12357799d441bb20ec0c501254a01c"
+  },
+  "scope": {
+    "physical_windows_microphone": false,
+    "physical_8gb_pc": false,
+    "word": false,
+    "excel": false,
+    "edge": false,
+    "medical_qualification": false,
+    "adapted_weights_shipped": false,
+    "experimental_lexical_prompt_shipped": false
+  },
+  "limitations": [
+    "Fixture timing includes process startup and is not latency after a live pause.",
+    "The exact term Imovane remains missing from px-23.",
+    "Finite numerical fixtures do not establish clinical negation or medication accuracy.",
+    "VMs differ across runs; no causal performance gain is claimed.",
+    "The UI preview uses fictitious text inserted by automation, not ASR output."
+  ],
+  "retained_prior_failure": {
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43724648796",
+    "failed_external_job_id": 132843867405,
+    "observation": "One startup reply was absent; the old diagnostic did not distinguish which of three child handshakes or EOF versus timeout.",
+    "unchanged_code_retry_job_id": 132846990190,
+    "unchanged_code_retry_conclusion": "success",
+    "next_candidate_with_diagnostic_conclusion": "success",
+    "response_or_global_deadlines_relaxed": false
+  },
+  "release": {
+    "source_head": "1d4736fb8c0e3f770280cad06147f61b77385858",
+    "run_url": "https://github.com/sarbhakan/DocTranscript/actions/runs/43727075462",
+    "windows_job_id": 132851240617,
+    "windows_job_conclusion": "success",
+    "external_job_id": 132851240295,
+    "external_job_conclusion": "success",
+    "release_job_id": 132854676504,
+    "release_job_conclusion": "success",
+    "metrics_artifact_id": 14167495483,
+    "metrics_artifact_sha256": "22914c2befa174fa2f6c71b44efdece7f9e2d912464ae273ec51cbe7b244c869",
+    "environment": {
+      "schema_version": 1,
+      "cpu": [
+        {
+          "Name": "AMD EPYC 7763 64-Core Processor                ",
+          "NumberOfCores": 2,
+          "NumberOfLogicalProcessors": 4
+        }
+      ],
+      "memory_total_bytes": 17174360064,
+      "os_version": "Microsoft Windows NT 10.0.20348.0"
+    },
+    "timings": [
+      {
+        "test": "silence",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 1.231,
+        "audio_seconds": 8.0,
+        "elapsed_audio_ratio": 0.154,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 999931904,
+          "observed_cpu_seconds": 1.015625,
+          "observed_mean_cpu_core_equivalents": 0.8705015906236628,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        }
+      },
+      {
+        "test": "px-826",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 16.229,
+        "audio_seconds": 6.44,
+        "elapsed_audio_ratio": 2.52,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954512896,
+          "observed_cpu_seconds": 59.8125,
+          "observed_mean_cpu_core_equivalents": 3.6999607793332747,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "actual_numeric_sequence": [
+            "20",
+            "1"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-23",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 61.439,
+        "audio_seconds": 16.8,
+        "elapsed_audio_ratio": 3.657,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1955356672,
+          "observed_cpu_seconds": 237.0625,
+          "observed_mean_cpu_core_equivalents": 3.8626686554785,
+          "snapshot_errors": 0,
+          "partial_samples": 1,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              1,
+              1
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "actual_numeric_sequence": [
+            "7,5",
+            "1",
+            "¼",
+            "7"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            0,
+            1
+          ],
+          "passed": true
+        }
+      },
+      {
+        "test": "px-584",
+        "requested_cpu": "auto",
+        "elapsed_seconds": 46.281,
+        "audio_seconds": 15.2,
+        "elapsed_audio_ratio": 3.045,
+        "resources": {
+          "interval_ms_requested": 200,
+          "peak_sampled_private_bytes": 1954578432,
+          "observed_cpu_seconds": 177.828125,
+          "observed_mean_cpu_core_equivalents": 3.847936868259746,
+          "snapshot_errors": 0,
+          "partial_samples": 0,
+          "exit_code": 0,
+          "parent_and_worker_observed": true
+        },
+        "fixture_checks": {
+          "critical_span_presence": {
+            "dose": [
+              1,
+              1
+            ],
+            "fraction": [
+              2,
+              2
+            ]
+          },
+          "numeric_sequence_equal": true,
+          "expected_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "actual_numeric_sequence": [
+            "80",
+            "½",
+            "½",
+            "2"
+          ],
+          "no_added_negation": true,
+          "no_added_concentration": true,
+          "no_negative_number": true,
+          "fraction_spans_ordered": true,
+          "duration_amounts_equal": true,
+          "administered_form_amounts_equal": true,
+          "terms": [
+            1,
+            1
+          ],
+          "passed": true
+        }
+      }
+    ],
+    "tag": "v0.4.1-essai",
+    "tag_points_to_source_head": true,
+    "release_url": "https://github.com/sarbhakan/DocTranscript/releases/tag/v0.4.1-essai",
+    "published_at": "2026-11-15T15:09:25Z",
+    "prerelease": true,
+    "packaged_zip_count": 1,
+    "asset_name": "NoteVive-Windows-x64-Essai.zip",
+    "asset_size_bytes": 548259292,
+    "asset_sha256": "ba5e1e679185faac912d230c632c18257a19c0ffb6acd8e537701df8fc6eff24",
+    "checksum_asset_sha256": "0c2c01045ff8a42f18de7c009fb3f1611e8f25589b4d4e4929f724fb79939f28",
+    "checksum_download_verified": true,
+    "github_asset_digest_matches_checksum": true,
+    "build_job_verified_zip_bytes_before_upload": true,
+    "ui_preview_artifact_id": 14166934226,
+    "ui_preview_artifact_sha256": "549159f902f9a3a6f397e1b51c0b49fbf84c982b08bcf780cbdde545dd617c48",
+    "ui_preview_png_sha256": "db9febc38493ae8e12f279efad1537103d9955c2e8e21053df185d4a79ead68e",
+    "independent_visual_review": {
+      "passed": true,
+      "width": 1010,
+      "height": 680,
+      "scope": "Unmodified native preview on Windows Server 2022; fictional text inserted by automation. No microphone or high-DPI qualification."
+    },
+    "adapted_weights_shipped": false,
+    "experimental_lexical_prompt_shipped": false,
+    "physical_8gb_pc_tested": false
+  }
+}

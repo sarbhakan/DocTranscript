@@ -1,6 +1,8 @@
 # Préparer et ajuster un modèle local
 
-**Suite du 15 novembre 2026 :** consulter le [rapport médical et vitesse](../../docs/precision-vitesse-041.md), la [note CE/KL](retention_notes.md), le [rapport agrégé](retention_report.json) et le [protocole critique v2](critical_protocol_v2.md). CE50 est refusé pour régressions sur 96 clips ; CE+KL est interrompu pour calcul non fini et n'a pas de résultat de reconnaissance. Le nouvel argument `--retention-weight` reste à `0` par défaut ; l'expérience à `0.35` ne constitue pas une configuration recommandée. Le script contrôle désormais la finitude des adaptateurs après mise à jour et avant sauvegarde. Les rapports de la première expérience ci-dessous sont conservés comme historiques.
+**Dernier état au 15 novembre 2026 :** la [consolidation de l’entraînement](retention_stability_notes.md) corrige l’échec numérique observé en utilisant `--adamw-backend cpu-shadow` pour les seuls paramètres LoRA. Les trois bras de 24 étapes ont terminé ; leurs évaluations sur 96 clips refusent tous les adaptateurs pour des régressions critiques. Les poids du paquet Windows restent inchangés. Un [contrôle FP32 sur Metal](mps_precision_probe_041.md) identifie aussi une piste pour un défaut de génération, sur une seule phrase fictive hors grille ; il ne qualifie pas les dictées médicales.
+
+**Expérience précédente du 15 novembre :** le [rapport médical et vitesse](../../docs/precision-vitesse-041.md), la [note CE/KL](retention_notes.md), le [rapport agrégé](retention_report.json) et le [protocole critique v2](critical_protocol_v2.md) conservent le refus de CE50 et l’arrêt CE+KL pour calcul non fini avant le correctif. `--retention-weight` reste à `0` par défaut ; la valeur `0.35` est une condition expérimentale. Les contrôles de finitude restent obligatoires après mise à jour et avant sauvegarde.
 
 Le module `prepare_px` prépare **des données de développement** à partir de l’archive **PxCorpus v4** déjà employée par le banc. La préparation et le contrôle des erreurs critiques utilisent Python 3.11 ou 3.12 et sa bibliothèque standard. Ils fonctionnent hors ligne, sans compte ni carte graphique. Le module `train_lora` nécessite les bibliothèques de calcul décrites plus bas et lance explicitement un ajustement expérimental ; `export_lora` prépare sa fusion et sa conversion. Ces opérations sont séparées de l’application distribuée.
 
@@ -101,12 +103,14 @@ Créer le dossier parent local auparavant, avec suffisamment d’espace libre. L
   --corpus /chemin/local/adaptation-px-v1 \
   --px-archive /chemin/local/PxCorpus.zip \
   --output /chemin/local/notevive-entrainement/smoke-01 \
-  --max-updates 8 --validation-limit 8
+  --max-updates 8 --validation-limit 8 --adamw-backend cpu-shadow
 ```
 
 Le mini-essai vérifie huit mises à jour effectives, des gradients finis, la base inchangée, les adaptateurs modifiés et une sauvegarde/recharge exacte. Il n’établit pas de gain de reconnaissance. Pour une passe complète, choisir **une autre sortie neuve**, avec `--max-updates 271 --epochs 1`, sans `--validation-limit` : 1 081 clips d’entraînement et les 282 clips de validation. Il n’y a pas de reprise implicite du mini-essai.
 
 L’encodeur et la base sont gelés. Seuls 327 680 paramètres LoRA FP32 sont ajustés, sur les 16 projections q/v des quatre couches du décodeur ; la base utilise FP16 sur MPS. L’accumulation utilise quatre clips et un dernier groupe d’un clip. La référence conserve le vrai jeton de fin ; le remplissage ne compte pas dans la perte. Un gradient non fini ou un pas ignoré interrompt l’essai. Aucun lexique n’est utilisé pour réécrire les références.
+
+Avec `--adamw-backend cpu-shadow`, les passages du réseau et les gradients restent sur MPS ; AdamW travaille sur des copies FP32 CPU des paramètres LoRA et de ses moments. Tous ces éléments sont contrôlés avant recopie, puis les poids copiés sont vérifiés à l’identique. Cette route a terminé les trois essais de 24 étapes du [protocole de stabilité](retention_stability_plan.json). `native` reste le défaut du programme pour reproduire les essais historiques : ne pas omettre l’option dans un essai qui doit utiliser la route corrigée. Aucun changement de route n’est appliqué silencieusement après un échec.
 
 `contract.json`, `events.jsonl`, `report.json` et les sous-dossiers `checkpoints/` permettent de suivre ce qui a réellement eu lieu. `last.json` et `best.json` indiquent les adaptateurs terminés. Avec une seule passe, il n’existe qu’une validation finale : « best » n’est pas une recherche de plusieurs configurations. Les interruptions conservent un rapport d’échec et n’autorisent aucune adoption automatique.
 
