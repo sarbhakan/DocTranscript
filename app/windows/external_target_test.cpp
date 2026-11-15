@@ -498,6 +498,68 @@ struct RecipeNamespace {
         return sid;
     }
 
+    struct InteractiveShell {
+        HWND window = nullptr;
+        DWORD pid = 0;
+        LocalHandle process, token;
+        std::vector<BYTE> logon_info;
+
+        bool stable() const {
+            DWORD current_pid = 0;
+            return window && process.value && GetShellWindow() == window &&
+                GetWindowThreadProcessId(window, &current_pid) && current_pid == pid &&
+                GetProcessId(process.value) == pid && WaitForSingleObject(process.value, 0) == WAIT_TIMEOUT;
+        }
+    };
+
+    static PSID verified_shell_logon(InteractiveShell& shell, DWORD session, HANDLE host,
+                                     PSID host_logon, PSID child_logon) {
+        wchar_t desktop[32]{};
+        DWORD size = 0;
+        const bool default_desktop =
+            GetUserObjectInformationW(GetThreadDesktop(GetCurrentThreadId()), UOI_NAME, desktop, sizeof(desktop), &size) &&
+            CompareStringOrdinal(desktop, -1, L"Default", -1, TRUE) == CSTR_EQUAL;
+        shell.window = default_desktop ? GetShellWindow() : nullptr;
+        if (shell.window && GetWindowThreadProcessId(shell.window, &shell.pid) && shell.pid)
+            shell.process.value = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, shell.pid);
+        const bool stable = shell.stable();
+        DWORD process_session = 0, token_session = 0;
+        const bool process_same_session = stable && ProcessIdToSessionId(shell.pid, &process_session) &&
+            process_session == session;
+        wchar_t windows[MAX_PATH]{}, image[MAX_PATH]{};
+        const auto directory_len = GetSystemWindowsDirectoryW(windows, MAX_PATH);
+        bool exact_image = false;
+        if (process_same_session && directory_len && directory_len < MAX_PATH) {
+            std::wstring expected(windows, directory_len);
+            if (expected.back() != L'\\') expected += L'\\';
+            expected += L"explorer.exe";
+            DWORD image_len = MAX_PATH;
+            exact_image = QueryFullProcessImageNameW(shell.process.value, 0, image, &image_len) &&
+                CompareStringOrdinal(image, static_cast<int>(image_len), expected.c_str(),
+                                     static_cast<int>(expected.size()), TRUE) == CSTR_EQUAL;
+        }
+        const bool token_same_session = exact_image && OpenProcessToken(shell.process.value, TOKEN_QUERY, &shell.token.value) &&
+            GetTokenInformation(shell.token.value, TokenSessionId, &token_session, sizeof(token_session), &size) &&
+            token_session == session;
+        std::vector<BYTE> shell_user, host_user;
+        bool same_user = false;
+        if (token_same_session && token_part(shell.token.value, TokenUser, shell_user) &&
+            token_part(host, TokenUser, host_user) && shell_user.size() >= sizeof(TOKEN_USER) &&
+            host_user.size() >= sizeof(TOKEN_USER)) {
+            const auto a = reinterpret_cast<const TOKEN_USER*>(shell_user.data())->User.Sid;
+            const auto b = reinterpret_cast<const TOKEN_USER*>(host_user.data())->User.Sid;
+            same_user = IsValidSid(a) && IsValidSid(b) && EqualSid(a, b);
+        }
+        const auto logon = same_user ? verified_logon_sid(shell.token.value, shell.logon_info) : nullptr;
+        const bool different_child = logon && !EqualSid(logon, child_logon);
+        const bool stable_after = different_child && shell.stable();
+        std::fprintf(stderr, "Interactive shell witness: default_desktop=%d stable=%d windows_explorer=%d session=%d "
+            "token_session=%d same_user=%d active_logon=%d same_runner_logon=%d distinct_child_logon=%d rechecked=%d.\n",
+            default_desktop, stable, exact_image, process_same_session, token_same_session, same_user,
+            logon != nullptr, logon && EqualSid(logon, host_logon), different_child, stable_after);
+        return stable_after ? logon : nullptr;
+    }
+
     bool copy_logon_dacl(OpenDirectory call, DWORD session, HANDLE actual_child) {
         LocalHandle host;
         TOKEN_ELEVATION elevation{};
@@ -522,7 +584,8 @@ struct RecipeNamespace {
         BOOL defaulted = FALSE;
         if (!save_dacl(call, session, old, defaulted)) return preparation_failed("save the original DACL");
         if (!IsValidAcl(old)) return preparation_failed("validate the original DACL");
-        WORD witnessed_bytes = 0;
+        struct DirectAllow { PSID sid; WORD bytes; };
+        std::vector<DirectAllow> candidates;
         // Refuse unfamiliar ACE structures so an existing entry for the
         // child cannot accidentally be missed. Never copy an inherited ACE.
         for (DWORD index = 0; index < old->AceCount; ++index) {
@@ -541,13 +604,25 @@ struct RecipeNamespace {
                 return preparation_failed("verify no existing ACE for the child's logon");
             }
             if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE && ace->Header.AceFlags == 0 &&
-                ace->Mask == normal_logon_rights && EqualSid(sid, host_logon))
-                witnessed_bytes = ace->Header.AceSize;
+                ace->Mask == normal_logon_rights)
+                candidates.push_back({sid, ace->Header.AceSize});
         }
+        const auto witnessed = [&](PSID sid) -> WORD {
+            if (sid) for (const auto& candidate : candidates)
+                if (EqualSid(sid, candidate.sid)) return candidate.bytes;
+            return 0;
+        };
+        InteractiveShell shell;
+        WORD witnessed_bytes = witnessed(host_logon);
+        const bool shell_fallback = !witnessed_bytes;
+        if (shell_fallback)
+            witnessed_bytes = witnessed(verified_shell_logon(shell, session, host.value, host_logon, child_logon));
+        std::fprintf(stderr, "BaseNamedObjects exact direct 0xF000F witness: runner_logon=%d interactive_shell_logon=%d.\n",
+                     !shell_fallback, shell_fallback && witnessed_bytes != 0);
         const auto bytes = static_cast<DWORD>(old->AclSize) + witnessed_bytes;
         if (!witnessed_bytes || bytes > UINT16_MAX) {
             SetLastError(ERROR_INVALID_ACL);
-            return preparation_failed("find an exact direct 0xF000F allow for the runner logon");
+            return preparation_failed("find an exact direct 0xF000F allow for a verified logon");
         }
         // Append one ACE to a copy. The other entries and their order are
         // unchanged. No new right is granted to the user SID or other logons.
@@ -555,11 +630,16 @@ struct RecipeNamespace {
         std::memcpy(replacement.data(), old, old->AclSize);
         const auto next = reinterpret_cast<PACL>(replacement.data());
         next->AclSize = static_cast<WORD>(bytes);
-        if (!AddAccessAllowedAceEx(next, old->AclRevision, 0, normal_logon_rights, child_logon) ||
-            !apply_dacl(next, defaulted))
+        if (!AddAccessAllowedAceEx(next, old->AclRevision, 0, normal_logon_rights, child_logon))
+            return preparation_failed("prepare the witnessed direct ACE for the child's logon only");
+        if (shell_fallback && !shell.stable()) {
+            SetLastError(ERROR_INVALID_HANDLE);
+            return preparation_failed("recheck the interactive shell before applying the DACL");
+        }
+        if (!apply_dacl(next, defaulted))
             return preparation_failed("copy the witnessed direct ACE to the child's logon only");
-        std::fprintf(stderr, "Hosted Edge BaseNamedObjects: copied direct runner-logon allow 0x%lx to the verified child logon; no user grant.\n",
-                     static_cast<unsigned long>(normal_logon_rights));
+        std::fprintf(stderr, "Hosted Edge BaseNamedObjects: copied direct %s-logon allow 0x%lx to the verified child logon; no user grant.\n",
+                     shell_fallback ? "interactive-shell" : "runner", static_cast<unsigned long>(normal_logon_rights));
         return true;
     }
 
