@@ -19,6 +19,7 @@
 #include <wtsapi32.h>
 
 #include <cstdio>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <cwchar>
@@ -202,12 +203,21 @@ DWORD report_session(const char* role, DWORD pid, HANDLE process) {
 struct NamespaceObservation {
     NTSTATUS minimum = 0, with_subdirectory = 0;
     DWORD bare_mutex = ERROR_GEN_FAILURE, local_mutex = ERROR_GEN_FAILURE;
-    bool have_directory_api = false;
+    bool have_directory_api = false, normal_logon_access = false;
 };
-NamespaceObservation observe_namespace(DWORD session);
+NamespaceObservation observe_namespace(DWORD session, bool check_logon = false);
 void observe_renderer_objects(DWORD session);
 bool observe_lowbox_creation(DWORD session);
 void observe_appcontainer_links(DWORD session);
+bool token_part(HANDLE token, TOKEN_INFORMATION_CLASS kind, std::vector<BYTE>& value);
+
+bool disposable_recipe_account() {
+    wchar_t name[64]{};
+    DWORD size = 64;
+    if (!GetUserNameW(name, &size) || size != 20 || std::wcsncmp(name, L"nvrecipe-", 9) != 0)
+        return false;
+    return std::wcsspn(name + 9, L"0123456789abcdef") == 10;
+}
 
 void observe_self_token_access() {
     // Request handles to this ephemeral account's own token. No privilege is
@@ -291,8 +301,16 @@ int edge_startup_preflight() {
     if (!in_job && result != ERROR_SUCCESS) return 1;
     observe_renderer_objects(session);
     observe_appcontainer_links(session);
+    // The suspended child gets its own profile environment, not the
+    // launcher's CI variables. Its random account name selects this probe.
+    const bool check_logon = disposable_recipe_account();
+    const auto names = observe_namespace(session, check_logon);
+    const bool mutex = names.local_mutex == ERROR_SUCCESS;
+    if (check_logon && !names.normal_logon_access) {
+        std::fputs("The actual disposable login did not receive the witnessed directory access.\n", stderr);
+        return 1;
+    }
     const bool lowbox = observe_lowbox_creation(session);
-    const bool mutex = observe_namespace(session).local_mutex == ERROR_SUCCESS;
     std::printf("Edge broker preflight: local_mutex=%d synthetic_lowbox=%d\n", mutex, lowbox);
     // An unregistered synthetic package does not reproduce Edge's package
     // and capabilities. Only the actual browser may decide that recipe.
@@ -311,7 +329,7 @@ bool hosted_recipe() {
 
 // Hosted Edge recipe only. A secondary logon in the runner's desktop session
 // has no default entry permitting creation of named objects in that session.
-// This guard adds a non-inherited entry for the new account on that one
+// This guard adds a non-inherited entry for the verified recipe identity on one
 // directory and restores the original DACL after the process job is stopped.
 struct RecipeNamespace {
     // NtOpenDirectoryObject's documented DIRECTORY_QUERY / TRAVERSE / CREATE_OBJECT.
@@ -322,6 +340,10 @@ struct RecipeNamespace {
     // The hosted Windows trace of CreateAppContainerToken independently
     // showed an open of BaseNamedObjects with exactly this access.
     static constexpr ACCESS_MASK lowbox_read = READ_CONTROL | 0x0001 | 0x0002;
+    // Windows duplicates the child directory with this exact mask; accept
+    // it only as a copy of an existing direct ACE for the host logon.
+    static constexpr ACCESS_MASK normal_logon_rights = STANDARD_RIGHTS_REQUIRED | with_subdirectory;
+    static_assert(normal_logon_rights == 0x000f000f);
     static constexpr NTSTATUS denied = static_cast<NTSTATUS>(0xc0000022u);
     using OpenDirectory = NTSTATUS (NTAPI*)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
     enum class Kind { base, app_container };
@@ -439,6 +461,108 @@ struct RecipeNamespace {
         return true;
     }
 
+    bool save_dacl(OpenDirectory call, DWORD session, PACL& old, BOOL& defaulted) {
+        const auto opened = open(call, session, READ_CONTROL | WRITE_DAC, directory.value, leaf());
+        if (opened < 0) {
+            std::fprintf(stderr, "Opening this runner's session %s DACL for administration: 0x%08lx\n",
+                         label(), static_cast<unsigned long>(static_cast<DWORD>(opened)));
+            SetLastError(ERROR_ACCESS_DENIED);
+            return false;
+        }
+        if (!read_dacl(original)) return false;
+        BOOL has_dacl = FALSE;
+        if (!GetSecurityDescriptorDacl(original.data(), &has_dacl, &old, &defaulted)) return false;
+        if (!has_dacl || !old) { SetLastError(ERROR_INVALID_ACL); return false; }
+        return true;
+    }
+
+    bool apply_dacl(PACL next, BOOL defaulted) {
+        SECURITY_DESCRIPTOR descriptor{};
+        changed = InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) &&
+            SetSecurityDescriptorDacl(&descriptor, TRUE, next, defaulted) &&
+            SetKernelObjectSecurity(directory.value, DACL_SECURITY_INFORMATION, &descriptor);
+        return changed;
+    }
+
+    static PSID verified_logon_sid(HANDLE token, std::vector<BYTE>& info) {
+        if (!token_part(token, TokenLogonSid, info) || info.size() < sizeof(TOKEN_GROUPS)) return nullptr;
+        const auto* groups = reinterpret_cast<const TOKEN_GROUPS*>(info.data());
+        constexpr DWORD active = SE_GROUP_LOGON_ID | SE_GROUP_ENABLED;
+        constexpr SID_IDENTIFIER_AUTHORITY nt = SECURITY_NT_AUTHORITY;
+        if (groups->GroupCount != 1 || (groups->Groups[0].Attributes & active) != active ||
+            (groups->Groups[0].Attributes & SE_GROUP_USE_FOR_DENY_ONLY)) return nullptr;
+        const auto sid = groups->Groups[0].Sid;
+        if (!IsValidSid(sid) || *GetSidSubAuthorityCount(sid) != SECURITY_LOGON_IDS_RID_COUNT ||
+            std::memcmp(GetSidIdentifierAuthority(sid), &nt, sizeof(nt)) != 0 ||
+            *GetSidSubAuthority(sid, 0) != SECURITY_LOGON_IDS_RID) return nullptr;
+        return sid;
+    }
+
+    bool copy_logon_dacl(OpenDirectory call, DWORD session, HANDLE actual_child) {
+        LocalHandle host;
+        TOKEN_ELEVATION elevation{};
+        DWORD host_session = 0, size = 0;
+        if (kind != Kind::base ||
+            !OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &host.value) ||
+            !GetTokenInformation(host.value, TokenSessionId, &host_session, sizeof(host_session), &size) ||
+            host_session != session ||
+            !GetTokenInformation(host.value, TokenElevation, &elevation, sizeof(elevation), &size) ||
+            !elevation.TokenIsElevated) {
+            SetLastError(ERROR_ACCESS_DENIED);
+            return preparation_failed("verify the elevated interactive runner");
+        }
+        std::vector<BYTE> child_info, host_info;
+        const auto child_logon = verified_logon_sid(actual_child, child_info);
+        const auto host_logon = verified_logon_sid(host.value, host_info);
+        if (!child_logon || !host_logon || EqualSid(child_logon, host_logon)) {
+            SetLastError(ERROR_INVALID_SID);
+            return preparation_failed("verify distinct enabled logon SIDs for the runner and real child");
+        }
+        PACL old = nullptr;
+        BOOL defaulted = FALSE;
+        if (!save_dacl(call, session, old, defaulted)) return preparation_failed("save the original DACL");
+        if (!IsValidAcl(old)) return preparation_failed("validate the original DACL");
+        WORD witnessed_bytes = 0;
+        // Refuse unfamiliar ACE structures so an existing entry for the
+        // child cannot accidentally be missed. Never copy an inherited ACE.
+        for (DWORD index = 0; index < old->AceCount; ++index) {
+            LPVOID raw = nullptr;
+            if (!GetAce(old, index, &raw)) return preparation_failed("inspect the existing DACL");
+            const auto* ace = static_cast<const ACCESS_ALLOWED_ACE*>(raw);
+            if ((ace->Header.AceType != ACCESS_ALLOWED_ACE_TYPE && ace->Header.AceType != ACCESS_DENIED_ACE_TYPE) ||
+                ace->Header.AceSize < offsetof(ACCESS_ALLOWED_ACE, SidStart) + 8) {
+                SetLastError(ERROR_INVALID_ACL);
+                return preparation_failed("verify the DACL uses understood ACE types");
+            }
+            auto sid = const_cast<DWORD*>(&ace->SidStart);
+            if (!IsValidSid(sid) || GetLengthSid(sid) > ace->Header.AceSize - offsetof(ACCESS_ALLOWED_ACE, SidStart) ||
+                EqualSid(sid, child_logon)) {
+                SetLastError(ERROR_INVALID_ACL);
+                return preparation_failed("verify no existing ACE for the child's logon");
+            }
+            if (ace->Header.AceType == ACCESS_ALLOWED_ACE_TYPE && ace->Header.AceFlags == 0 &&
+                ace->Mask == normal_logon_rights && EqualSid(sid, host_logon))
+                witnessed_bytes = ace->Header.AceSize;
+        }
+        const auto bytes = static_cast<DWORD>(old->AclSize) + witnessed_bytes;
+        if (!witnessed_bytes || bytes > UINT16_MAX) {
+            SetLastError(ERROR_INVALID_ACL);
+            return preparation_failed("find an exact direct 0xF000F allow for the runner logon");
+        }
+        // Append one ACE to a copy. The other entries and their order are
+        // unchanged. No new right is granted to the user SID or other logons.
+        std::vector<BYTE> replacement(bytes);
+        std::memcpy(replacement.data(), old, old->AclSize);
+        const auto next = reinterpret_cast<PACL>(replacement.data());
+        next->AclSize = static_cast<WORD>(bytes);
+        if (!AddAccessAllowedAceEx(next, old->AclRevision, 0, normal_logon_rights, child_logon) ||
+            !apply_dacl(next, defaulted))
+            return preparation_failed("copy the witnessed direct ACE to the child's logon only");
+        std::fprintf(stderr, "Hosted Edge BaseNamedObjects: copied direct runner-logon allow 0x%lx to the verified child logon; no user grant.\n",
+                     static_cast<unsigned long>(normal_logon_rights));
+        return true;
+    }
+
     bool start(DWORD pid, HANDLE process, HANDLE logon_token, PSID account, ACCESS_MASK access,
                bool lowbox_broker = false) {
         if (!hosted_recipe()) { SetLastError(ERROR_ACCESS_DENIED); return false; }
@@ -447,22 +571,21 @@ struct RecipeNamespace {
             SetLastError(ERROR_INVALID_PARAMETER);
             return false;
         }
-        // The control retains its original mask; only the actual standard-user
-        // Edge arm gets the extra READ_CONTROL bit on BaseNamedObjects.
-        if (lowbox_broker) access |= lowbox_read;
         DWORD parent_session = 0, session = 0;
         if (!ProcessIdToSessionId(GetCurrentProcessId(), &parent_session) || !ProcessIdToSessionId(pid, &session))
             return false;
         if (!session || session != parent_session) { SetLastError(ERROR_ACCESS_DENIED); return false; }
 
-        // Verify the actual child in place; cross-account TOKEN_DUPLICATE
-        // is unnecessary. Use the original successful LogonUser token of
-        // this same SID to test access, as the desktop permission check does.
+        // The suspended child owns the actual logon SID. LogonUser creates
+        // a different logon, suitable only for the account-based paths.
         LocalHandle token, identity;
         if (!OpenProcessToken(process, TOKEN_QUERY, &token.value))
             return preparation_failed("query the suspended child's token");
         if (!verify_token(token.value, session, account))
             return preparation_failed("verify the suspended child's account and session");
+        const auto call = api();
+        if (!call) return preparation_failed("resolve NtOpenDirectoryObject");
+        if (lowbox_broker) return copy_logon_dacl(call, session, token.value);
         DWORD logon_session = 0, session_bytes = 0;
         if (!GetTokenInformation(logon_token, TokenSessionId, &logon_session, sizeof(logon_session), &session_bytes))
             return preparation_failed("query the local logon token's session");
@@ -473,9 +596,6 @@ struct RecipeNamespace {
         if (!DuplicateTokenEx(logon_token, TOKEN_QUERY | TOKEN_IMPERSONATE, nullptr, SecurityImpersonation,
                               TokenImpersonation, &identity.value))
             return preparation_failed("prepare the verified local account's access check");
-        const auto call = api();
-        if (!call) return preparation_failed("resolve NtOpenDirectoryObject");
-
         NTSTATUS before = 0;
         if (!supported_access(call, session, identity.value, access, before))
             return preparation_failed("check session directory access as the local account");
@@ -484,18 +604,9 @@ struct RecipeNamespace {
         if (before >= 0) return true;
         if (before != denied) { SetLastError(ERROR_INVALID_HANDLE); return false; }
 
-        const auto opened = open(call, session, READ_CONTROL | WRITE_DAC, directory.value, leaf());
-        if (opened < 0) {
-            std::fprintf(stderr, "Opening this runner's session %s DACL for administration: 0x%08lx\n",
-                         label(), static_cast<unsigned long>(static_cast<DWORD>(opened)));
-            SetLastError(ERROR_ACCESS_DENIED);
-            return false;
-        }
-        if (!read_dacl(original)) return false;
-        BOOL has_dacl = FALSE, defaulted = FALSE;
+        BOOL defaulted = FALSE;
         PACL old = nullptr, updated = nullptr;
-        if (!GetSecurityDescriptorDacl(original.data(), &has_dacl, &old, &defaulted)) return false;
-        if (!has_dacl || !old) { SetLastError(ERROR_INVALID_ACL); return false; }
+        if (!save_dacl(call, session, old, defaulted)) return false;
         EXPLICIT_ACCESSW allow{};
         allow.grfAccessPermissions = access;
         allow.grfAccessMode = GRANT_ACCESS;
@@ -503,10 +614,7 @@ struct RecipeNamespace {
         BuildTrusteeWithSidW(&allow.Trustee, account);
         const auto result = SetEntriesInAclW(1, &allow, old, &updated);
         if (result != ERROR_SUCCESS) { SetLastError(result); return false; }
-        SECURITY_DESCRIPTOR descriptor{};
-        changed = InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) &&
-            SetSecurityDescriptorDacl(&descriptor, TRUE, updated, defaulted) &&
-            SetKernelObjectSecurity(directory.value, DACL_SECURITY_INFORMATION, &descriptor);
+        apply_dacl(updated, defaulted);
         const auto update_error = changed ? ERROR_SUCCESS : GetLastError();
         LocalFree(updated);
         if (!changed) { SetLastError(update_error); return false; }
@@ -521,7 +629,7 @@ struct RecipeNamespace {
     }
 };
 
-NamespaceObservation observe_namespace(DWORD session) {
+NamespaceObservation observe_namespace(DWORD session, bool check_logon) {
     NamespaceObservation result;
     const auto open = RecipeNamespace::api();
     if (open && session && session != UINT32_MAX) {
@@ -537,6 +645,13 @@ NamespaceObservation observe_namespace(DWORD session) {
                     static_cast<unsigned long>(static_cast<DWORD>(result.minimum)),
                     static_cast<unsigned long>(static_cast<DWORD>(result.with_subdirectory)),
                     static_cast<unsigned long>(static_cast<DWORD>(lowbox_read)));
+        if (check_logon) {
+            const auto logon = check(RecipeNamespace::normal_logon_rights);
+            result.normal_logon_access = logon >= 0;
+            std::printf("Actual disposable logon: BaseNamedObjects mask=0x%08lx ntstatus=0x%08lx\n",
+                        static_cast<unsigned long>(RecipeNamespace::normal_logon_rights),
+                        static_cast<unsigned long>(static_cast<DWORD>(logon)));
+        }
     }
     // Fresh unrelated names, no ownership or waiting. Close each handle before
     // doing anything else, so the recipe never touches an existing browser object.
@@ -679,10 +794,7 @@ void observe_appcontainer_links(DWORD session) {
 bool observe_lowbox_creation(DWORD session) {
     // Use Chromium's kernelbase entry point, but no Edge package identifier,
     // capability, registration, impersonation or child is created here.
-    wchar_t user[64]{};
-    DWORD length = 64;
-    if (!GetUserNameW(user, &length) || length != 20 || std::wcsncmp(user, L"nvrecipe-", 9) != 0)
-        return false;
+    if (!disposable_recipe_account()) return false;
     using CreateLowbox = BOOL (WINAPI*)(HANDLE, PSECURITY_CAPABILITIES, PHANDLE);
     const auto module = GetModuleHandleW(L"kernelbase.dll");
     const auto call = module ? GetProcAddress(module, "CreateAppContainerToken") : nullptr;
@@ -1271,8 +1383,6 @@ bool stage_directory(const wchar_t* directory) {
     return normal_directory(public_directory) && normal_directory(path) && normal_directory(path + L"\\out");
 }
 
-// The filtered arm only compares identities. It does not create a logon,
-// write a namespace ACL, enable token privileges or load/delete a profile.
 bool token_part(HANDLE token, TOKEN_INFORMATION_CLASS kind, std::vector<BYTE>& value) {
     DWORD size = 0;
     GetTokenInformation(token, kind, nullptr, 0, &size);
@@ -1281,6 +1391,8 @@ bool token_part(HANDLE token, TOKEN_INFORMATION_CLASS kind, std::vector<BYTE>& v
     return GetTokenInformation(token, kind, value.data(), size, &size);
 }
 
+// The filtered arm only compares identities. It does not create a logon,
+// write a namespace ACL, enable token privileges or load/delete a profile.
 struct FilteredIdentity {
     std::vector<BYTE> user, logon;
     LUID auth{};
@@ -1647,6 +1759,11 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
         std::fputs("The standard recipe needs a fresh private staging directory.\n", stderr);
         return 1;
     }
+    const bool edge_broker = edge_access && std::wcscmp(arguments, L"--edge-namespace-control") != 0;
+    if (edge_broker && edge_owns_jobs) {
+        std::fputs("The logon namespace comparison requires the enclosing recipe job.\n", stderr);
+        return 1;
+    }
     // Declare cleanup in reverse order: stop processes, restore desktop ACLs,
     // then remove the isolated profile and account.
     RecipeAccount account;
@@ -1673,7 +1790,6 @@ int launch_standard(const wchar_t* executable, const wchar_t* arguments, const w
         if (!job.value || !SetInformationJobObject(job.value, JobObjectExtendedLimitInformation, &limits, sizeof(limits)))
             return failure("SetInformationJobObject");
     }
-    const bool edge_broker = edge_access && std::wcscmp(arguments, L"--edge-namespace-control") != 0;
     if (!desktop.start(account.token.value, account.sid(), edge_broker))
         return failure("Prepare temporary Windows input desktop");
     STARTUPINFOW startup{};

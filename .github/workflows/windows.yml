@@ -145,10 +145,6 @@ jobs:
         if: ${{ !cancelled() }}
         shell: powershell
         run: ./app/windows/external_interactive_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-external-tests/external-target-test.exe" -Case Edge
-      - name: Comparer Edge sous le jeton filtré et le bureau corrigé
-        if: ${{ !cancelled() }}
-        shell: powershell
-        run: ./app/windows/external_interactive_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-external-tests/external-target-test.exe" -Case EdgeFiltered
   release:
     needs: [windows, external]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release 0.4.0]')
