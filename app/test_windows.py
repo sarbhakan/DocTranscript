@@ -186,6 +186,7 @@ def main():
         targets.append(target('external-user32-fixture.exe', [WIN / 'external_user32_fixture.cpp'],
                               libraries=['user32']))
         external_probe = target('external-target-test.exe', [WIN / 'external_target.cpp', WIN / 'external_target_test.cpp'],
+                                defines=['NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS'],
                                 libraries=['user32', 'advapi32', 'ole32', 'oleaut32', 'uuid',
                                            'bcrypt', 'netapi32', 'userenv', 'wtsapi32'], wide_main=True)
         targets.append(external_probe)

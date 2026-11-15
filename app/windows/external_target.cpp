@@ -21,6 +21,9 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#ifdef NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS
+#include <cstdio>
+#endif
 
 #include "notes.h"
 #include "worker_protocol.h"
@@ -35,6 +38,28 @@ constexpr DWORD kNoGui = GUI_INMOVESIZE | GUI_INMENUMODE | GUI_SYSTEMMENUMODE | 
 // A closing UI never joins an external COM provider. Limit outstanding lanes
 // even if a provider or a COM teardown overruns its configured timeout.
 std::atomic<unsigned> lanes{0};
+
+// The console recipe records only fixed guard labels and numeric status.
+// No application, element, path, identifier, or transcription is logged.
+inline bool veto(const char* guard, unsigned long status = 0) noexcept {
+#ifdef NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS
+    std::fprintf(stderr, "NoteVive external guard %s status=0x%08lx\n", guard, status);
+#else
+    (void)guard;
+    (void)status;
+#endif
+    return false;
+}
+inline bool com_ok(const char* guard, HRESULT status) noexcept {
+    return SUCCEEDED(status) || veto(guard, static_cast<unsigned long>(status));
+}
+inline bool win32_veto(const char* guard) noexcept {
+#ifdef NOTEVIVE_EXTERNAL_TEST_DIAGNOSTICS
+    return veto(guard, GetLastError());
+#else
+    return veto(guard);
+#endif
+}
 
 struct Handle {
     HANDLE value = nullptr;
@@ -84,17 +109,22 @@ struct Focus {
 };
 bool focused(Focus& f) {
     const HWND foreground = GetForegroundWindow();
-    if (!foreground || !IsWindowVisible(foreground) || !IsWindowEnabled(foreground)) return false;
+    if (!foreground) return veto("focus.foreground_missing");
+    if (!IsWindowVisible(foreground) || !IsWindowEnabled(foreground)) return veto("focus.foreground_hidden_or_disabled");
     DWORD pid = 0, field_pid = 0;
     const DWORD tid = GetWindowThreadProcessId(foreground, &pid);
     GUITHREADINFO gui{};
     gui.cbSize = sizeof(gui);
-    if (!tid || !pid || !GetGUIThreadInfo(tid, &gui) || !gui.hwndFocus ||
-        (gui.flags & kNoGui) || gui.hwndActive != foreground ||
-        GetAncestor(gui.hwndFocus, GA_ROOT) != foreground ||
-        GetWindowThreadProcessId(gui.hwndFocus, &field_pid) != tid || field_pid != pid ||
-        !IsWindowVisible(gui.hwndFocus) || !IsWindowEnabled(gui.hwndFocus) ||
-        GetForegroundWindow() != foreground) return false;
+    if (!tid || !pid) return veto("focus.foreground_owner");
+    if (!GetGUIThreadInfo(tid, &gui)) return win32_veto("focus.thread_info");
+    if (!gui.hwndFocus) return veto("focus.field_missing");
+    if (gui.flags & kNoGui) return veto("focus.gui_mode", gui.flags & kNoGui);
+    if (gui.hwndActive != foreground) return veto("focus.active_mismatch");
+    if (GetAncestor(gui.hwndFocus, GA_ROOT) != foreground) return veto("focus.field_root_mismatch");
+    if (GetWindowThreadProcessId(gui.hwndFocus, &field_pid) != tid || field_pid != pid)
+        return veto("focus.field_owner_mismatch");
+    if (!IsWindowVisible(gui.hwndFocus) || !IsWindowEnabled(gui.hwndFocus)) return veto("focus.field_hidden_or_disabled");
+    if (GetForegroundWindow() != foreground) return veto("focus.foreground_changed");
     f = {foreground, gui.hwndFocus, pid, tid};
     return true;
 }
@@ -105,13 +135,14 @@ bool stable(const Focus& f) {
 }
 bool on_input_desktop() {
     auto input = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
-    if (!input) return false;
+    if (!input) return win32_veto("desktop.input_open");
     auto thread = GetThreadDesktop(GetCurrentThreadId());
     wchar_t a[256]{}, b[256]{};
     DWORD needed = 0;
-    const bool same = thread &&
-        GetUserObjectInformationW(input, UOI_NAME, a, sizeof(a), &needed) &&
-        GetUserObjectInformationW(thread, UOI_NAME, b, sizeof(b), &needed) && std::wcscmp(a, b) == 0;
+    const bool same = (thread || veto("desktop.thread_missing")) &&
+        (GetUserObjectInformationW(input, UOI_NAME, a, sizeof(a), &needed) || win32_veto("desktop.input_query")) &&
+        (GetUserObjectInformationW(thread, UOI_NAME, b, sizeof(b), &needed) || win32_veto("desktop.thread_query")) &&
+        (std::wcscmp(a, b) == 0 || veto("desktop.not_input"));
     CloseDesktop(input);
     return same;
 }
@@ -179,7 +210,11 @@ bool non_password(IUIAutomationElement* element, CONTROLTYPEID type) {
     const bool explicit_value = SUCCEEDED(hr) && password.vt == VT_BOOL;
     const bool allowed = explicit_value && password.boolVal == VARIANT_FALSE;
     VariantClear(&password);
-    if (explicit_value || type != UIA_DocumentControlTypeId || FAILED(hr)) return allowed;
+    if (explicit_value || type != UIA_DocumentControlTypeId || FAILED(hr)) {
+        if (allowed) return true;
+        return veto(explicit_value ? "uia.password_flag_true" : "uia.password_flag_unverified",
+                    static_cast<unsigned long>(hr));
+    }
     // Document providers need not implement edit-specific IsPassword.
     // Require a recognised MSAA state via UIA when that flag is absent.
     VARIANT state{};
@@ -187,18 +222,21 @@ bool non_password(IUIAutomationElement* element, CONTROLTYPEID type) {
     const bool legacy_allowed = SUCCEEDED(state_hr) && state.vt == VT_I4 &&
         !(state.lVal & (STATE_SYSTEM_PROTECTED | STATE_SYSTEM_READONLY | STATE_SYSTEM_UNAVAILABLE));
     VariantClear(&state);
-    return legacy_allowed;
+    return legacy_allowed || veto("uia.legacy_password_state_unverified", static_cast<unsigned long>(state_hr));
 }
 bool runtime_id(IUIAutomationElement* element, std::vector<LONG>& id) {
     SAFEARRAY* array = nullptr;
     const HRESULT hr = element->GetRuntimeId(&array);
-    if (!array) return false;
+    if (!array) return veto("uia.runtime_id_missing", static_cast<unsigned long>(hr));
     LONG lo = 0, hi = 0;
     LONG* data = nullptr;
-    const bool valid = SUCCEEDED(hr) && SafeArrayGetDim(array) == 1 &&
-        SafeArrayGetElemsize(array) == sizeof(LONG) && SUCCEEDED(SafeArrayGetLBound(array, 1, &lo)) &&
-        SUCCEEDED(SafeArrayGetUBound(array, 1, &hi)) && hi >= lo &&
-        static_cast<std::int64_t>(hi) - lo < 64 && SUCCEEDED(SafeArrayAccessData(array, reinterpret_cast<void**>(&data)));
+    const bool valid = com_ok("uia.runtime_id_query", hr) &&
+        (SafeArrayGetDim(array) == 1 || veto("uia.runtime_id_dimension")) &&
+        (SafeArrayGetElemsize(array) == sizeof(LONG) || veto("uia.runtime_id_element_size")) &&
+        com_ok("uia.runtime_id_lower_bound", SafeArrayGetLBound(array, 1, &lo)) &&
+        com_ok("uia.runtime_id_upper_bound", SafeArrayGetUBound(array, 1, &hi)) &&
+        ((hi >= lo && static_cast<std::int64_t>(hi) - lo < 64) || veto("uia.runtime_id_bounds")) &&
+        com_ok("uia.runtime_id_array_access", SafeArrayAccessData(array, reinterpret_cast<void**>(&data)));
     if (valid) {
         id.assign(data, data + (hi - lo + 1));
         SafeArrayUnaccessData(array);
@@ -209,22 +247,32 @@ bool runtime_id(IUIAutomationElement* element, std::vector<LONG>& id) {
 bool writable_caret(IUIAutomationElement* element) {
     // No Value/Text is fetched: both APIs below return only editability and
     // range endpoints. Refuse if the provider cannot rule out a selection.
-    if (property_bool(element, UIA_ValueIsReadOnlyPropertyId, true)) return false;
+    if (property_bool(element, UIA_ValueIsReadOnlyPropertyId, true)) return veto("uia.value_read_only");
     ComPtr<IUIAutomationTextPattern> text;
-    if (FAILED(element->GetCurrentPatternAs(UIA_TextPatternId, __uuidof(IUIAutomationTextPattern),
-                                            reinterpret_cast<void**>(text.out()))) || !text) return false;
+    if (!com_ok("uia.text_pattern_query", element->GetCurrentPatternAs(UIA_TextPatternId,
+                __uuidof(IUIAutomationTextPattern), reinterpret_cast<void**>(text.out())))) return false;
+    if (!text) return veto("uia.text_pattern_missing");
     ComPtr<IUIAutomationTextRangeArray> ranges;
-    if (FAILED(text->GetSelection(ranges.out())) || !ranges) return false;
+    if (!com_ok("uia.selection_query", text->GetSelection(ranges.out()))) return false;
+    if (!ranges) return veto("uia.selection_missing");
     int length = 0, compare = 0;
     ComPtr<IUIAutomationTextRange> range;
-    if (FAILED(ranges->get_Length(&length)) || length != 1 ||
-        FAILED(ranges->GetElement(0, range.out())) || !range ||
-        FAILED(range->CompareEndpoints(TextPatternRangeEndpoint_Start, range.value,
-                                       TextPatternRangeEndpoint_End, &compare)) || compare != 0) return false;
+    if (!com_ok("uia.selection_length_query", ranges->get_Length(&length))) return false;
+    if (length != 1) return veto("uia.selection_not_single");
+    if (!com_ok("uia.selection_range_query", ranges->GetElement(0, range.out()))) return false;
+    if (!range) return veto("uia.selection_range_missing");
+    if (!com_ok("uia.selection_endpoint_query", range->CompareEndpoints(TextPatternRangeEndpoint_Start, range.value,
+                                                                       TextPatternRangeEndpoint_End, &compare))) return false;
+    if (compare != 0) return veto("uia.selection_not_collapsed");
     VARIANT read_only{};
     const HRESULT hr = range->GetAttributeValue(UIA_IsReadOnlyAttributeId, &read_only);
     // Accept only a definite Boolean, never a mixed/unsupported value.
     const bool writeable = SUCCEEDED(hr) && read_only.vt == VT_BOOL && read_only.boolVal == VARIANT_FALSE;
+    if (!writeable) {
+        if (FAILED(hr)) veto("uia.read_only_attribute_query", static_cast<unsigned long>(hr));
+        else if (read_only.vt != VT_BOOL) veto("uia.read_only_attribute_not_bool");
+        else veto("uia.read_only_attribute_not_false");
+    }
     VariantClear(&read_only);
     return writeable;
 }
@@ -249,18 +297,26 @@ bool within_document(IUIAutomation2* uia, IUIAutomationElement* field, HWND fore
 }
 Result inspect_uia(IUIAutomation2* uia, const Focus& f, bool browser, std::vector<LONG>& id) {
     ComPtr<IUIAutomationElement> element;
-    if (FAILED(uia->GetFocusedElement(element.out())) || !element) return Result::unsupported;
+    if (!com_ok("uia.focused_element_query", uia->GetFocusedElement(element.out()))) return Result::unsupported;
+    if (!element) { veto("uia.focused_element_missing"); return Result::unsupported; }
     int pid = 0;
     CONTROLTYPEID type = 0;
     BOOL enabled = FALSE, has_focus = FALSE;
-    if (FAILED(element->get_CurrentProcessId(&pid)) || static_cast<DWORD>(pid) != f.pid ||
-        FAILED(element->get_CurrentControlType(&type)) ||
-        (type != UIA_EditControlTypeId && type != UIA_DocumentControlTypeId) ||
-        FAILED(element->get_CurrentIsEnabled(&enabled)) || !enabled ||
-        FAILED(element->get_CurrentHasKeyboardFocus(&has_focus)) || !has_focus) return Result::unsupported;
+    if (!com_ok("uia.element_process_query", element->get_CurrentProcessId(&pid))) return Result::unsupported;
+    if (static_cast<DWORD>(pid) != f.pid) { veto("uia.element_process_mismatch"); return Result::unsupported; }
+    if (!com_ok("uia.element_control_type_query", element->get_CurrentControlType(&type))) return Result::unsupported;
+    if (type != UIA_EditControlTypeId && type != UIA_DocumentControlTypeId) {
+        veto("uia.element_not_editor"); return Result::unsupported;
+    }
+    if (!com_ok("uia.element_enabled_query", element->get_CurrentIsEnabled(&enabled))) return Result::unsupported;
+    if (!enabled) { veto("uia.element_disabled"); return Result::unsupported; }
+    if (!com_ok("uia.element_has_focus_query", element->get_CurrentHasKeyboardFocus(&has_focus))) return Result::unsupported;
+    if (!has_focus) { veto("uia.element_has_no_keyboard_focus"); return Result::unsupported; }
     if (!non_password(element.value, type)) return Result::protected_field;
-    if (browser && type == UIA_EditControlTypeId && !within_document(uia, element.value, f.foreground))
+    if (browser && type == UIA_EditControlTypeId && !within_document(uia, element.value, f.foreground)) {
+        veto("uia.browser_editor_outside_document");
         return Result::unsupported;
+    }
     return runtime_id(element.value, id) && writable_caret(element.value) ? Result::ready : Result::unsupported;
 }
 
@@ -309,12 +365,15 @@ struct UiaSession {
     bool listening = false;
     bool start() {
         apartment = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        if (FAILED(apartment) || FAILED(CoCreateInstance(__uuidof(CUIAutomation8), nullptr, CLSCTX_INPROC_SERVER,
-                        __uuidof(IUIAutomation2), reinterpret_cast<void**>(&uia))) || !uia ||
-            FAILED(uia->put_ConnectionTimeout(kProviderMs)) || FAILED(uia->put_TransactionTimeout(kProviderMs)) ||
-            FAILED(uia->put_AutoSetFocus(FALSE))) return false;
+        if (!com_ok("uia.com_initialization", apartment)) return false;
+        if (!com_ok("uia.com_creation", CoCreateInstance(__uuidof(CUIAutomation8), nullptr, CLSCTX_INPROC_SERVER,
+                        __uuidof(IUIAutomation2), reinterpret_cast<void**>(&uia)))) return false;
+        if (!uia) return veto("uia.com_interface_missing");
+        if (!com_ok("uia.connection_timeout_setting", uia->put_ConnectionTimeout(kProviderMs)) ||
+            !com_ok("uia.transaction_timeout_setting", uia->put_TransactionTimeout(kProviderMs)) ||
+            !com_ok("uia.auto_focus_setting", uia->put_AutoSetFocus(FALSE))) return false;
         events = new FocusEvents;
-        listening = SUCCEEDED(uia->AddFocusChangedEventHandler(nullptr, events));
+        listening = com_ok("uia.focus_event_subscription", uia->AddFocusChangedEventHandler(nullptr, events));
         return listening;
     }
     ~UiaSession() {
@@ -560,13 +619,18 @@ void CALLBACK Target::on_event(HWINEVENTHOOK hook, DWORD event, HWND window,
 Result Target::capture(HWND owner, HWND expected_foreground, DWORD expected_pid) {
     reset();
     Focus focus;
-    if (!owner || monitoring_ ||
-        !on_input_desktop() || !focused(focus) || focus.pid == GetCurrentProcessId() ||
-        focus.foreground == owner || (expected_foreground && focus.foreground != expected_foreground) ||
-        (expected_pid && focus.pid != expected_pid)) return Result::unsupported;
+    if (!owner || monitoring_) { veto("capture.owner_or_monitor"); return Result::unsupported; }
+    if (!on_input_desktop() || !focused(focus)) return Result::unsupported;
+    if (focus.pid == GetCurrentProcessId() || focus.foreground == owner) {
+        veto("capture.own_window"); return Result::unsupported;
+    }
+    if ((expected_foreground && focus.foreground != expected_foreground) ||
+        (expected_pid && focus.pid != expected_pid)) {
+        veto("capture.expected_target_mismatch"); return Result::unsupported;
+    }
     std::shared_ptr<State> state;
     try { state = std::make_shared<State>(focus); }
-    catch (...) { return Result::unsupported; }
+    catch (...) { veto("capture.state_creation"); return Result::unsupported; }
     state_ = state;
     monitoring_ = this;
     foreground_hook_ = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr,
@@ -574,10 +638,12 @@ Result Target::capture(HWND owner, HWND expected_foreground, DWORD expected_pid)
     focus_hook_ = SetWinEventHook(EVENT_OBJECT_FOCUS, EVENT_OBJECT_FOCUS, nullptr,
                                    on_event, 0, 0, WINEVENT_OUTOFCONTEXT);
     if (!foreground_hook_ || !focus_hook_ || !stable(focus)) {
+        veto(!foreground_hook_ ? "capture.foreground_hook" : !focus_hook_ ? "capture.focus_hook" : "capture.focus_not_stable");
         reset();
         return Result::unsupported;
     }
     if (lanes.fetch_add(1) != 0) {
+        veto("capture.worker_busy");
         --lanes;
         reset();
         return Result::unsupported;
@@ -585,10 +651,11 @@ Result Target::capture(HWND owner, HWND expected_foreground, DWORD expected_pid)
     try {
         std::thread([state] {
             try { state->run(); }
-            catch (...) { state->fail(Result::unsupported); }
+            catch (...) { veto("capture.worker_exception"); state->fail(Result::unsupported); }
             --lanes;
         }).detach();
     } catch (...) {
+        veto("capture.worker_creation");
         --lanes;
         reset();
         return Result::unsupported;
@@ -611,7 +678,10 @@ Result Target::check() {
                          now > state_->queue.front().queued_at + kQueueMs))
                     overdue = Result::delivery_uncertain;
             }
-            if (overdue != Result::inactive) state_->fail(overdue);
+            if (overdue != Result::inactive) {
+                if (overdue == Result::unsupported) veto("capture.deadline");
+                state_->fail(overdue);
+            }
         }
     }
     std::lock_guard lock(state_->mutex);

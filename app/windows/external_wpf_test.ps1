@@ -124,12 +124,13 @@ try {
 
 $ProbeExe = (Resolve-Path -LiteralPath $ProbeExe).Path
 $clock = [Diagnostics.Stopwatch]::StartNew()
-function Start-WpfChild([string]$File, [string]$Arguments) {
+function Start-WpfChild([string]$File, [string]$Arguments, [switch]$CaptureGuards) {
     $info = [Diagnostics.ProcessStartInfo]::new($File, $Arguments)
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardInput = $true
+    $info.RedirectStandardError = $CaptureGuards.IsPresent
     return [Diagnostics.Process]::Start($info)
 }
 function Remaining-WpfTime([int]$Cap) { return [Math]::Max(0, [Math]::Min($Cap, 65000 - [int]$clock.ElapsedMilliseconds)) }
@@ -159,23 +160,34 @@ function Assert-WpfText([string]$First, [string]$Second, [string]$Step, [switch]
     } while ($WaitForText -and $wait.ElapsedMilliseconds -lt 2500)
     throw "The fictitious WPF text was incorrect at $Step."
 }
-function Stop-WpfChild([Diagnostics.Process]$Child) {
+function Stop-WpfChild([Diagnostics.Process]$Child, $GuardTask) {
     if (-not $Child) { return }
     try {
         if (-not $Child.HasExited) {
             $Child.Kill()
             Assert-Wpf ($Child.WaitForExit(1500)) 'A WPF recipe child did not stop at cleanup.'
         }
+        if ($GuardTask) {
+            try {
+                if ($GuardTask.Wait(1000)) {
+                    $GuardTask.Result -split '\r?\n' |
+                        Where-Object { $_ -cmatch '^NoteVive external guard [a-z0-9_.]+ status=0x[0-9a-f]{8}$' } |
+                        Select-Object -First 24
+                }
+            } catch { Write-Output 'WPF guard diagnostics could not be collected.' }
+        }
     } finally { $Child.Dispose() }
 }
 
 $fixtureProcess = $null
 $probe = $null
+$guardTask = $null
 try {
     $powerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $fixtureProcess = Start-WpfChild $powerShell ('-NoProfile -NonInteractive -STA -File "{0}" -Fixture' -f $PSCommandPath)
     Require-WpfReply $fixtureProcess '' 'WPF'
-    $probe = Start-WpfChild $ProbeExe "--edge-probe $($fixtureProcess.Id)"
+    $probe = Start-WpfChild $ProbeExe "--edge-probe $($fixtureProcess.Id)" -CaptureGuards
+    $guardTask = $probe.StandardError.ReadToEndAsync()
     Require-WpfReply $probe '' 'OK'
     Assert-WpfText 'ab' 'cd' 'start'
     $unicode = [string][char]0xe9 + ' ' + [char]0xbd
@@ -210,5 +222,5 @@ try {
     Assert-Wpf ($fixtureProcess.WaitForExit((Remaining-WpfTime 4000)) -and $fixtureProcess.ExitCode -eq 0) 'The WPF fixture did not shut down cleanly.'
     Write-Output 'WPF UI Automation / SendInput: exact Unicode, unrelated fields, focus invalidation, selection and protected fields passed.'
 } finally {
-    try { Stop-WpfChild $probe } finally { Stop-WpfChild $fixtureProcess }
+    try { Stop-WpfChild $probe $guardTask } finally { Stop-WpfChild $fixtureProcess }
 }

@@ -45,7 +45,7 @@ La dictée Windows exige un processeur compatible **AVX2** et ses extensions ass
 
 Le [guide d’utilisation](docs/guide-essai-windows.md#organiser-les-notes) détaille ces gestes. Les notes sont sauvegardées séparément du dossier de l’application et chiffrées pour le compte Windows courant. Aucun enregistrement audio n’est conservé.
 
-Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez uniquement un document ou un champ fictif. La compatibilité dépend du champ et la destination peut synchroniser ce qu’elle reçoit. Gardez le curseur dans le même champ et vérifiez le résultat après l’envoi. Le texte copié reste lisible par les applications locales qui ont accès au presse-papiers. **F9** continue d’agir dans la fenêtre NoteVive ; **Vocabulaire** reste un catalogue de consultation. Les fonctions du prototype Mac peuvent différer.
+Pour la [dictée vers Word ou le navigateur](docs/dictee-externe.md), utilisez uniquement un document ou un champ fictif. **Edge et Word restent à qualifier sur un poste Windows réel.** Si le champ est refusé, dictez dans NoteVive puis utilisez **Copier le texte** après relecture. La compatibilité dépend du champ et la destination peut synchroniser ce qu’elle reçoit. Gardez le curseur dans le même champ et vérifiez le résultat après l’envoi. Le texte copié reste lisible par les applications locales qui ont accès au presse-papiers. **F9** continue d’agir dans la fenêtre NoteVive ; **Vocabulaire** reste un catalogue de consultation. Les fonctions du prototype Mac peuvent différer.
 
 ## Ce qui change dans cet essai
 

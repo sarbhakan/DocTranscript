@@ -5,6 +5,11 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      diagnostic_edge:
+        description: 'Rejouer la recette Edge stricte sur le serveur CI (blocage de session documenté)'
+        type: boolean
+        required: false
+        default: false
       compare_ct2:
         description: 'Comparer le moteur candidat à CTranslate2 et aux deux dictées Corti (banc, hors paquet)'
         type: boolean
@@ -141,8 +146,8 @@ jobs:
           python-version: '3.12'
       - name: Tester les champs Win32 avec les protections de production
         run: python -m app.test_windows --compiler msvc --external-only --output "$env:RUNNER_TEMP/NoteVive-external-tests"
-      - name: Tester la saisie Unicode dans Edge sur une page locale fictive
-        if: ${{ !cancelled() }}
+      - name: Diagnostic Edge strict — compatibilité navigateur non qualifiée
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.diagnostic_edge }}
         shell: powershell
         run: ./app/windows/external_interactive_test.ps1 -ProbeExe "$env:RUNNER_TEMP/NoteVive-external-tests/external-target-test.exe" -Case Edge
       - name: Tester UI Automation et les frappes Unicode dans WPF
